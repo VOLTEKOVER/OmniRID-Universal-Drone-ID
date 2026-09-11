@@ -5,14 +5,19 @@
 # the esp32-build workflow). The host workspace build/test/clippy steps run
 # against the stable toolchain in `OmniRID/` and are unaffected by this file.
 
+# The linker scripts (-Tesp32.ld etc.) and all other C linker flags are
+# provided by esp-idf-sys through its propagated LinkArgs. Adding them
+# here would cause duplicate / not-found flags since the cmake-generated
+# scripts live under the build directory, not the project root.
+
 [target.xtensa-esp32-espidf]
 linker = "ldproxy"
-rustflags = [ "--cfg", "espidf_time64", "-C", "link-arg=-Tesp32.ld" ]
+rustflags = [ "--cfg", "espidf_time64" ]
 
 [target.xtensa-esp32s3-espidf]
 linker = "ldproxy"
-rustflags = [ "--cfg", "espidf_time64", "-C", "link-arg=-Tesp32s3.ld" ]
+rustflags = [ "--cfg", "espidf_time64" ]
 
 [target.riscv32imac-esp-espidf]
 linker = "ldproxy"
-rustflags = [ "--cfg", "espidf_time64", "-C", "link-arg=-Tesp32c6.ld" ]
+rustflags = [ "--cfg", "espidf_time64" ]

@@ -55,18 +55,15 @@ jobs:
           - chip: esp32
             feature: esp32
             target: xtensa-esp32-espidf
-            espup_targets: esp32
-            espup_riscv: "false"
+            toolchain: esp
           - chip: esp32s3
             feature: esp32s3
             target: xtensa-esp32s3-espidf
-            espup_targets: esp32s3
-            espup_riscv: "false"
+            toolchain: esp
           - chip: esp32c6
             feature: esp32c6
             target: riscv32imac-esp-espidf
-            espup_targets: esp32c6
-            espup_riscv: "true"
+            toolchain: nightly
 
     defaults:
       run:
@@ -76,27 +73,58 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Setup Rust (stable)
+      # The *-espidf std targets are never precompiled: their standard library
+      # is rebuilt from the rust-src component on every run.
+      # - Xtensa chips (esp32, esp32s3) build under the Espressif Rust fork
+      #   ("esp" toolchain), installed via esp-rs/xtensa-toolchain which also
+      #   installs a matching `ldproxy` release.
+      # - RISC-V (esp32c6) builds under `nightly` + rust-src (upstream).
+      - name: Setup Rust (Xtensa)
+        if: matrix.toolchain == 'esp'
+        uses: esp-rs/xtensa-toolchain@ec6d36527049a7f4fb2cb0c1a644668c1bb8a2a4
+        with:
+          default: "true"
+          buildtargets: ${{ matrix.chip }}
+          ldproxy: "true"
+
+      - name: Setup Rust (RISC-V nightly)
+        if: matrix.toolchain == 'nightly'
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: nightly
+          components: rust-src
 
-      - name: Install espup
-        run: cargo install espup
-
-      - name: Install ldproxy
-        run: cargo install ldproxy
-
-      - name: Install ESP-IDF Rust ecosystem
+      - name: Install ldproxy (prebuilt)
+        if: matrix.toolchain == 'nightly'
         run: |
-          RISCV=""
-          if [[ "${{ matrix.espup_riscv }}" == "true" ]]; then
-            RISCV="-r"
-          fi
-          espup install --targets "${{ matrix.espup_targets }}" $RISCV
+          curl -L https://github.com/esp-rs/embuild/releases/latest/download/ldproxy-x86_64-unknown-linux-gnu.zip -o "$HOME/.cargo/bin/ldproxy.zip"
+          unzip "$HOME/.cargo/bin/ldproxy.zip" -d "$HOME/.cargo/bin/"
+          chmod a+x "$HOME/.cargo/bin/ldproxy"
+
+      # opendroneid-sys uses the `cc` crate which needs `riscv32-esp-elf-gcc`
+      # on PATH to compile its C sources.  esp-idf-sys would normally provide
+      # this via its own ESP-IDF build, but it runs in parallel so the gcc
+      # isn't there yet.  Install the riscv gcc toolchain via espup so it is
+      # available from the start.  We source export-esp.sh to put gcc on
+      # PATH but immediately unset IDF_PATH so esp-idf-sys still builds its
+      # own IDF (the native cargo-driver path that emits --ldproxy-linker).
+      - name: Install RISC-V GCC toolchain (c6 only)
+        if: matrix.toolchain == 'nightly'
+        run: |
+          cargo install espup
+          espup install --targets esp32c6 -r
+          source "$HOME/export-esp.sh"
+          echo "$PATH" >> "$GITHUB_PATH"
+          unset IDF_PATH
+          # espup creates a broken custom 'esp' toolchain (no rustc)
+          # that confuses Swatinem/rust-cache auto-detection. Reset
+          # the default to nightly so rust-cache finds a usable toolchain.
+          rustup default nightly
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
-          workspaces: OmniRID
+          workspaces: OmniRID/hardware/bsp-esp32
           key: ${{ matrix.chip }}
 
       - name: Cache ESP-IDF SDK
@@ -106,29 +134,26 @@ jobs:
           path: |
             ~/.espressif
             ~/esp-idf
-          key: esp-idf-${{ matrix.chip }}-${{ hashFiles('OmniRID/hardware/bsp-esp32/Cargo.toml') }}
+          key: esp-idf-${{ matrix.chip }}-v2-${{ hashFiles('OmniRID/hardware/bsp-esp32/Cargo.toml') }}
           restore-keys: |
-            esp-idf-${{ runner.os }}-
-            esp-idf-${{ runner.os }}-
+            esp-idf-${{ matrix.chip }}-v2-
 
       - name: Cross-build bsp-esp32 for ${{ matrix.chip }}
         shell: bash
         working-directory: OmniRID/hardware/bsp-esp32
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
+          CC_xtensa-esp32-espidf: xtensa-esp32-elf-gcc
+          CC_xtensa-esp32s3-espidf: xtensa-esp32s3-elf-gcc
+          CC_riscv32imac-esp-espidf: riscv32-esp-elf-gcc
         run: |
           set -euo pipefail
-          source "$HOME/export-esp.sh"
-          # The *-espidf std targets are never precompiled: their standard
-          # library is rebuilt from the rust-src component on every run.
-          # Xtensa chips (esp32, esp32s3) build under the Espressif Rust fork
-          # ("esp" toolchain); RISC-V (esp32c6) builds under stable.
-          if [[ "${{ matrix.chip }}" == "esp32c6" ]]; then
-            rustup component add rust-src --toolchain stable
-            RUSTUP_TOOLCHAIN=stable
-          else
-            RUSTUP_TOOLCHAIN=esp
-          fi
+          # IMPORTANT: do NOT source export-esp.sh / do NOT set IDF_PATH here.
+          # If an external ESP-IDF is active, esp-idf-sys reuses it and skips
+          # the native cargo driver, so the `--ldproxy-linker` argument is
+          # never emitted and the final link fails. Letting esp-idf-sys drive
+          # its own ESP-IDF build is what makes it invoke ldproxy correctly.
           export RUSTC_BOOTSTRAP=1
-          export RUSTUP_TOOLCHAIN
           cargo build -Z build-std=std,panic_abort \
             --no-default-features \
             --features "${{ matrix.feature }},hardware" --target "${{ matrix.target }}"

@@ -41,6 +41,13 @@ esp_idf_sdkconfig_defaults = ["sdkconfig.defaults"]
 [patch.crates-io]
 esp-idf-svc = { path = "vendor/esp-idf-svc" }
 
+[build-dependencies]
+# The build script consumes the linker/config metadata propagated by
+# esp-idf-sys through esp-idf-svc/esp-idf-hal (`embuild::espidf::sysenv`).
+# Without it the final binary link loses the `--ldproxy-linker` argument
+# and the `ldproxy` linker fails with "Cannot locate argument".
+embuild = "0.33"
+
 [dependencies]
 rid-app = { path = "../../firmware/rid-app" }
 rid-interface = { path = "../../firmware/rid-interface" }
@@ -49,9 +56,13 @@ out-astm = { path = "../../outputs/out-astm" }
 app = { path = "../../firmware/app" }
 
 # ESP-IDF hardware dependencies (only when the `hardware` feature is active).
-esp-idf-sys = { version = "0.37", features = ["std", "binstart"], optional = true }
-esp-idf-svc = { version = "0.52", features = ["std"], optional = true }
-esp-idf-hal = { version = "0.46", features = ["std"], optional = true }
+# `default-features = false` keeps `binstart` OUT: the firmware defines its own
+# `app_main`, so esp-idf-sys must not generate a second one.  (Without this,
+# defaults enable `binstart` transitively through esp-idf-hal/esp-idf-svc and
+# the link fails with "multiple definition of `app_main`".)
+esp-idf-sys = { version = "0.37", default-features = false, features = ["std"], optional = true }
+esp-idf-svc = { version = "0.52", default-features = false, features = ["std"], optional = true }
+esp-idf-hal = { version = "0.46", default-features = false, features = ["std"], optional = true }
 embedded-svc = { version = "0.29", optional = true }
 spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"], optional = true }
 log = { version = "0.4", optional = true }
