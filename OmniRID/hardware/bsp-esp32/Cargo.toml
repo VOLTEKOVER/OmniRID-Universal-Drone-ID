@@ -41,6 +41,13 @@ esp_idf_sdkconfig_defaults = ["sdkconfig.defaults"]
 [patch.crates-io]
 esp-idf-svc = { path = "vendor/esp-idf-svc" }
 
+[build-dependencies]
+# The build script consumes the linker/config metadata propagated by
+# esp-idf-sys through esp-idf-svc/esp-idf-hal (`embuild::espidf::sysenv`).
+# Without it the final binary link loses the `--ldproxy-linker` argument
+# and the `ldproxy` linker fails with "Cannot locate argument".
+embuild = "0.33"
+
 [dependencies]
 rid-app = { path = "../../firmware/rid-app" }
 rid-interface = { path = "../../firmware/rid-interface" }
