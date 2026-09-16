@@ -7,7 +7,7 @@
 <meta property="og:title" content="OmniRID [BETA] — Open DroneID Transmitter">
 <meta property="og:description" content="Open DroneID transmitter for ESP32 — WiFi Beacon, BLE 4.0/5.0, MAVLink, MSP, NMEA.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/">
+<meta property="og:url" content="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="OmniRID [BETA]">
 <meta name="twitter:description" content="Open DroneID transmitter for ESP32 — WiFi Beacon &amp; BLE.">
@@ -53,7 +53,7 @@
 <a class="nav-link" href="#build">Install</a>
 <a class="nav-link" href="#guide">Quick Start</a>
 <a class="nav-link" href="guide.html">Technical Guide</a>
-<a class="nav-link" href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID" aria-label="GitHub repository">
+<a class="nav-link" href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID" aria-label="GitHub repository">
 <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></svg>
 </a>
 <a class="nav-link" href="config(demo).html">Configurator Live Demo</a>
@@ -73,8 +73,8 @@
 <div class="alert alert-warning text-start" role="alert" style="max-width:640px;margin:0 auto 1rem">&#x26a0; BETA &mdash; v1.0.0-beta &middot; All 21 ESPsquawk fork fixes ported, security hardening complete, FC hardware testing in progress</div>
 <div class="small text-secondary mt-2"><b>Dependencies:</b> <a href="https://github.com/mavlink/c_library_v2" class="text-primary fw-medium">MAVLink c_library_v2</a> Jul 2026 &middot; <a href="https://github.com/opendroneid/core-c" class="text-primary fw-medium">OpenDroneID core-c</a> Protocol v2 &middot; <a href="https://components.espressif.com/components/espressif/cjson" class="text-primary fw-medium">cJSON</a> ^1.7.19 &middot; <a href="https://github.com/espressif/esp-idf" class="text-primary fw-medium">ESP-IDF</a> v6.0.1</div>
 <div class="gh-btns d-flex justify-content-center gap-2 mt-3">
-  <a class="github-button" href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID" data-show-count="true" data-size="large" aria-label="Star VOLTEKOVER/ESP_DRONE_REMOTEID on GitHub">Star</a>
-  <a class="github-button" href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/fork" data-show-count="true" data-size="large" aria-label="Fork VOLTEKOVER/ESP_DRONE_REMOTEID on GitHub">Fork</a>
+  <a class="github-button" href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID" data-show-count="true" data-size="large" aria-label="Star VOLTEKOVER/OmniRID-Universal-Drone-ID on GitHub">Star</a>
+  <a class="github-button" href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/fork" data-show-count="true" data-size="large" aria-label="Fork VOLTEKOVER/OmniRID-Universal-Drone-ID on GitHub">Fork</a>
 </div>
 <div class="d-flex justify-content-center flex-wrap gap-2 align-items-center mt-3">
   <span class="compat-label">Target protocols</span>
@@ -97,7 +97,7 @@
 <div class="release-bar">
 <div class="rl-wrap">
 <div class="text-center py-3">
-  <span class="small text-secondary">&#x1f6a7; Beta release v1.0.0-beta. All 21 ESPsquawk fork fixes ported. Security hardening: cJSON, rate limiting, SHA-256 + Ed25519 OTA verification, rid_security module. 3 ESP32 targets. FC hardware verification in progress. See the <a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/blob/main/todolist/softwarestatus.md">software status</a> for details.</span>
+  <span class="small text-secondary">&#x1f6a7; Beta release v1.0.0-beta. All 21 ESPsquawk fork fixes ported. Security hardening: cJSON, rate limiting, SHA-256 + Ed25519 OTA verification, rid_security module. 3 ESP32 targets. FC hardware verification in progress. See the <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/blob/universal/todolist/softwarestatus.md">software status</a> for details.</span>
 </div>
 </div>
 </div>
@@ -165,13 +165,13 @@
 <h4>What is OmniRID?</h4>
 <p>OmniRID is an open-source firmware being developed to transform any ESP32 microcontroller into a universal Remote ID transmitter targeting <b>ASTM F3411-22a</b> (USA) and <b>ASD-STAN prEN 4709-002</b> (EU) standards. It is designed to read GPS position data from a flight controller via UART and broadcast ASTM-standard Open Drone ID messages over WiFi Beacon (802.11) and Bluetooth Low Energy (BLE 4.0 and BLE 5.0 Coded PHY).</p>
 
-<div class="callout"><strong>&#x26a0; Development Status:</strong> The firmware code is feature-complete for v1.0.0-beta. All 21 ESPsquawk fork security and functionality fixes have been ported. A <b>built-in demo mode</b> simulates a GPS patrol over Rome (Colosseum) so you can test the full config UI, OTA flow, and telemetry dashboard without flight controller hardware. Actual flight controller (FC) hardware verification with MAVLink/MSP/NMEA is ongoing. See the <a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/blob/main/todolist/softwarestatus.md">software status</a> for the complete per-file analysis.</div>
+<div class="callout"><strong>&#x26a0; Development Status:</strong> The firmware code is feature-complete for v1.0.0-beta. All 21 ESPsquawk fork security and functionality fixes have been ported. A <b>built-in demo mode</b> simulates a GPS patrol over Rome (Colosseum) so you can test the full config UI, OTA flow, and telemetry dashboard without flight controller hardware. Actual flight controller (FC) hardware verification with MAVLink/MSP/NMEA is ongoing. See the <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/blob/universal/todolist/softwarestatus.md">software status</a> for the complete per-file analysis.</div>
 
 <h4>Implemented Features</h4>
 <ul>
 <li><b>Triple protocol input:</b> MAVLink (ArduPilot), MSP (Betaflight/iNAV), NMEA 0183 parsers</li>
 <li><b>Automatic protocol detection</b> on boot &mdash; no manual switching needed</li>
-<li><b>Dual radio broadcast:</b> WiFi Beacon (802.11) + WiFi NAN + BLE 4.0 + BLE 5.0 Long Range Coded PHY (dual instances)</li>
+<li><b>Dual radio broadcast:</b> WiFi Beacon (802.11) + WiFi NAN + BLE 4.0 + BLE 5.0 Long Range Coded PHY (S3)</li>
 <li><b>Built-in demo mode</b> &mdash; GPS patrol simulation for testing without FC hardware</li>
 <li><b>Built-in WiFi Access Point</b> with web configuration at 192.168.4.1</li>
 <li><b>Over-the-Air (OTA) updates</b> with client-side SHA-256 + Ed25519 signature verification</li>
@@ -213,7 +213,7 @@
 <tr><td>Radio</td><td>2.4 GHz WiFi + BLE 4.0/5.0</td></tr>
 <tr><td>WiFi Beacon</td><td>IEEE 802.11 b/g/n, 1-13 channels, configurable power 2-20 dBm + WiFi NAN</td></tr>
 <tr><td>BLE 4.0</td><td>Legacy advertising (SCAN_IND), configurable rate 0-5 Hz</td></tr>
-<tr><td>BLE 5.0</td><td>Coded PHY (S=8) long range, 0-5 Hz, S3/C6 only</td></tr>
+<tr><td>BLE 5.0</td><td>Coded PHY (S=8) long range, 0-5 Hz, S3 only (C6 pending)</td></tr>
 <tr><td>Demo mode</td><td>Built-in GPS patrol simulation (Rome Colosseum, 200m radius)</td></tr>
 <tr><td>UART</td><td>UART2 (GPIO16 RX default), baud 9600-921600, configurable TX/RX pins</td></tr>
 <tr><td>Protocols</td><td>MAVLink v1/v2 (ardupilotmega), MSP v1, NMEA 0183, DroneCAN</td></tr>
@@ -356,7 +356,7 @@ GPS TX &rarr; FC RX (unchanged)</pre>
 <tr><th>Feature</th><th>ESP32</th><th>S3</th><th>C6</th></tr>
 <tr><td>WiFi Beacon</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
 <tr><td>BLE 4.0</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
-<tr><td>BLE 5.0 LR</td><td class="n">&#x2717;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
+<tr><td>BLE 5.0 LR</td><td class="n">&#x2717;</td><td class="y">&#x2713;</td><td class="n">&#x2717;</td></tr>
 <tr><td>OTA Updates</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
 <tr><td>USB CDC</td><td class="n">&#x2717;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
 <tr><td>WS2812 LED</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
@@ -417,7 +417,7 @@ GPS TX &rarr; FC RX (unchanged)</pre>
 
 <footer class="text-center py-4 border-top small text-muted">
 <div class="fw-links mb-1">
-<a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID" class="text-secondary">
+<a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID" class="text-secondary">
 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></svg>
 GitHub
 </a>
@@ -426,11 +426,11 @@ GitHub
 <span class="sep text-secondary opacity-50 mx-2">|</span>
 <a href="config(demo).html" class="text-secondary">Configurator Live Demo</a>
 <span class="sep text-secondary opacity-50 mx-2">|</span>
-<a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/releases" class="text-secondary">Releases</a>
+<a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/releases" class="text-secondary">Releases</a>
 <span class="sep text-secondary opacity-50 mx-2">|</span>
-<a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/issues" class="text-secondary">Issues</a>
+<a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/issues" class="text-secondary">Issues</a>
 </div>
-<div class="fw-copy text-secondary">OmniRID v1.0.0-beta &mdash; ASTM F3411-22a Open DroneID (beta) &mdash; <a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/blob/main/LICENSE" class="text-secondary">Apache-2.0 License</a></div>
+<div class="fw-copy text-secondary">OmniRID v1.0.0-beta &mdash; ASTM F3411-22a Open DroneID (beta) &mdash; <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/blob/universal/LICENSE" class="text-secondary">Apache-2.0 License</a></div>
 </footer>
 
 <script>

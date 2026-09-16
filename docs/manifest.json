@@ -1,7 +1,7 @@
 {
   "name": "OmniRID",
   "version": "1.0.0-beta",
-  "home_url": "https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID",
+  "home_url": "https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID",
   "config_url": "http://192.168.4.1",
   "new_install_improv_wait_time": 0,
   "builds": [

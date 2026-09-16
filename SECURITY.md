@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| latest main | Yes |
+| latest universal | Yes |
 | < latest | No |
 
 ## Reporting a Vulnerability
@@ -13,7 +13,7 @@ If you discover a security vulnerability in ESP Remote ID, please report it
 responsibly. **Do not open a public GitHub issue for security vulnerabilities.**
 
 Instead, please email the maintainers or use
-[GitHub's private vulnerability reporting](https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/security/advisories/new).
+[GitHub's private vulnerability reporting](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/security/advisories/new).
 
 ### What to include
 
@@ -36,7 +36,7 @@ This project implements a **WiFi AP + REST API** Remote ID transmitter:
 - **Authentication pages** available via Ed25519 signing (ASTM F3411-22a compliant)
 - **3-tier lock system**: Level 0 (open), Level 1 (Ed25519 signed commands), Level 2 (eFuse permanent)
 - **OTA updates** with SHA-256 integrity + optional Ed25519 signature verification
-- **Key management** — Ed25519 keys stored in NVS (encrypted at rest if flash encryption enabled)
+- **Key management** — Ed25519 keys stored in NVS (flash encryption on the roadmap, see issue #47)
 
 ### Web Configuration
 

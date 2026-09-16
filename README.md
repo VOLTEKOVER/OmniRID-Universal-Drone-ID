@@ -19,7 +19,7 @@
 OmniRID is an **open-source Drone ID transmitter** for ESP32 that turns any flight controller into a standards-compliant Remote ID beacon. It is written in **Rust 🦀**.
 
 - **Input** from any flight controller or direct GPS module: **MAVLink · MSP · NMEA · DroneCAN**
-- **Output** to the Remote ID standards: **ASTM F3411-22a / ASD-STAN prEN 4709-002 / GB 42590-2023**
+- **Output** to the Remote ID standard: **ASTM F3411-22a** (GB 42590-2023 and FRDID encoders on the roadmap, see issue #46)
 - **Broadcast** via **WiFi Beacon + NAN + BLE 4.0/5.0**
 
 <p align="center">
@@ -88,14 +88,14 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 | **WiFi Beacon** | IEEE 802.11 Mgmt | ~100 m (typical) |
 | **WiFi NAN** | Service Discovery | ~100 m |
 | **BLE 4.0** | Legacy advertising | ~50 m |
-| **BLE 5.0** | Coded PHY (S3/C6) | ~200+ m (LR mode) |
+| **BLE 5.0** | Coded PHY (S3) | ~200+ m (LR mode) |
 | **LoRa** | (planned) | ~1000 m |
 
 ### Radio & protocols
 
 | Feature | Details |
 |---|---|
-| **Broadcast** | WiFi Beacon (802.11 mgmt) + WiFi NAN + BLE 4.0 Legacy + BLE 5.0 Long Range (dual instance on S3/C6) |
+| **Broadcast** | WiFi Beacon (802.11 mgmt) + WiFi NAN + BLE 4.0 Legacy + BLE 5.0 Long Range (S3; C6 pending) |
 | **Input protocols** | MAVLink v2 (ArduPilot/PX4), MSP (Betaflight/iNAV), NMEA, DroneCAN/CAN bus — auto-detected |
 | **GPS source** | From flight controller (MAVLink/MSP/NMEA/CAN) or a direct GPS module, with takeoff-location capture |
 | **Position filter** | 1D × 3 Kalman filter (lat/lon/alt) with velocity prediction, 3 s timeout |
@@ -184,7 +184,7 @@ Full BOM & pinout: [`docs/prototype_bom.md`](docs/prototype_bom.md)
 
 ### Online (no toolchain)
 
-Every push to `main` triggers automatic CI for all targets via GitHub Actions (host tests + ESP32 cross-builds). See the [latest builds](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/rid-rust-ci.yml).
+Every push to `universal` triggers automatic CI for all targets via GitHub Actions (host tests + ESP32 cross-builds). See the [latest builds](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/rid-rust-ci.yml).
 
 ### Host build (Linux / macOS / Windows)
 
@@ -267,7 +267,7 @@ OmniRID-Universal-Drone-ID/
 │
 ├── todolist/                     # Status & planning docs
 ├── 3D_FILES/                     # Enclosure/casing 3D models
-├── .github/workflows/            # CI (rid-rust-ci, release, rid-hub-ci, dependabot)
+├── .github/workflows/            # CI (deploy-pages, esp32-build, omnirid-desktop-ci, protocol-updates, release, rid-rust-ci, security-audit)
 │
 ├── SECURITY.md
 ├── LICENSE                       # Apache 2.0
@@ -315,9 +315,9 @@ OmniRID-Universal-Drone-ID/
 
 ### Key storage
 
-- The Ed25519 **private key** is stored in NVS (encrypted at rest if flash encryption is enabled)
+- The Ed25519 **private key** is stored in NVS (plaintext; flash encryption is not yet available, see issue #47)
 - Up to **5 public keys** are supported for command authentication at each lock level
-- Consider enabling `CONFIG_SECURE_FLASH_ENC` on production builds
+- Once flash encryption lands, enable `CONFIG_SECURE_FLASH_ENC` on production builds
 
 ---
 

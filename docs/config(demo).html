@@ -213,7 +213,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 
 <div class="hdr">
 <button class="hdr-menu-btn" id="menu-btn" onclick="toggleMobileMenu()" data-tip="Menu">&#x2630;</button>
-<a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID" target="_blank" class="brand">
+<a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID" target="_blank" class="brand">
 <img src="images/logo_with_text.svg" alt="" style="height:32px;width:auto;flex-shrink:0">
 </a>
 <div class="hdr-chips">
@@ -371,7 +371,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <form id="f1">
 <div class="guide" onclick="toggleGuide(this)">
 <b>Basic ID</b> &mdash; The UAS (Unmanned Aircraft System) ID identifies your drone to receivers in the area, as required by FAA/EASA/ENAC Remote ID regulations. Use a serial number following the ANSI/CTA-2063 format (4-char manufacturer code + length digit + serial) or your CAA registration number. Max 20 characters. The UA Type must match your aircraft category — "None" will be ignored by receivers.
-<a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/#guide-config" target="_blank">Wiki &rarr;</a>
+<a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/#guide-config" target="_blank">Wiki &rarr;</a>
 </div>
 
 <label class="form-label" for="uas_id">UAS ID</label>
@@ -443,7 +443,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <form id="f2">
 <div class="guide" onclick="toggleGuide(this)">
 <b>Tx Modes</b> &mdash; Select which radio technologies to broadcast the Remote ID message on. <b>WiFi Beacon</b> (IEEE 802.11) is the most compatible and recommended. <b>BLE 4.0</b> is widely supported by smartphones. <b>WiFi NAN</b> and <b>BLE 5.0 Coded PHY</b> offer longer range but are experimental. Rates are in Hz (packets per second) — higher rates improve reception but increase airtime usage. Enable at least one mode for the ID to be visible.
-<a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/#guide-config" target="_blank">Wiki &rarr;</a>
+<a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/#guide-config" target="_blank">Wiki &rarr;</a>
 </div>
 
 <label class="form-label">Enabled Channels</label>
@@ -457,7 +457,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <button class="btn-sm" type="button" onclick="setAllTx(true)" data-tip="Enable all transmission channels">&#x2713; Enable All</button>
 <button class="btn-sm" type="button" onclick="setAllTx(false)" data-tip="Disable all transmission channels">&#x2717; Disable All</button>
 </div>
-<div class="hint">BLE 5.0 LR is experimental (ESP32-S3/C6). WiFi NAN experimental.</div>
+<div class="hint">BLE 5.0 LR is experimental (ESP32-S3). WiFi NAN experimental.</div>
 <div id="tx-mode-hint" class="hint" style="color:#2e7d32;margin-top:4px"></div>
 
 <div class="sec-div">Radio Configuration</div>
@@ -506,7 +506,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <form id="f3">
 <div class="guide" onclick="toggleGuide(this)">
 <b>Management Network</b> &mdash; Configure the ESP32's built-in WiFi access point used for configuration. After connecting your phone or laptop to the SSID below, open <code>http://192.168.4.1</code> in your browser. The password protects the config interface — leave empty for an open network. The AP runs on channel 6 by default, separate from the beacon transmission channel.
-<a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/#guide-config" target="_blank">Wiki &rarr;</a>
+<a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/#guide-config" target="_blank">Wiki &rarr;</a>
 </div>
 
 <label class="form-label" for="wifi_ssid">WiFi SSID</label>
@@ -536,7 +536,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <form id="f3b">
 <div class="guide" onclick="toggleGuide(this)">
 <b>Serial &amp; Protocol</b> &mdash; Configure the UART connection between the ESP32 and your flight controller (Pixhawk, ArduPilot, iNAV, Betaflight, etc.). <b>MAVLink</b> is used by ArduPilot/PX4, <b>MSP</b> by Betaflight/iNAV, <b>NMEA</b> for generic GPS modules. Set the baud rate to match your FC's serial port speed — 57600 or 115200 are common. Select <b>Auto-detect</b> to let the firmware probe all protocols at startup.
-<a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/#guide-config" target="_blank">Wiki &rarr;</a>
+<a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/#guide-config" target="_blank">Wiki &rarr;</a>
 </div>
 
 <label class="form-label" for="protocol">FC Protocol</label>
@@ -590,7 +590,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <form id="f5">
 <div class="guide" onclick="toggleGuide(this)">
 <b>Status LED</b> &mdash; Configure GPIO pins for the RGB status LED (common cathode). Wire the red, green, and blue channels to separate GPIO pins through current-limiting resistors (typically 100&ndash;220&#x2126;). <b>Red</b> = no GPS fix or error. <b>Green</b> = GPS 3D fix, normal operation. <b>Blue</b> = system booting or BLE active. Set unused channels to <code>-1</code>. Leave all at <code>-1</code> to disable the LED entirely.
-<a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/#guide-config" target="_blank">Wiki &rarr;</a>
+<a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/#guide-config" target="_blank">Wiki &rarr;</a>
 </div>
 
 <div class="grid2">
@@ -661,7 +661,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <form id="f4">
 <div class="guide" onclick="toggleGuide(this)">
 <b>Security &amp; Options</b> &mdash; <b>Lock Level 0</b> (Normal) — no restrictions. <b>Level 1</b> (Locked) — only accepts commands signed with a registered public key; the web UI remains accessible but factory reset via CLI requires authentication. <b>Level 2</b> (eFuse permanent) — burns one-time programmable fuses to enforce lock; <strong style="color:#c62828">this cannot be undone and may brick the device if keys are lost!</strong> Set at least one public key before enabling lock levels 1 or 2.
-<a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/#guide-security" target="_blank">Wiki &rarr;</a>
+<a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/#guide-security" target="_blank">Wiki &rarr;</a>
 </div>
 
 <label class="form-label" for="lock_lvl">Lock Level <span class="tag tag-warning">Dangerous</span></label>
@@ -709,7 +709,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <h2><span class="ico">&#x1f4e4;</span> Firmware Update <span class="tag tag-warning">Warning</span> <span class="tag" style="background:#e65100;color:#fff">Expert</span></h2>
 <div class="guide" style="border-left-color:#c62828">
 &#x26a0; Upload a firmware <code>.bin</code> file to update over-the-air. <strong>Do NOT disconnect power during the update.</strong> The device reboots automatically. Use the correct .bin for your ESP32 model.
-<a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/#guide-ota" target="_blank">Wiki &rarr;</a>
+<a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/#guide-ota" target="_blank">Wiki &rarr;</a>
 </div>
 <div class="ota-zone" id="ota-zone">
 <div class="ico-big">&#x1f4c1;</div>
@@ -730,7 +730,7 @@ try{var t=localStorage.getItem('rid_theme');if(t==='dark'){document.documentElem
 <h2><span class="ico">&#x1f4bb;</span> Console &amp; Telemetry</h2>
 <div class="guide" onclick="toggleGuide(this)">
 Live telemetry and serial console from the ESP32 Remote ID transmitter. The console captures real-time log output from the device firmware — including GPS status, transmission events, and protocol detection. Use the input at the bottom to send CLI commands (<code>restart</code>, <code>status</code>, <code>reset</code>). Telemetry data below shows the latest readings from the flight controller.
-<a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/#guide-webui" target="_blank">Wiki &rarr;</a>
+<a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/#guide-webui" target="_blank">Wiki &rarr;</a>
 </div>
 
 <div class="term-container">
@@ -871,9 +871,9 @@ Live telemetry and serial console from the ESP32 Remote ID transmitter. The cons
 <div style="font-size:.82em;line-height:1.8">
 <p><strong>&#x1f310; Resources</strong></p>
 <ul style="margin:6px 0 14px 20px;color:var(--text-secondary)">
-<li><a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID" target="_blank">GitHub Repository</a></li>
-<li><a href="https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/" target="_blank">Wiki &amp; Guide</a></li>
-<li><a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/issues" target="_blank">Report an Issue</a></li>
+<li><a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID" target="_blank">GitHub Repository</a></li>
+<li><a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/" target="_blank">Wiki &amp; Guide</a></li>
+<li><a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/issues" target="_blank">Report an Issue</a></li>
 </ul>
 <p><strong>&#x1f6a8; Quick Tips</strong></p>
 <ul style="margin:6px 0 14px 20px;color:var(--text-secondary)">
@@ -1023,7 +1023,7 @@ Live telemetry and serial console from the ESP32 Remote ID transmitter. The cons
 
 <div class="status-bar">
 <span style="font-weight:600;font-size:.95em;color:var(--text);white-space:nowrap">OmniRID v0.0.1-dev &mdash; 15/06/2026, 22:59:30</span>
-<a href="https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID" target="_blank" style="font-size:.95em;color:var(--accent);white-space:nowrap">GitHub</a>
+<a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID" target="_blank" style="font-size:.95em;color:var(--accent);white-space:nowrap">GitHub</a>
 <a href="#" style="font-size:.95em;color:var(--accent);white-space:nowrap" onclick="setView('help')">Wiki</a>
 <span title="Packets per second">&#x26a1; <span id="st-bar-rate">0</span>/s</span>
 <span title="Storage usage"><span class="st-flash-progress" id="st-flash-progress"><span class="st-flash-fill" id="st-flash-fill" style="width:0%"></span></span></span>

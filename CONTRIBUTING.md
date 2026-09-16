@@ -15,7 +15,7 @@ Thanks for your interest in contributing! This guide will help you get started.
 ```bash
 cd OmniRID
 cargo build --workspace           # host build
-cargo test --workspace            # run all tests (312)
+cargo test --workspace            # run all tests (319)
 cargo clippy --workspace -- -D warnings   # lint
 ```
 
@@ -87,7 +87,7 @@ Examples:
 
 ## Reporting Bugs
 
-Use the [Bug Report template](https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/issues/new?template=bug_report.yml) with:
+Use the [Bug Report template](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/issues/new?template=bug_report.yml) with:
 - Clear description and reproduction steps
 - Hardware details (ESP32 model, board, antenna)
 - Firmware version and build target

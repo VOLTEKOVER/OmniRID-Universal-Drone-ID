@@ -43,7 +43,7 @@ an individual is officially representing the community in public spaces.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the project maintainers at the
-[GitHub Issues](https://github.com/VOLTEKOVER/ESP_DRONE_REMOTEID/issues).
+[GitHub Issues](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/issues).
 All complaints will be reviewed and investigated promptly and fairly.
 
 ## Attribution
