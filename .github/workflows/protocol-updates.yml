@@ -29,7 +29,7 @@ jobs:
 
       - name: Update vendored files
         working-directory: OmniRID
-        run: ./scripts/update-opendroneid.sh "${{ steps.tag.outputs.tag }}"
+        run: bash ./scripts/update-opendroneid.sh "${{ steps.tag.outputs.tag }}"
 
       - name: Open pull request
         env:
@@ -181,6 +181,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Ensure protocol-update label
+        run: gh label create "protocol-update" --description "Upstream protocol sync" --force
+
       - name: Fetch upstream DSDL
         run: |
           mkdir -p /tmp/dsdl-upstream
@@ -204,15 +207,39 @@ jobs:
           current_dtid = int(dtid_match.group(1)) if dtid_match else None
           current_sig = sig_match.group(1) if sig_match else None
           field_count = len(re.findall(r'^\s+\w+\s+\w+', dsdl, re.MULTILINE))
-          content_hash = hashlib.sha256(dsdl.encode()).hexdigest()[:16]
+          content_hash = hashlib.sha256(dsdl.encode()).hexdigest()
+
+          import os
+          os.makedirs(".regwatch", exist_ok=True)
+          try:
+              baseline = open(".regwatch/dronecan-fix2.txt").read().strip()
+          except FileNotFoundError:
+              baseline = ""
+
+          changed = baseline != "" and baseline != content_hash
 
           print(f"DTID: {current_dtid}, Signature: {current_sig}, Fields: {field_count}, Hash: {content_hash}")
+          print(f"changed={changed}")
 
           with open("/tmp/dsdl-info.txt", "w") as f:
               f.write(f"DTID: {current_dtid}\nSignature: {current_sig}\nFields: {field_count}\nHash: {content_hash}\n")
+          with open(".regwatch/dronecan-fix2.txt", "w") as f:
+              f.write(content_hash)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"changed={'true' if changed else 'false'}\n")
           PYEOF
 
+      - name: Persist baseline
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .regwatch/dronecan-fix2.txt
+          git diff --cached --quiet || git commit -m "chore: dronecan fix2 baseline $(date +%Y-%m-%d)"
+          git push || echo "Nothing to push"
+
       - name: Open issue if changed
+        if: steps.compare.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -236,11 +263,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Ensure protocol-update label
+        run: gh label create "protocol-update" --description "Upstream protocol sync" --force
+
       - name: Check crates.io for esp-idf-sys
         id: check
         run: |
           python3 << 'PYEOF'
-          import json, urllib.request
+          import json, urllib.request, os
 
           with open("OmniRID/hardware/bsp-esp32/Cargo.toml") as f:
               for line in f:
@@ -258,13 +288,16 @@ jobs:
           latest = data["crate"]["max_stable_version"]
 
           print(f"Current: {current}, Latest: {latest}")
-          if latest != current:
+          changed = latest != current
+          if changed:
               with open("/tmp/esp-idf-new.txt", "w") as f:
                   f.write(f"{current}\n{latest}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"changed={'true' if changed else 'false'}\n")
           PYEOF
 
       - name: Open issue
-        if: hashFiles('/tmp/esp-idf-new.txt') != ''
+        if: steps.check.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -288,6 +321,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Ensure protocol-update label
+        run: gh label create "protocol-update" --description "Upstream protocol sync" --force
 
       - name: Fetch and diff pages
         run: |
