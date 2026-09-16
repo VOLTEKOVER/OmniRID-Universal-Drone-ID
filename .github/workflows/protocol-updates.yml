@@ -54,7 +54,7 @@ jobs:
           EOF
           )
           gh pr create \
-            --base main \
+            --base universal \
             --head "${branch}" \
             --title "Update vendored OpenDroneID to ${tag}" \
             --body "$BODY"
@@ -168,7 +168,7 @@ jobs:
           git push origin "$BRANCH"
           BODY="Automated update from upstream MAVLink XML specs. Changed: ${RESULT}"
           gh pr create \
-            --base main \
+            --base universal \
             --head "$BRANCH" \
             --title "Update MAVLink message IDs from upstream" \
             --body "$BODY"
