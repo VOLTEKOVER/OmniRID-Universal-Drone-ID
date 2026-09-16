@@ -5,7 +5,7 @@
 > The C firmware audit and fix campaign findings (A–P, §9 of `dataflow.md`)
 > remain as historical reference for the port.
 
-Last updated: 2026-08-28
+Last updated: 2026-09-16
 Tests: 319 passing | Clippy: clean | Edition: 2024
 
 > Session fixes (2026-08-28): [#18] MSP framing off-by-one → MSP v1 standard;
@@ -18,6 +18,18 @@ Tests: 319 passing | Clippy: clean | Edition: 2024
 > [#21] `bcast_powerup` were already implemented in the Rust code (the
 > `dataflow.md`/`processes.md` §10 "open" rows described the old C port). They
 > were closed again on GitHub with pointers to the code.
+>
+> Session fixes (2026-09-16, CI green): dependabot PR #37 (pkcs8 0.10.2 →
+> 0.11.0) broke the host + ESP32 cross-build again (ed25519-dalek 2.2.0
+> implements DecodePrivateKey/DecodePublicKey against pkcs8 0.10 / spki 0.7);
+> pinned pkcs8 back to 0.10. OmniRID-Desktop CI failed for three reasons:
+> `package-lock.json` was gitignored although the workflow needs it for
+> `npm ci` (now committed via a `!` negation), the unused `@abandonware/noble`
+> and `pcap` optional dependencies shipped only pre-releases so `npm ci`
+> could never resolve (`^1.9.2`), and `node-abi` 4.31.0 lacked the ABI entry
+> for Electron 44 (`overrides` → 4.35.0). Also deleted the orphaned `main`
+> branch (default is now just `universal`) and fixed the eval-weird weekly
+> auto-update workflow names.
 
 ---
 
@@ -27,14 +39,14 @@ Tests: 319 passing | Clippy: clean | Edition: 2024
 OmniRID/
 ├── firmware/          # Core (no_std, agnostic)
 │   ├── rid-interface/   # Trait contracts (0 tests, pure types)
-│   ├── rid-core/        # Hub, scheduler, kalman, auth, security (56 tests)
-│   ├── rid-app/         # CLI, web, NVS, OTA, LED logic (~120 tests)
+│   ├── rid-core/        # Hub, scheduler, kalman, auth, security (60 tests)
+│   ├── rid-app/         # CLI, web, NVS, OTA, LED logic (122 tests)
 │   ├── app/             # Controller assembly + /api/capabilities (12 tests)
-│   └── bsp-sim/         # Host simulator (binary demo)
+│   └── bsp-sim/         # Host simulator (binary demo, 0 tests)
 ├── inputs/            # Protocol parsers
 │   ├── proto-mavlink/   # MAVLink v1/v2 (27 tests)
 │   ├── proto-nmea/      # NMEA GGA/RMC/VTG (19 tests)
-│   ├── proto-msp/       # MSP v1 (14 tests)
+│   ├── proto-msp/       # MSP v1 (15 tests)
 │   ├── proto-dronecan/  # UAVCAN v0 Fix2 (16 tests)
 │   └── proto-usb-mavlink/ # USB CDC MAVLink (11 tests)
 ├── outputs/           # Broadcast standards
@@ -42,7 +54,7 @@ OmniRID/
 ├── external-libs/     # Vendored C wrapped via FFI
 │   └── opendroneid-sys/ # Intel OpenDroneID (11 tests)
 └── hardware/          # Real BSP (excluded from workspace)
-    └── bsp-esp32/       # ESP32 WiFi/BLE/NVS/LED/USB/OTA (2 tests caps)
+    └── bsp-esp32/       # ESP32 WiFi/BLE/NVS/LED/USB/OTA (5 tests caps+core)
 ```
 
 ---
@@ -64,7 +76,7 @@ OmniRID/
 - [x] Populate UAS data dedup (out-astm::build_uas)
 - [x] GPS staleness detection (rid-core::scheduler)
 - [x] **Dual-core pinning** — Core 0 (WiFi TX) / Core 1 (Scheduler+BLE+UI) via `bsp_esp32::core`
-- [ ] **Release binary / build matrix ESP32** — CI workflow for cross-compilation when bsp-esp32 is complete
+- [x] **Release binary / build matrix ESP32** — CI `esp32-build.yml` cross-compila esp32/esp32s3/esp32c6 (xtensa + riscv32imac, build-std) e gira host checks; il packaging degli installer resta in `release.yml` (tag `v*`)
 
 ### 🟠 FEATURES — Future
 
@@ -78,7 +90,7 @@ OmniRID/
 
 ### 🔵 CI/CD & Auto-Update
 
-- [ ] **Auto-update protocols from GitHub** — path-dependency only today; CI protocol-updates.yml already checks upstream, but decide if git `rev` deps are needed or workspace + cargo update suffices
+- [x] **Auto-update la verifica upstream** — `protocol-updates.yml` (settimanale) confronta upstream per OpenDroneID, MAVLink, DroneCAN, ESP-IDF e pagine regulatory; opendroneid è ancora path-dependency (vendored), non `rev` dep
 - [ ] **Flash encryption** — eFuse AES-256 (port from peinser)
 
 ---
@@ -109,15 +121,18 @@ OmniRID/
 - opendroneid-sys: vendored Intel C lib with Rust FFI, auto-update weekly
 
 ### Hardware (bsp-esp32)
-- WiFi beacon/NAN injection, BLE 4.x/5.0 LR, NVS, USB CDC, LED (LEDC/RMT), web server, OTA
+- WiFi beacon/NAN injection, BLE 4.x/5.0 LR (C6 emerge come no-op per binding driver BT), NVS, USB CDC, LED (LEDC/RMT), web server, OTA
 - Capability matrix per chip (esp32/s3/c6)
 - Dual-core pinning: Core 0 (WiFi TX) / Core 1 (Scheduler+BLE+UI)
 - Feature-gated: `#[cfg(feature = "hardware")]`
 
-### CI/CD (7 workflows)
-- OmniRID CI (build/test/clippy), ESP32 Cross-Build, OmniRID Desktop CI
-- Weekly checks (OpenDroneID, MAVLink, DroneCAN, ESP-IDF, regulatory pages)
-- Security Audit (cargo-audit + cargo-deny), Release, Deploy Pages
+### CI/CD (7 workflow)
+- OmniRID Host Build (ex "OmniRID CI"): build/test/clippy/fmt su ubuntu + windows
+- ESP32 Firmware Cross-Build: host checks + matrix esp32/esp32s3/esp32c6 (`-Z build-std`)
+- OmniRID Desktop CI: `npm ci` + `electron-builder --dir` (lockfile committato, node-abi override)
+- Weekly Upstream Sync (ex "Weekly checks"): OpenDroneID, MAVLink, DroneCAN, ESP-IDF, regulatory pages
+- Security Audit (cargo-audit + cargo-deny), Release (tag `v*`), Deploy Pages (`docs/`)
+- Default branch: `universal` (branch `main` orfana eliminata)
 
 ### Documentation & Desktop
 - guide.html, index.html, config(demo).html — all updated for Rust
@@ -128,6 +143,14 @@ OmniRID/
 - [#24] Operator-location gate: non-MAVLink protocols ignore MAVLink operator location unless explicitly selected (`non_mavlink_protocol_ignores_mavlink_operator_location`).
 - [#25] NVS persistence: full config now persisted (protocol, uart_port, tx_pin, rx_pin, ws2812_*, lighting_*, dronecan_*, mavlink_usb_enable, ota_trigger_gpio, auth_private_key, start_delay_ms) via get_blob/set_blob + auth lifecycle. Closes dataflow §5/§10.7/§10.8 and processes §6.12 gaps.
 - [#26] xTaskCreatePinnedToCore return-checked; task module hardware-gated.
+
+### CI Fixes (session 2026-09-16)
+- pkcs8 pinned back to 0.10 (2nd time) so the direct dep matches ed25519-dalek 2.2.0 features; Cargo.lock resolves to a single pkcs8 0.10.2/spki 0.7.3.
+- OmniRID-Desktop `package-lock.json` committed (gitignore negation) so `npm ci` + setup-node cache work.
+- Dropped unused `@abandonware/noble`/`pcap` optional deps (pre-release-only versions broke lockfile sync).
+- `node-abi` overridden to 4.35.0 for Electron 44 ABI (rebuild `@serialport/bindings-cpp`).
+- Deleted orphaned `main` branch; `--base universal` in auto-update PRs.
+- Removed stale GitHub Actions registration of the deleted `opendroneid-update.yml` (its 4 runs were deleted).
 
 ---
 
@@ -166,7 +189,7 @@ OmniRID/
 | Prio | Feature | Effort | Status |
 |------|---------|--------|--------|
 | P0 | Non-ASTM encoders (CN 42590, FRDID) | ~5d | Future |
-| P1 | Release binary / ESP32 build matrix CI | ~1d | Future |
+| P0 | Veri BLE 5.0 su ESP32-C6 (driver BT binding; oggi no-op) | ~2d | Future |
 | P1 | ESP-NOW mesh relay | ~4d | Future |
 | P1 | LoRa SX1262 backup | ~6d | Future |
 | P2 | Flash encryption (eFuse AES-256) | ~2d | Future |

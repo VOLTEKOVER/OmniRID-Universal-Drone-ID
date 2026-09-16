@@ -3,7 +3,12 @@
 > Embedded web UI served by `bsp-esp32` from flash (`include_str!`).
 > Desktop app: Electron + React 19 + Ant Design 6 + Vite 8.
 > Documentation: README.md + docs/index.html + docs/guide.html
-> Last updated: 2026-08-28
+> Last updated: 2026-09-16 (session 2026-09-16: CI all green)
+>
+> Session notes: `OmniRID-Desktop/package-lock.json` committed (was gitignored → `npm ci` cache failed);
+> used `overrides: { "node-abi": "4.35.0" }` for Electron 44 ABI support in electron-builder rebuild;
+> removed unused optional deps `@abandonware/noble` + `pcap` (only prereleases, unresolved `^1.9.2`);
+> orphan `main` branch deleted (default = `universal`). See `todolist/softwarestatus.md`.
 
 ---
 
@@ -99,6 +104,7 @@
 | Per-MAC Tracker | `src/tracker.js` | ✅ |
 | WiFi/BLE Capture | `src/capture.js` | ✅ |
 | UI (6 tabs) | `renderer/app.js` | ✅ |
+| Desktop CI (pack) | electron-builder `--dir` via GitHub Actions | ✅ green on `f92cee9` (node-abi 4.35.0) |
 
 Tabs: Dashboard, Devices, Map, Timeline, Capture, Settings
 

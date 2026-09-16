@@ -4,7 +4,13 @@
 > Replaces legacy C firmware `ESP32_DRONE_REMOTE_ID_Firmware/` (deleted).
 > Same Kalman filter, same TX chain, same parser→core→TX flow. File paths changed but architecture is equivalent.
 
-Last updated: 2026-08-28 (audited against `OmniRID/firmware/`, `OmniRID/inputs/`, `OmniRID/outputs/` Rust sources).
+Last updated: 2026-09-16 (audited against `OmniRID/firmware/`, `OmniRID/inputs/`, `OmniRID/outputs/` Rust sources).
+
+> Session update (2026-09-16, CI green): the CI-only fixes of this session don't
+> change dataflow verdicts — pkcs8 pinned back to 0.10 (2nd time, PR #37),
+> `OmniRID-Desktop/package-lock.json` committed, unused `noble`/`pcap`
+> optional deps dropped, `node-abi` overridden to 4.35.0 (Electron 44 ABI).
+> Documented here so the doc dates match `softwarestatus.md`.
 
 Method: static code audit. For every data item we trace the full chain **producer (parser) → core (`rid_task`) → consumer (TX / status / LED)** and mark it.
 
@@ -399,7 +405,7 @@ Global gate (`update_transmissions()` `app/src/controller.rs`): needs `gps_valid
 | WiFi Beacon | `odid_wifi_build_message_pack_beacon_frame` via `esp_wifi_80211_tx` 4-attempt fallback | ✅ OK |
 | WiFi NAN | `odid_wifi_build_message_pack_nan_action_frame` | ✅ OK |
 | BLE 4.x legacy | exactly one 25 B message per 31 B ADV (Service Data 0xFFFA + app code 0x0D + counter), rotated across cycles | ✅ **FIXED (F)** |
-| BLE 5.0 LR | ext adv instances, full pack, 254 B OK | ✅ OK (compiled only when `CONFIG_BT_BLE_50_EXTEND_ADV_EN`, S3/C6) |
+| BLE 5.0 LR | ext adv instances, full pack, 254 B OK | ✅ OK on S3 (compiled only when `CONFIG_BT_BLE_50_EXTEND_ADV_EN`); ⚠️ C6: `caps.rs` says `ble:true, ble5:true` but the BLE binding is a no-op **at runtime/CI** (see `softwarestatus.md` P0) |
 | MAVLink TX (UART1) | heartbeat 1 s + `OPEN_DRONE_ID_SYSTEM` 6 s, built from real operator/state | ✅ **FIXED (E)** |
 | MAVLink USB | mirrors heartbeat + SYSTEM to USB UART | ✅ **FIXED** — but ❗ §10.3 UART0 console conflict |
 | ODID `Auth` | `AuthValid`/`Auth` pages from Ed25519 signing | ✅ **FIXED (D)** |
@@ -446,7 +452,7 @@ Global gate (`update_transmissions()` `app/src/controller.rs`): needs `gps_valid
 
 ---
 
-## 10) Open issues & risks (current audit, 2026-08-28)
+## 10) Open issues & risks (current audit, 2026-09-16)
 
 1. ✅ **FIXED [#18] MSP framing off-by-one** — `proto-msp` now uses standard MSP v1 framing (`buf[3]=size, buf[4]=type, payload=buf[5..]`); the replicated C quirk (size at `buf[4]`) was removed. Unblocks all MSP rows in §2.
 2. ✅ **FIXED [#19] DroneCAN effectively non-functional** — `inputs/proto-dronecan/src/parser.rs` implements full multi-frame (FT0/FT1) transfer reassembly via `TransferReceiver` (TID/toggle/timeout/CRC), so the `if (len < 32)` guard no longer truncates, and `decode_fix2` is reachable and covered by a passing test (AHRS/Identity wire-format stubs remain a separate backlog item, not part of #19).

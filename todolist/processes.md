@@ -5,7 +5,7 @@
 > Same FreeRTOS task architecture (rid_task loop, CLI task, web server) but organized as Rust crates.
 > The same logical processes and gate chains apply.
 
-Last updated: 2026-08-28 (audited against `OmniRID/firmware/` and `OmniRID/inputs/outputs/` Rust sources).
+Last updated: 2026-09-16 (audited against `OmniRID/firmware/` and `OmniRID/inputs/outputs/` Rust sources). Includes session 2026-09-16 (CI all green): pkcs8 pinned back to 0.10 (2nd time, dependabot PR #37), `OmniRID-Desktop/package-lock.json` committed, unused `noble`/`pcap` optional deps dropped, `node-abi` overridden to 4.35.0 (Electron 44 ABI), orphan `main` branch deleted (default = `universal`).
 Scope: every concurrent context, task, callback, logical process and data path in the Rust firmware.
 Use this file when a feature "does not work correctly": find the process, check its gates, then its output.
 Companion files: `todolist/dataflow.md` (field-by-field chains), `todolist/softwarestatus.md` (open todos).
@@ -201,7 +201,7 @@ Period 100 ms (`vTaskDelay`), WDT reset. `g_running` toggled by `esp_rid_start/s
 ### 6.8 BLE TX — `bsp-esp32/src/ble.rs` + `rid-app/src/ble4.rs`
 - Init: BT controller (release classic), enable BLE, Bluedroid init+enable.
 - `ble_tx_transmit_legacy`: builds the pack via `build_uas()`, one 25 B ODID message per 31 B Service-Data adv (UUID 0xFFFA, app code 0x0D, counter), messages **rotated** per cycle. On S3/C6: ext-adv **instance 2**, `LEGACY_NONCONN`, 1M PHY; on ESP32 classic: `config_adv_data_raw` + `start_advertising`, `ADV_TYPE_SCAN_IND`.
-- `ble_tx_transmit_lr`: full pack (≤254 B) via `build_uas()` on **instance 0** (1M, legacy-compatible) + **instance 1** (Coded PHY). Only if ext-adv enabled.
+- `ble_tx_transmit_lr`: full pack (≤254 B) via `build_uas()` on **instance 0** (1M, legacy-compatible) + **instance 1** (Coded PHY). Only if ext-adv enabled. ⚠️ C6: no-op in practice — see `caps.rs` vs `ble.rs` inconsistency (tracked in `softwarestatus.md` P0).
 - `ble_tx_set_power`: clamps to [-12..9] dBm, level = `(dbm+12)/3`.
 
 ### 6.9 Web server — `rid-app/src/web_config.rs` + `bsp-esp32/src/web.rs`
