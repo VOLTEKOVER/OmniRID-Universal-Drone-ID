@@ -80,6 +80,9 @@ dist/
 build/
 *.bundle.js
 
+# Workflow-level npm CI relies on the lockfile
+!OmniRID-Desktop/package-lock.json
+
 # ==================== IDE & EDITORS ====================
 .vscode/settings.json
 .vscode/launch.json

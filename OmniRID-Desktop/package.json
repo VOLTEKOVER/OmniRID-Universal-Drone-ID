@@ -47,10 +47,6 @@
     "electron-updater": "^6.8.9",
     "serialport": "^13.0.0"
   },
-  "optionalDependencies": {
-    "@abandonware/noble": "^1.9.2",
-    "pcap": "^3.1.0"
-  },
   "devDependencies": {
     "electron": "^44.3.0",
     "electron-builder": "^26.15.3"
