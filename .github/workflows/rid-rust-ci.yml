@@ -1,4 +1,4 @@
-name: OmniRID CI
+name: OmniRID Host Build
 
 on:
   push:

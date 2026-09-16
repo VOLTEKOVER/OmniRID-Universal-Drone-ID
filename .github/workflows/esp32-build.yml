@@ -1,4 +1,4 @@
-name: ESP32 Cross-Build
+name: ESP32 Firmware Cross-Build
 
 on:
   push:

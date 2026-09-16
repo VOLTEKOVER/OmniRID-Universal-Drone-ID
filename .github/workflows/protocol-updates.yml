@@ -1,4 +1,4 @@
-name: Weekly checks
+name: Weekly Upstream Sync
 
 on:
   schedule:
