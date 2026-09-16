@@ -79,6 +79,7 @@ yarn.lock
 dist/
 build/
 *.bundle.js
+OmniRID-Desktop/release/
 
 # Workflow-level npm CI relies on the lockfile
 !OmniRID-Desktop/package-lock.json
