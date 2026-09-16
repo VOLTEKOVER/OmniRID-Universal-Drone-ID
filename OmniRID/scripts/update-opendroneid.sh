@@ -19,7 +19,8 @@ VENDOR_DIR="${SCRIPT_DIR}/../external-libs/opendroneid-sys/vendor"
 
 for f in opendroneid.c opendroneid.h; do
   echo "==> downloading ${REPO}@${TAG}/${f}"
-  curl -fsSL "https://raw.githubusercontent.com/${REPO}/${TAG}/${f}" -o "${VENDOR_DIR}/${f}"
+  curl -fsSL "https://raw.githubusercontent.com/${REPO}/${TAG}/${f}" -o "${VENDOR_DIR}/${f}" \
+    || curl -fsSL "https://raw.githubusercontent.com/${REPO}/${TAG}/libopendroneid/${f}" -o "${VENDOR_DIR}/${f}"
 done
 
 echo "==> vendored library updated to ${TAG}"

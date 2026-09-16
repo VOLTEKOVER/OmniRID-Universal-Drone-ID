@@ -182,6 +182,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Ensure protocol-update label
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: gh label create "protocol-update" --description "Upstream protocol sync" --force
 
       - name: Fetch upstream DSDL
@@ -232,6 +234,10 @@ jobs:
       - name: Persist baseline
         if: always()
         run: |
+          if [ ! -f .regwatch/dronecan-fix2.txt ]; then
+            echo "No baseline file generated; nothing to persist"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .regwatch/dronecan-fix2.txt
@@ -264,6 +270,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Ensure protocol-update label
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: gh label create "protocol-update" --description "Upstream protocol sync" --force
 
       - name: Check crates.io for esp-idf-sys
@@ -323,6 +331,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Ensure protocol-update label
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: gh label create "protocol-update" --description "Upstream protocol sync" --force
 
       - name: Fetch and diff pages
