@@ -1,0 +1,10 @@
+{
+  "name": "omnirid-app",
+  "version": "1.0.0",
+  "description": "OmniRID Web App — Open DroneID Ground Station (PWA)",
+  "private": true,
+  "scripts": {
+    "serve": "npx --yes http-server . -p 8080 -c-1",
+    "deploy": "npx --yes gh-pages --dist ."
+  }
+}

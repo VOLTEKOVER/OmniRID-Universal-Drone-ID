@@ -1,4 +1,4 @@
-name: Release OmniRID Desktop
+name: Release
 
 on:
   push:
@@ -9,67 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  build-omnirid-desktop-windows:
-    name: OmniRID Desktop (Windows)
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 22
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: OmniRID-Desktop
-
-      - name: Build Windows installer
-        run: npx electron-builder --win --publish never
-        working-directory: OmniRID-Desktop
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: omnirid-desktop-windows
-          path: OmniRID-Desktop/release/*.exe
-          retention-days: 30
-
-  build-omnirid-desktop-linux:
-    name: OmniRID Desktop (Linux)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 22
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: OmniRID-Desktop
-
-      - name: Build Linux AppImage
-        run: npx electron-builder --linux --publish never
-        working-directory: OmniRID-Desktop
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: omnirid-desktop-linux
-          path: OmniRID-Desktop/release/*.AppImage
-          retention-days: 30
-
   create-release:
     name: Create Release
-    needs: [build-omnirid-desktop-windows, build-omnirid-desktop-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -86,23 +27,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download OmniRID Desktop artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        with:
-          path: artifacts
-          pattern: omnirid-desktop-*
-
       - name: Get version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Prepare release assets
-        run: |
-          mkdir -p release
-          for dir in artifacts/omnirid-desktop-*/; do
-            [ -d "$dir" ] || continue
-            cp -r "$dir"* release/
-          done
         shell: bash
 
       - name: Generate release notes
@@ -118,10 +44,9 @@ jobs:
 
           ## Downloads
 
-          | File | Platform |
-          |------|----------|
-          | \`OmniRID Desktop Setup $VERSION.exe\` | Windows desktop app |
-          | \`OmniRID Desktop $VERSION.AppImage\` | Linux desktop app |
+          | Artifact | Platform |
+          |----------|----------|
+          | [OmniRID App (PWA)](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/OmniRID-app/index.html) | Web (installable, offline) |
           EOF
 
           echo "" >> release-notes.md
@@ -138,7 +63,7 @@ jobs:
 
           echo "" >> release-notes.md
           echo "---" >> release-notes.md
-          echo "Full documentation at https://VOLTEKOVER.github.io/ESP_DRONE_REMOTEID/" >> release-notes.md
+          echo "Full documentation at https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/" >> release-notes.md
         shell: bash
 
       - name: Create Release
@@ -146,19 +71,11 @@ jobs:
         with:
           name: OmniRID v${{ env.VERSION }}
           body_path: release-notes.md
-          files: |
-            release/*.exe
-            release/*.AppImage
-
-      - name: Prepare Pages deploy
-        run: |
-          mkdir -p docs/images
-        shell: bash
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
-          path: docs
+          path: .
           name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Deploy to GitHub Pages

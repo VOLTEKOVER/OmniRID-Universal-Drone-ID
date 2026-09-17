@@ -3,11 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>OmniRID Desktop</title>
+<title>OmniRID App</title>
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a56db">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script defer src="renderer/app.js"></script>
+<script src="src/decoder.js"></script>
+<script src="src/tracker.js"></script>
+<script src="src/capture.js"></script>
+<script defer src="src/app.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="renderer/style.css">
@@ -15,32 +21,32 @@
 </head>
 <body x-cloak>
 
-<!-- ====== TITLE BAR ====== -->
-<header class="titlebar" :class="isMac?'titlebar-mac':''" style="-webkit-app-region:drag" x-data="{isMac:navigator.platform.toUpperCase().includes('MAC')}">
+<!-- ====== HEADER ====== -->
+<header class="titlebar">
   <div class="titlebar-left">
-    <div class="titlebar-drag" style="-webkit-app-region:no-drag;display:flex;align-items:center;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px">
       <img src="images/logo.svg" alt="OmniRID" style="height:32px;width:auto">
-      <span class="titlebar-label">OmniRID Desktop</span>
+      <span class="titlebar-label">OmniRID App</span>
     </div>
-    <div class="hdr-chips" style="-webkit-app-region:no-drag">
+    <div class="hdr-chips">
       <span class="hdr-chip"><span class="dot" style="background:var(--accent-green)"></span> F3411-22a</span>
       <span class="hdr-chip"><i class="ti ti-devices" style="font-size:11px;color:var(--accent)"></i> <span x-text="devices.length"></span></span>
       <span class="hdr-chip" x-show="isRecording"><span class="dot rec-dot"></span> REC</span>
     </div>
   </div>
-  <div class="titlebar-center" style="-webkit-app-region:no-drag">
+  <div class="titlebar-center">
     <button @click="toggleRecording()" class="tb-cmd-btn" :class="isRecording?'tb-cmd-rec':''" :title="isRecording?'Stop recording':'Start recording'">
       <i class="ti" :class="isRecording?'ti-player-stop':'ti-player-record-filled'" style="font-size:13px"></i>
       <span x-text="isRecording?'STOP':'REC'"></span>
     </button>
     <span class="tb-sep"></span>
-    <button @click="toggleWifi()" class="tb-cmd-btn" :class="wifiActive?'tb-cmd-active':''" title="WiFi Beacon capture">
-      <i class="ti ti-wifi" style="font-size:13px"></i>
+    <button @click="importPcap($event)" class="tb-cmd-btn" :class="wifiActive?'tb-cmd-active':''" title="PCAP import">
+      <i class="ti ti-file-upload" style="font-size:13px"></i>
     </button>
-    <button @click="toggleBle()" class="tb-cmd-btn" :class="bleActive?'tb-cmd-active':''" title="Bluetooth LE scan">
+    <button @click="toggleBle()" class="tb-cmd-btn" :class="bleActive?'tb-cmd-active':''" title="Bluetooth LE scan" x-show="bleAvailable">
       <i class="ti ti-brand-bluetooth" style="font-size:13px"></i>
     </button>
-    <button @click="toggleSerial()" class="tb-cmd-btn" :class="serialActive?'tb-cmd-active':''" title="Serial connection">
+    <button @click="toggleSerial()" class="tb-cmd-btn" :class="serialActive?'tb-cmd-active':''" title="Serial connection" x-show="serialAvailable">
       <i class="ti ti-cable" style="font-size:13px"></i>
     </button>
     <span class="tb-sep"></span>
@@ -48,15 +54,12 @@
       <i class="ti" :class="theme==='dark'?'ti-sun':'ti-moon'" style="font-size:13px"></i>
     </button>
   </div>
-  <div class="titlebar-right" style="-webkit-app-region:no-drag" :style="{display:isMac?'none':'flex'}">
-    <button @click="minimize()" class="tb-btn"><i class="ti ti-minus"></i></button>
-    <button @click="maximize()" class="tb-btn"><i class="ti ti-square" :style="isMaximized?'transform:rotate(45deg)':''"></i></button>
-    <button @click="closeWindow()" class="tb-btn tb-btn-close"><i class="ti ti-x"></i></button>
+  <div class="titlebar-right">
+    <span class="hdr-chip">v<span x-text="appVersion"></span></span>
   </div>
 </header>
 
 <div class="layout">
-  <!-- ====== SIDEBAR ====== -->
   <nav class="sidebar" :style="{width:isSidebarCollapsed?'48px':'180px'}">
     <div class="sidebar-nav">
       <template x-for="item in navItems" :key="item.id">
@@ -66,42 +69,10 @@
         </button>
       </template>
     </div>
-    <!-- ====== UPDATE BOX ====== -->
-    <div class="sidebar-update" x-show="!isSidebarCollapsed">
-      <div class="su-header">
-        <i class="ti ti-refresh" style="font-size:12px"></i>
-        <span class="su-title">Aggiornamenti</span>
-      </div>
-      <div x-show="updateStatus==='idle'" class="su-body">
-        <span class="su-ver" x-text="'v'+appVersion"></span>
-        <button @click="checkUpdate()" class="su-btn">Verifica</button>
-      </div>
-      <div x-show="updateStatus==='checking'" class="su-body">
-        <span class="su-ver">Verifica in corso...</span>
-        <i class="ti ti-loader" style="animation:spin 1s linear infinite;color:var(--text-muted)"></i>
-      </div>
-      <div x-show="updateStatus==='available'" class="su-body">
-        <span class="su-ver su-new" x-text="'v'+updateLatest"></span>
-        <button @click="downloadUpdate()" class="su-btn su-btn-dl" x-show="!updateDownloading">Scarica</button>
-      </div>
-      <div x-show="updateStatus==='up-to-date'" class="su-body">
-        <span class="su-ver" style="color:var(--accent-green)">Aggiornato</span>
-        <i class="ti ti-circle-check" style="color:var(--accent-green);font-size:14px"></i>
-      </div>
-      <div x-show="updateDownloading" class="su-body">
-        <span class="su-ver" x-text="'Download '+updateProgress+'%'"></span>
-        <div class="su-bar-wrap"><div class="su-bar" :style="{width:updateProgress+'%'}"></div></div>
-      </div>
-      <div x-show="updateStatus==='downloaded'" class="su-body">
-        <span class="su-ver" style="color:var(--accent-green)">Pronto!</span>
-        <button @click="restartApp()" class="su-btn su-btn-install">Riavvia</button>
-      </div>
-      <div x-show="updateStatus==='error'" class="su-body">
-        <span class="su-ver" style="color:var(--accent-red)" x-text="updateError||'Errore'"></span>
-        <button @click="checkUpdate()" class="su-btn">Riprova</button>
-      </div>
+    <div class="sidebar-status" x-show="!isSidebarCollapsed && devices.length>0">
+      <span class="status-dot" style="background:var(--accent-green)"></span>
+      <span class="text-xs" style="color:var(--text-muted)" x-text="devices.length+' active'"></span>
     </div>
-    <!-- ====== SETTINGS BUTTON ====== -->
     <div class="sidebar-settings" x-show="!isSidebarCollapsed">
       <div class="flex items-center gap-2" style="padding:4px 12px">
         <span class="text-xs" style="color:var(--text-muted);flex:1" x-text="'v'+appVersion"></span>
@@ -110,7 +81,6 @@
         </button>
       </div>
     </div>
-    <!-- Settings modal -->
     <div x-show="showSettingsModal" x-cloak class="settings-modal">
       <div class="settings-modal-bg" @click="showSettingsModal=false"></div>
       <div class="settings-modal-content">
@@ -134,7 +104,7 @@
         </div>
         <div class="card-base p-4">
           <div class="text-xs space-y-1" style="color:var(--text-muted)">
-            <p>OmniRID Desktop <span x-text="'v'+appVersion"></span></p>
+            <p>OmniRID App <span x-text="'v'+appVersion"></span></p>
             <p>Open DroneID Ground Station — ASTM F3411-22a</p>
             <p><a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID" target="_blank" style="color:var(--accent);text-decoration:none">GitHub ↗</a></p>
           </div>
@@ -146,21 +116,14 @@
         </div>
       </div>
     </div>
-    <div class="sidebar-status" x-show="!isSidebarCollapsed && devices.length>0">
-      <span class="status-dot" style="background:var(--accent-green)"></span>
-      <span class="text-xs" style="color:var(--text-muted)" x-text="devices.length+' active'"></span>
-    </div>
     <button @click="isSidebarCollapsed=!isSidebarCollapsed" class="sidebar-collapse-btn">
       <i class="ti" :class="isSidebarCollapsed?'ti-chevron-right':'ti-chevron-left'" style="font-size:14px"></i>
     </button>
   </nav>
 
-  <!-- ====== MAIN CONTENT ====== -->
   <main class="main-content">
 
-    <!-- ====== GROUND ====== -->
     <section x-show="activeTab==='ground'" x-cloak>
-      <!-- Ground sub-nav -->
       <div class="ground-nav">
         <template x-for="sub in groundSubs" :key="sub.id">
           <button @click="groundTab=sub.id" class="ground-nav-btn" :class="groundTab===sub.id?'ground-nav-active':''">
@@ -170,7 +133,6 @@
         </template>
       </div>
 
-      <!-- Sub: Dashboard -->
       <div x-show="groundTab==='dashboard'">
         <div class="page-header"><h1>Dashboard</h1><p class="text-muted">Riepilogo stazione di terra</p></div>
         <div class="grid-4">
@@ -220,7 +182,6 @@
         </div>
       </div>
 
-      <!-- Sub: Devices -->
       <div x-show="groundTab==='devices'">
         <div class="page-header"><h1>Devices</h1><p class="text-muted" x-text="devices.length+' drone'+(devices.length!==1?'s':'')+' rilevati'"></p></div>
         <div class="flex items-center gap-2 mb-4">
@@ -262,15 +223,11 @@
         </div>
       </div>
 
-      <!-- Sub: Map -->
       <div x-show="groundTab==='map'">
         <div class="page-header"><h1>Mappa</h1><p class="text-muted" x-text="validDevices.length+' drone'+(validDevices.length!==1?'s':'')+' posizionati'"></p></div>
         <div class="map-container card-base">
           <svg viewBox="-180 -90 360 180" class="map-svg" :style="{background:theme==='dark'?'#0a1628':'#e8f0fe'}">
             <g x-html="mapGridSvg"></g>
-            <circle cx="0" cy="0" r="1.5" fill="none" stroke="var(--accent)" stroke-width="0.3" opacity="0.3"/>
-            <line x1="-3" y1="0" x2="3" y2="0" stroke="var(--accent)" stroke-width="0.2" opacity="0.2"/>
-            <line x1="0" y1="-3" x2="0" y2="3" stroke="var(--accent)" stroke-width="0.2" opacity="0.2"/>
             <g x-html="mapMarkersSvg"></g>
           </svg>
           <div class="map-legend">
@@ -281,7 +238,6 @@
         </div>
       </div>
 
-      <!-- Sub: Timeline -->
       <div x-show="groundTab==='timeline'">
         <div class="flex items-center justify-between mb-4">
           <div class="page-header mb-0"><h1>Timeline</h1><p class="text-muted" x-text="packets.length+' pacchetti'"></p></div>
@@ -317,157 +273,70 @@
           <div x-show="filteredPackets.length===0" class="text-xs" style="color:var(--text-muted)">In attesa di pacchetti...</div>
         </div>
       </div>
+    </section>
 
-      <!-- Sub: Capture -->
-      <div x-show="groundTab==='capture'">
-        <div class="page-header"><h1>Capture</h1><p class="text-muted">Gestione sorgenti di cattura</p></div>
-        <div class="grid-2">
-          <div class="stat-card">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2"><i class="ti ti-wifi" style="color:var(--accent);font-size:16px"></i><span class="text-sm font-semibold" style="color:var(--text)">WiFi Beacon</span></div>
-              <button @click="toggleWifi()" class="chip-btn" :class="wifiActive?'active':''" x-text="wifiActive?'ATTIVO':'INATTIVO'"></button>
-            </div>
-            <p class="text-xs" style="color:var(--text-secondary)">Cattura pacchetti WiFi beacon (NAV/Beacon) su interfaccia monitor.</p>
-            <p class="text-xs mt-2 font-mono" :style="{color:wifiActive?'var(--accent-green)':'var(--text-muted)'}" x-text="wifiActive?'● In ascolto...':'Fare clic per avviare'"></p>
+    <section x-show="activeTab==='capture'" x-cloak>
+      <div class="page-header"><h1>Capture</h1><p class="text-muted">Gestione sorgenti di cattura</p></div>
+      <div class="grid-2">
+        <div class="stat-card">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2"><i class="ti ti-file-upload" style="color:var(--accent);font-size:16px"></i><span class="text-sm font-semibold" style="color:var(--text)">PCAP Import</span></div>
+            <label class="chip-btn" x-bind:class="wifiActive?'active':''" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+              <input type="file" accept=".pcap,.pcapng" class="hidden" @change="importPcap($event)" style="display:none">
+              <i class="ti ti-upload" style="font-size:11px"></i><span x-text="wifiActive?'ATTIVO':'IMPORTA'"></span>
+            </label>
           </div>
-          <div class="stat-card">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2"><i class="ti ti-brand-bluetooth" style="color:var(--accent);font-size:16px"></i><span class="text-sm font-semibold" style="color:var(--text)">Bluetooth LE</span></div>
-              <button @click="toggleBle()" class="chip-btn" :class="bleActive?'active':''" x-text="bleActive?'ATTIVO':'INATTIVO'"></button>
-            </div>
-            <p class="text-xs" style="color:var(--text-secondary)">Scansione BLE per pacchetti Open DroneID.</p>
-            <p class="text-xs mt-2 font-mono" :style="{color:bleActive?'var(--accent-green)':'var(--text-muted)'}" x-text="bleActive?'● In scansione...':'Fare clic per avviare'"></p>
+          <p class="text-xs" style="color:var(--text-secondary)">Analisi offline di file PCAP catturati in monitor mode (WiFi beacon).</p>
+          <p class="text-xs mt-2 font-mono" :style="{color:wifiActive?'var(--accent-green)':'var(--text-muted)'}" x-text="wifiActive?'📄 '+pcapFileName:'Seleziona un file .pcap'"></p>
+        </div>
+        <div class="stat-card">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2"><i class="ti ti-brand-bluetooth" style="color:var(--accent);font-size:16px"></i><span class="text-sm font-semibold" style="color:var(--text)">Bluetooth LE</span></div>
+            <button @click="toggleBle()" class="chip-btn" :class="bleActive?'active':''" x-text="bleActive?'ATTIVO':'INATTIVO'"></button>
           </div>
-          <div class="stat-card">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2"><i class="ti ti-cable" style="color:var(--accent);font-size:16px"></i><span class="text-sm font-semibold" style="color:var(--text)">Seriale</span></div>
-              <button @click="toggleSerial()" class="chip-btn" :class="serialActive?'active':''" x-text="serialActive?'CONNESSO':'DISCONNESSO'"></button>
-            </div>
-            <p class="text-xs" style="color:var(--text-secondary)">Lettura da ricevitore seriale (es. ESP32 via UART).</p>
-            <p class="text-xs mt-2 font-mono" :style="{color:serialActive?'var(--accent-green)':'var(--text-muted)'}" x-text="serialActive?'● Connesso':'Fare clic per connettere'"></p>
+          <p class="text-xs" style="color:var(--text-secondary)">Scansione BLE per pacchetti Open DroneID (Web Bluetooth).</p>
+          <p class="text-xs mt-2 font-mono" :style="{color:bleActive?'var(--accent-green)':'var(--text-muted)'}" x-show="bleAvailable" x-text="bleActive?'◉ In scansione...':'Fare clic per avviare'"></p>
+          <p class="text-xs mt-2 font-mono" style="color:var(--accent-orange)" x-show="!bleAvailable">Richiede Chrome 117+ con Web Bluetooth. Cattura la scan avviata dal dispositivo.</p>
+        </div>
+        <div class="stat-card">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2"><i class="ti ti-cable" style="color:var(--accent);font-size:16px"></i><span class="text-sm font-semibold" style="color:var(--text)">Seriale</span></div>
+            <button @click="toggleSerial()" class="chip-btn" :class="serialActive?'active':''" x-text="serialActive?'CONNESSO':'DISCONNESSO'"></button>
           </div>
-          <div class="stat-card">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2"><i class="ti ti-file-upload" style="color:var(--accent);font-size:16px"></i><span class="text-sm font-semibold" style="color:var(--text)">PCAP Import</span></div>
-              <button @click="importPcap()" class="btn-outline text-xs">Importa PCAP</button>
-            </div>
-            <p class="text-xs" style="color:var(--text-secondary)">Carica file PCAP per analisi offline di pacchetti WiFi/BT.</p>
-            <p class="text-xs mt-2" style="color:var(--text-muted)">Supporta formati libpcap e pcapng</p>
+          <p class="text-xs" style="color:var(--text-secondary)">Lettura da ricevitore seriale (es. ESP32 via UART, Web Serial).</p>
+          <p class="text-xs mt-2 font-mono" :style="{color:serialActive?'var(--accent-green)':'var(--text-muted)'}" x-show="serialAvailable" x-text="serialActive?'◉ Connesso':'Fare clic per connettere'"></p>
+          <p class="text-xs mt-2 font-mono" style="color:var(--accent-orange)" x-show="!serialAvailable">Richiede Chrome 89+ con Web Serial.</p>
+        </div>
+        <div class="stat-card">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2"><i class="ti ti-info-circle" style="color:var(--accent);font-size:16px"></i><span class="text-sm font-semibold" style="color:var(--text)">Note</span></div>
           </div>
+          <p class="text-xs" style="color:var(--text-secondary)">La cattura WiFi in tempo reale richiede monitor mode: usa la versione compilata nativa o importa un PCAP. BLE e Serial funzionano direttamente nel browser.</p>
         </div>
       </div>
     </section>
 
-    <!-- ====== LANDING (docs/index.html via iframe) ====== -->
-    <section x-show="activeTab==='landing'" x-cloak class="page-tab">
-      <div class="flex items-center justify-between mb-3">
-        <div class="page-header mb-0"><h1>Landing Page</h1><p class="text-muted">Sito del progetto — sincronizzato da GitHub</p></div>
-        <div class="flex items-center gap-2">
-          <span x-show="pageCacheStatus.landing==='syncing'" class="text-xs" style="color:var(--accent)"><i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Sincronizzazione...</span>
-          <button @click="refreshPage('landing')" class="btn-outline text-xs"><i class="ti ti-refresh" style="font-size:12px"></i> Aggiorna</button>
-        </div>
-      </div>
-      <div class="page-frame-wrap">
-        <iframe class="page-frame" srcdoc="" id="iframe-landing"></iframe>
-      </div>
-    </section>
-
-    <!-- ====== GUIDE (docs/guide.html via iframe) ====== -->
     <section x-show="activeTab==='guide'" x-cloak class="page-tab">
-      <div class="flex items-center justify-between mb-3">
-        <div class="page-header mb-0"><h1>Guida tecnica</h1><p class="text-muted">Documentazione — sincronizzata da GitHub</p></div>
-        <div class="flex items-center gap-2">
-          <span x-show="pageCacheStatus.guide==='syncing'" class="text-xs" style="color:var(--accent)"><i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Sincronizzazione...</span>
-          <button @click="refreshPage('guide')" class="btn-outline text-xs"><i class="ti ti-refresh" style="font-size:12px"></i> Aggiorna</button>
-        </div>
-      </div>
+      <div class="page-header"><h1>Guida</h1><p class="text-muted">Documentazione tecnica</p></div>
       <div class="page-frame-wrap">
-        <iframe class="page-frame" srcdoc="" id="iframe-guide"></iframe>
+        <iframe class="page-frame" src="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/guide.html" id="iframe-guide" loading="lazy"></iframe>
       </div>
     </section>
 
-    <!-- ====== CONFIGURE (docs/config(demo).html via iframe) ====== -->
-    <section x-show="activeTab==='configure'" x-cloak class="page-tab">
-      <div class="flex items-center justify-between mb-3">
-        <div class="page-header mb-0"><h1>Configura ESP32</h1><p class="text-muted">Configuratore dispositivo — sincronizzato da GitHub</p></div>
-        <div class="flex items-center gap-2">
-          <span x-show="pageCacheStatus.configure==='syncing'" class="text-xs" style="color:var(--accent)"><i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Sincronizzazione...</span>
-          <button @click="refreshPage('configure')" class="btn-outline text-xs"><i class="ti ti-refresh" style="font-size:12px"></i> Aggiorna</button>
+    <section x-show="activeTab==='about'" x-cloak>
+      <div class="page-header"><h1>About</h1><p class="text-muted">OmniRID App — Open DroneID Ground Station (PWA)</p></div>
+      <div class="card-base p-4">
+        <p class="text-xs" style="color:var(--text-secondary)">Progressive Web App basata sulla ground station desktop. Decodifica ASTM F3411-22a, tracking, mappa ed export CSV/KML/JSON, tutto nel browser.</p>
+        <div class="flex gap-2 mt-3">
+          <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID" target="_blank" class="btn-outline text-xs"><i class="ti ti-brand-github" style="font-size:12px"></i> Repo</a>
+          <a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/guide.html" target="_blank" class="btn-outline text-xs"><i class="ti ti-book" style="font-size:12px"></i> Guide completa</a>
         </div>
-      </div>
-      <div class="page-frame-wrap">
-        <iframe class="page-frame" srcdoc="" id="iframe-configure" allow="serial"></iframe>
-      </div>
-    </section>
-
-    <!-- ====== FIRMWARE ====== -->
-    <section x-show="activeTab==='firmware'" x-cloak>
-      <div class="page-header"><h1>Firmware</h1><p class="text-muted">Scarica e flasha il firmware ESP32</p></div>
-      <div class="flex items-center gap-2 mb-4">
-        <button @click="loadFirmwareReleases()" class="btn-outline text-xs"><i class="ti ti-refresh" style="font-size:12px"></i> Controlla release</button>
-        <span class="text-xs" style="color:var(--text-muted)" x-text="firmwareStatus==='checking'?'Verifica in corso...':''"></span>
-      </div>
-      <div x-show="firmwareReleases.length>0" class="space-y-3">
-        <template x-for="rel in firmwareReleases" :key="rel.tag">
-          <div class="card-base p-3">
-            <div class="flex items-center justify-between mb-2">
-              <div>
-                <span class="text-sm font-semibold" style="color:var(--text)" x-text="rel.name||rel.tag"></span>
-                <span x-show="rel.prerelease" class="tag" style="background:var(--accent-orange);color:#fff;margin-left:6px">Pre-release</span>
-              </div>
-              <span class="text-xs font-mono" style="color:var(--text-muted)" x-text="rel.published.slice(0,10)"></span>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <template x-for="asset in rel.assets" :key="asset.name">
-                <div class="firmware-item">
-                  <i :class="firmwareAssetIcon(asset.name)" class="ti" style="font-size:14px;color:var(--accent)"></i>
-                  <div class="flex-1 min-w-0">
-                    <div class="text-xs font-mono truncate" style="color:var(--text)" x-text="asset.name"></div>
-                    <div class="text-xs" style="color:var(--text-muted)" x-text="(asset.size/1024).toFixed(0)+' KB'"></div>
-                  </div>
-                  <button @click="downloadFirmwareAsset(asset.url,asset.name)" class="btn-outline text-xs" :disabled="firmwareDownloading===asset.name" x-show="firmwareDownloading!==asset.name">
-                    <i class="ti ti-download" style="font-size:11px"></i>
-                  </button>
-                  <div x-show="firmwareDownloading===asset.name" class="flex items-center gap-1">
-                    <span class="text-xs font-mono" style="color:var(--accent)" x-text="firmwareProgress+'%'"></span>
-                    <div class="su-bar-wrap" style="width:60px"><div class="su-bar" :style="{width:firmwareProgress+'%'}"></div></div>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-        </template>
-      </div>
-      <div x-show="firmwareStatus==='empty'" class="card-base p-8 text-center mt-4">
-        <i class="ti ti-cloud-off" style="font-size:32px;color:var(--text-muted)"></i>
-        <p class="text-xs mt-2" style="color:var(--text-muted)">Nessuna release trovata. Clicca "Controlla release" per verificare.</p>
-      </div>
-      <div class="card-base p-3 mt-4" x-show="firmwareCached.length>0">
-        <h4 class="text-xs font-semibold uppercase tracking-wider mb-2" style="color:var(--text-muted)">Firmware in cache</h4>
-        <div class="firmware-grid">
-          <template x-for="f in firmwareCached" :key="f.name">
-            <div class="firmware-item">
-              <i :class="firmwareAssetIcon(f.name)" class="ti" style="font-size:14px;color:var(--accent-green)"></i>
-              <div class="flex-1 min-w-0">
-                <div class="text-xs font-mono truncate" style="color:var(--text)" x-text="f.name"></div>
-                <div class="text-xs" style="color:var(--text-muted)" x-text="(f.size/1024).toFixed(0)+' KB'"></div>
-              </div>
-              <button @click="deleteCachedFirmware(f.name)" class="btn-outline text-xs"><i class="ti ti-trash" style="font-size:11px;color:var(--accent-red)"></i></button>
-            </div>
-          </template>
-        </div>
-      </div>
-      <div class="card-base p-4 mt-4">
-        <h4 class="text-xs font-semibold uppercase tracking-wider mb-2" style="color:var(--text-muted)">Flash via seriale</h4>
-        <p class="text-xs" style="color:var(--text-secondary)">Connetti l'ESP32 via USB, seleziona i file firmware nella cache e usa esptool per flashare. La connessione seriale deve essere attiva.</p>
-        <p class="text-xs mt-2" style="color:var(--text-muted)"><i class="ti ti-info-circle" style="font-size:11px"></i> Flasher automatico in sviluppo — per ora usa ESP Web Tools via browser.</p>
       </div>
     </section>
 
   </main>
 </div>
 
-<!-- ====== STATUS BAR ====== -->
 <footer class="statusbar">
   <div class="statusbar-left">
     <span class="statusbar-item" x-show="isRecording">
@@ -479,14 +348,13 @@
     <span class="statusbar-item"><i class="ti ti-clock" style="font-size:12px"></i> <span x-text="uptime"></span></span>
   </div>
   <div class="statusbar-right">
-    <span class="statusbar-item"><i class="ti ti-wifi" style="font-size:11px" :style="{color:wifiActive?'var(--accent-green)':'var(--text-muted)'}"></i></span>
+    <span class="statusbar-item"><i class="ti ti-file-upload" style="font-size:11px" :style="{color:wifiActive?'var(--accent-green)':'var(--text-muted)'}"></i></span>
     <span class="statusbar-item"><i class="ti ti-brand-bluetooth" style="font-size:11px" :style="{color:bleActive?'var(--accent-green)':'var(--text-muted)'}"></i></span>
     <span class="statusbar-item"><i class="ti ti-cable" style="font-size:11px" :style="{color:serialActive?'var(--accent-green)':'var(--text-muted)'}"></i></span>
     <span class="statusbar-item" style="color:var(--text-muted)" x-text="captureSourcesList"></span>
   </div>
 </footer>
 
-<!-- ====== DETAIL PANEL ====== -->
 <template x-teleport="body">
   <div x-show="selectedDeviceMac" x-cloak>
     <div class="panel-overlay" @click="closeDetail()"></div>
@@ -516,7 +384,6 @@
   </div>
 </template>
 
-<!-- ====== TOASTS ====== -->
 <div class="toast-container">
   <template x-for="t in toasts" :key="t.id">
     <div class="toast" :style="{background:'var(--surface-elevated)',borderColor:'var(--border)',color:'var(--text-secondary)'}">

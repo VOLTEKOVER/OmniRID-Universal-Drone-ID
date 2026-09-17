@@ -93,14 +93,14 @@ class Tracker {
     }
     for (const msg of (data.messages || [])) {
       const dec = msg.decoded || {};
-      const t = dec.type || '?';
+      const t = dec.type || (msg.message_name) || '?';
       dev.messagesSeen.add(t);
       if (t === 'Basic ID') {
         if (dec.uas_id) dev.basicId = dec.uas_id;
         if (dec.ua_type) dev.uaType = dec.ua_type;
       } else if (t === 'Operator ID') {
         if (dec.operator_id) dev.operatorId = dec.operator_id;
-      } else if (t === 'Location') {
+      } else if (t === 'Location' || t === 'Location/Vector') {
         dev.lastLocation = dec;
         if (dec.latitude != null && dec.longitude != null) {
           const entry = { lat: dec.latitude, lon: dec.longitude, ts: Math.floor(ts) };
@@ -190,7 +190,7 @@ class Tracker {
   generateKML() {
     let kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
-<Document><name>OmniRID Desktop — Drone Report</name>`;
+<Document><name>OmniRID App - Drone Report</name>`;
     for (const d of this._devices.values()) {
       const name = d.basicId || d.mac;
       kml += `<Placemark><name>${name}</name>`;
@@ -214,4 +214,4 @@ class Tracker {
   get totalDevices() { return this._devices.size; }
 }
 
-module.exports = { Tracker, RIDDevice };
+window.RIDTracker = { Tracker, RIDDevice };

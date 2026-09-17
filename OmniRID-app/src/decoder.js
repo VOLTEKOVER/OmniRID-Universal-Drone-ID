@@ -33,10 +33,28 @@ const MSG_TYPE_NAMES = {
   [ODID_MSG_PACK]: 'Message Pack',
 };
 
+const _decoder = new TextDecoder('utf-8');
+
+function bytesToUtf8(bytes) {
+  if (!bytes || !bytes.length) return '';
+  let end = bytes.length;
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] === 0) { end = i; break; }
+  }
+  try { return _decoder.decode(bytes.subarray(0, end)); }
+  catch (_) { return ''; }
+}
+
+function toHex(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, '0');
+  return s;
+}
+
 function readLE(buf, offset, bytes) {
   let v = 0;
   for (let i = 0; i < bytes; i++) v += (buf[offset + i] << (i * 8));
-  return v;
+  return v >>> 0;
 }
 
 function readIntLE(buf, offset, bytes) {
@@ -52,9 +70,7 @@ function decodeBasicId(data, offset = 0) {
   const b1 = data[offset];
   msg.id_type = (b1 >> 4) & 0x0F;
   msg.ua_type = b1 & 0x0F;
-  const raw = data.slice(offset + 1, offset + 21);
-  const nullIdx = raw.indexOf(0);
-  msg.uas_id = Buffer.from(nullIdx >= 0 ? raw.slice(0, nullIdx) : raw).toString('utf8');
+  msg.uas_id = bytesToUtf8(data.subarray(offset + 1, offset + 21));
   return msg;
 }
 
@@ -108,9 +124,7 @@ function decodeSystem(data, offset = 0) {
 function decodeOperatorId(data, offset = 0) {
   const msg = {};
   if (data.length - offset < 21) return msg;
-  const raw = data.slice(offset + 1, offset + 21);
-  const nullIdx = raw.indexOf(0);
-  msg.operator_id = Buffer.from(nullIdx >= 0 ? raw.slice(0, nullIdx) : raw).toString('utf8');
+  msg.operator_id = bytesToUtf8(data.subarray(offset + 1, offset + 21));
   return msg;
 }
 
@@ -118,9 +132,7 @@ function decodeSelfId(data, offset = 0) {
   const msg = {};
   if (data.length - offset < 24) return msg;
   msg.desc_type = data[offset];
-  const raw = data.slice(offset + 1, offset + 24);
-  const nullIdx = raw.indexOf(0);
-  msg.description = Buffer.from(nullIdx >= 0 ? raw.slice(0, nullIdx) : raw).toString('utf8');
+  msg.description = bytesToUtf8(data.subarray(offset + 1, offset + 24));
   return msg;
 }
 
@@ -131,9 +143,9 @@ function decodeAuth(data, offset = 0) {
   msg.auth_type = b1 >> 4;
   msg.auth_page = b1 & 0x0F;
   if (msg.auth_page === 0) {
-    msg.auth_data_hex = Buffer.from(data.slice(offset + 7, offset + 24)).toString('hex');
+    msg.auth_data_hex = toHex(data.subarray(offset + 7, offset + 24));
   } else {
-    msg.auth_data_hex = Buffer.from(data.slice(offset + 1, offset + 24)).toString('hex');
+    msg.auth_data_hex = toHex(data.subarray(offset + 1, offset + 24));
   }
   return msg;
 }
@@ -148,7 +160,7 @@ const DECODERS = {
 };
 
 function decodeOdidMessage(data) {
-  if (data.length < 1) return { error: 'Too short' };
+  if (!data || data.length < 1) return { error: 'Too short' };
   const hdr = data[0];
   const msgType = hdr >> 4;
   const protoVer = hdr & 0x0F;
@@ -160,7 +172,7 @@ function decodeOdidMessage(data) {
     decoded.type = name;
     result.decoded = decoded;
   } else {
-    result.raw_hex = Buffer.from(data).toString('hex');
+    result.raw_hex = toHex(data);
   }
   return result;
 }
@@ -185,7 +197,6 @@ function decodeBeaconPayload(payload) {
     if (hasPack1 && !hasPack0) offset = 1;
   }
   while (offset < payload.length) {
-    if (offset >= payload.length) break;
     const hdr = payload[offset];
     if (!isValidMsgHeader(hdr)) { offset++; continue; }
     const msgType = hdr >> 4;
@@ -203,17 +214,15 @@ function decodeBeaconPayload(payload) {
       }
       for (let i = 0; i < packSize; i++) {
         const start = offset + hdrLen + i * singleSize;
-        const msgData = payload.slice(start, start + singleSize);
-        const decoded = decodeOdidMessage(msgData);
-        results.push(decoded);
+        const msgData = payload.subarray(start, start + singleSize);
+        results.push(decodeOdidMessage(msgData));
         if (totalBytes === 0) break;
       }
       offset += hdrLen + totalBytes;
     } else if (msgType <= 5) {
       const msgSize = 25;
-      const msgData = payload.slice(offset, Math.min(offset + msgSize, payload.length));
-      const decoded = decodeOdidMessage(msgData);
-      results.push(decoded);
+      const msgData = payload.subarray(offset, Math.min(offset + msgSize, payload.length));
+      results.push(decodeOdidMessage(msgData));
       offset += msgData.length;
     } else {
       offset++;
@@ -222,7 +231,7 @@ function decodeBeaconPayload(payload) {
   return results;
 }
 
-const ODID_WIFI_OUI = Buffer.from([0xFA, 0x0B, 0xBC]);
+const ODID_WIFI_OUI = [0xFA, 0x0B, 0xBC];
 const ODID_WIFI_OUI_WID = 0x0D;
 
 function extractOdidFromBeacon(frameBody) {
@@ -233,13 +242,12 @@ function extractOdidFromBeacon(frameBody) {
     const elemId = frameBody[offset];
     const elemLen = frameBody[offset + 1];
     if (offset + 2 + elemLen > frameBody.length) break;
-    const elemData = frameBody.slice(offset + 2, offset + 2 + elemLen);
+    const elemData = frameBody.subarray(offset + 2, offset + 2 + elemLen);
     if (elemId === 0xDD && elemLen >= 5) {
-      const oui = elemData.slice(0, 3);
+      const oui = elemData.subarray(0, 3);
       const wid = elemData[3];
-      if (Buffer.from(oui).equals(ODID_WIFI_OUI) && wid === ODID_WIFI_OUI_WID) {
-        const odidPayload = elemData.slice(4);
-        results.push(...decodeBeaconPayload(odidPayload));
+      if (oui[0] === ODID_WIFI_OUI[0] && oui[1] === ODID_WIFI_OUI[1] && oui[2] === ODID_WIFI_OUI[2] && wid === ODID_WIFI_OUI_WID) {
+        results.push(...decodeBeaconPayload(elemData.subarray(4)));
       }
     }
     offset += 2 + elemLen;
@@ -260,7 +268,7 @@ function formatSummary(decodedList) {
   }).join(' | ');
 }
 
-module.exports = {
+window.RIDDecoder = {
   decodeOdidMessage, decodeBeaconPayload, extractOdidFromBeacon, formatSummary,
   ODID_MSG_BASIC_ID, ODID_MSG_LOCATION, ODID_MSG_SYSTEM, ODID_MSG_OPERATOR_ID,
   ODID_MSG_SELF_ID, ODID_MSG_AUTH, ODID_MSG_PACK,

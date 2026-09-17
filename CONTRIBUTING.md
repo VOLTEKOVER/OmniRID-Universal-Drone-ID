@@ -8,7 +8,7 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 - Rust stable toolchain (`rustup`)
 - (Optional) `espup` for ESP32 cross-compilation
-- (Optional) Node.js 22+ for RID Hub desktop app
+- (Optional) Node.js 22+ for the RID web app tooling (serve/deploy scripts)
 
 ### Building the Workspace
 
@@ -19,13 +19,12 @@ cargo test --workspace            # run all tests (319)
 cargo clippy --workspace -- -D warnings   # lint
 ```
 
-### Building RID Hub (Desktop App)
+### Building the Web App (PWA)
 
 ```bash
-cd OmniRID-Desktop
-npm ci
-npm start                    # run in dev mode
-npx electron-builder --dir   # pack without installer
+cd OmniRID-app
+npm run serve               # run local dev server (http://localhost:8080)
+npm run deploy              # publish to GitHub Pages
 ```
 
 ## Project Structure
@@ -42,7 +41,7 @@ OmniRID/
 ├── external-libs/         # FFI bindings (opendroneid-sys)
 └── hardware/bsp-esp32/    # ESP-IDF glue (standalone workspace)
 
-OmniRID-Desktop/                   # Electron desktop app
+OmniRID-app/                   # Ground station (PWA)
 docs/                      # GitHub Pages documentation
 ```
 

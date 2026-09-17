@@ -129,14 +129,14 @@ OmniRID/
 ### CI/CD (7 workflow)
 - OmniRID Host Build (ex "OmniRID CI"): build/test/clippy/fmt su ubuntu + windows
 - ESP32 Firmware Cross-Build: host checks + matrix esp32/esp32s3/esp32c6 (`-Z build-std`)
-- OmniRID Desktop CI: `npm ci` + `electron-builder --dir` (lockfile committato, node-abi override)
+- OmniRID App CI: JS syntax + JSON + serve smoke test (`OmniRID-app`, ex desktop CI)
 - Weekly Upstream Sync (ex "Weekly checks"): OpenDroneID, MAVLink, DroneCAN, ESP-IDF, regulatory pages
 - Security Audit (cargo-audit + cargo-deny), Release (tag `v*`), Deploy Pages (`docs/`)
 - Default branch: `universal` (branch `main` orfana eliminata)
 
-### Documentation & Desktop
+### Documentation & Web App
 - guide.html, index.html, config(demo).html — all updated for Rust
-- OmniRID-Desktop: Electron + React 19 + Ant Design 6 + Vite 8
+- OmniRID-app: PWA (Alpine + Tabler Icons + Inter), installed offline, BLE/Serial/PCAP capture in browser
 
 ### Audit Fixes (session 2026-08-28)
 - [#18] MSP framing corrected: replaced the replicated C off-by-one quirk with standard MSP v1 framing (`buf[3]=size, buf[4]=type, payload=buf[5..]`). Unblocks §10.1 / dataflow section-2 "blocked by §10.1" rows.
@@ -145,7 +145,8 @@ OmniRID/
 - [#26] xTaskCreatePinnedToCore return-checked; task module hardware-gated.
 
 ### CI Fixes (session 2026-09-16)
-- pkcs8 pinned back to 0.10 (2nd time) so the direct dep matches ed25519-dalek 2.2.0 features; Cargo.lock resolves to a single pkcs8 0.10.2/spki 0.7.3.
+- OmniRID-Desktop removed (session 2026-09-17): replaced by OmniRID-app PWA (branch `omnirid-webapp-pwa`).
+- `pkcs8` pinned back to 0.10 (2nd time) so the direct dep matches ed25519-dalek 2.2.0 features; Cargo.lock resolves to a single pkcs8 0.10.2/spki 0.7.3.
 - OmniRID-Desktop `package-lock.json` committed (gitignore negation) so `npm ci` + setup-node cache work.
 - Dropped unused `@abandonware/noble`/`pcap` optional deps (pre-release-only versions broke lockfile sync).
 - `node-abi` overridden to 4.35.0 for Electron 44 ABI (rebuild `@serialport/bindings-cpp`).

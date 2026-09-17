@@ -46,7 +46,7 @@ OmniRID is an **open-source Drone ID transmitter** for ESP32 that turns any flig
 
 1. [Quick Start](#quick-start)
 2. [Features](#features)
-3. [Ground Station (RID Hub)](#ground-station-rid-hub)
+3. [Ground Station (Web App / PWA)](#ground-station-web-app--pwa)
 4. [Web UI & Demo](#web-ui--demo)
 5. [Hardware](#hardware)
 6. [Build](#build)
@@ -66,7 +66,7 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 2. Flash the firmware to your ESP32 (see [Hardware](#hardware) and [Build](#build)).
 3. Connect to the WiFi network **ESP-RID**.
 4. Open `http://192.168.4.1` to configure the device.
-5. Run `rid-hub` for the ground station dashboard.
+5. Open the [OmniRID App (PWA)](OmniRID-app/index.html) for the ground station dashboard.
 
 ---
 
@@ -112,22 +112,23 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 
 ---
 
-## Ground Station (RID Hub)
+## Ground Station (Web App / PWA)
 
 | Component | Stack |
 |---|---|
-| **Decoder** | Pure JavaScript, ASTM F3411-22a parser |
-| **Tracker** | Device tracking with 500-point trail, CSV/KML export |
-| **Capture** | WiFi monitor mode + BLE scan + Serial USB (optional npm modules) |
-| **UI** | React 19 + Ant Design 6 + Vite 8 + Leaflet |
+| **Decoder** | Pure JavaScript (no deps), ASTM F3411-22a parser |
+| **Tracker** | Device tracking with trail, CSV/KML/JSON export |
+| **Capture** | PCAP import (WiFi beacon) + Web Bluetooth + Web Serial |
+| **UI** | Alpine.js + Tabler Icons + Inter, theme light/dark |
+
+Installable **Progressive Web App** — works offline, no toolchain required:
 
 ```bash
-cd OmniRID-Desktop
-npm install
-npm run dev            # http://localhost:5173
-npm run build           # Production build
-npm start               # Launch Electron
+cd OmniRID-app
+npm run serve           # http://localhost:8080
 ```
+
+For WiFi monitor-mode capture (real-time) build the native desktop version instead.
 
 ---
 
@@ -214,7 +215,7 @@ cargo +esp build --target riscv32imc-esp-none-elf   --manifest-path firmware/Car
 | 1 | Flash the firmware to your ESP32 via USB |
 | 2 | Connect to WiFi network **ESP-RID** |
 | 3 | Open `http://192.168.4.1` to configure |
-| 4 | Run `rid-hub` for the ground station dashboard |
+| 4 | Open the [OmniRID App (PWA)](OmniRID-app/index.html) for the ground station dashboard |
 
 ---
 
@@ -252,11 +253,12 @@ OmniRID-Universal-Drone-ID/
 │   │
 │   └── scripts/                  # Build/helper scripts
 │
-├── OmniRID-Desktop/              # Ground station (Electron)
-│   ├── main.js
-│   ├── preload.js
-│   ├── src/                      # decoder / tracker / capture
-│   └── renderer/src/             # React UI (App.tsx, components/, hooks/)
+├── OmniRID-app/                  # Ground station (PWA)
+│   ├── index.html                # Shell + Alpine UI
+│   ├── manifest.webmanifest
+│   ├── sw.js                     # Service worker (offline cache)
+│   ├── src/                      # decoder / tracker / capture / app
+│   └── renderer/                 # CSS
 │
 ├── docs/                         # GitHub Pages
 │   ├── index.html
@@ -267,7 +269,7 @@ OmniRID-Universal-Drone-ID/
 │
 ├── todolist/                     # Status & planning docs
 ├── 3D_FILES/                     # Enclosure/casing 3D models
-├── .github/workflows/            # CI (deploy-pages, esp32-build, omnirid-desktop-ci, protocol-updates, release, rid-rust-ci, security-audit)
+├── .github/workflows/            # CI (deploy-pages, esp32-build, omnirid-app-ci, protocol-updates, release, rid-rust-ci, security-audit)
 │
 ├── SECURITY.md
 ├── LICENSE                       # Apache 2.0

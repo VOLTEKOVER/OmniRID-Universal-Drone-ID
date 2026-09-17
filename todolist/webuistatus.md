@@ -95,18 +95,21 @@
 
 ---
 
-## Part 2 — Desktop App (OmniRID-Desktop)
+## Part 2 — Web App PWA (OmniRID-app)
+
+> **Superseded 2026-09-17** — desktop Electron ground station removed, replaced by the
+> installable `OmniRID-app` PWA (branch `omnirid-webapp-pwa`). Modules ported to the
+> browser (no Node/Electron), capture via Web Bluetooth + Web Serial + PCAP import.
 
 | Module | File | Status |
 |--------|------|--------|
-| IPC Bridge | `main.js` + `preload.js` | ✅ |
-| ASTM Decoder | `src/decoder.js` | ✅ |
+| ASTM Decoder | `src/decoder.js` | ✅ (browser, no Buffer) |
 | Per-MAC Tracker | `src/tracker.js` | ✅ |
-| WiFi/BLE Capture | `src/capture.js` | ✅ |
-| UI (6 tabs) | `renderer/app.js` | ✅ |
-| Desktop CI (pack) | electron-builder `--dir` via GitHub Actions | ✅ green on `f92cee9` (node-abi 4.35.0) |
+| Capture (BLE/Serial/PCAP) | `src/capture.js` | ✅ (Web Bluetooth/Serial client-side) |
+| UI (4 tabs) | `src/app.js` (Alpine) | ✅ |
+| App CI | `.github/workflows/omnirid-app-ci.yml` (syntax + smoke) | ✅ |
 
-Tabs: Dashboard, Devices, Map, Timeline, Capture, Settings
+Tabs: Ground, Capture, Guide, About
 
 ---
 
