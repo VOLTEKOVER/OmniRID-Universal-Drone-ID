@@ -128,6 +128,8 @@ cd OmniRID-app
 npm run serve           # http://localhost:8080
 ```
 
+On Windows, double-click `OmniRID-app.bat` — it starts the local server and opens the browser automatically.
+
 For WiFi monitor-mode capture (real-time) build the native desktop version instead.
 
 ---
@@ -257,6 +259,7 @@ OmniRID-Universal-Drone-ID/
 │   ├── index.html                # Shell + Alpine UI
 │   ├── manifest.webmanifest
 │   ├── sw.js                     # Service worker (offline cache)
+│   ├── OmniRID-app.bat           # Windows launcher (serve + browser)
 │   ├── src/                      # decoder / tracker / capture / app
 │   └── renderer/                 # CSS
 │

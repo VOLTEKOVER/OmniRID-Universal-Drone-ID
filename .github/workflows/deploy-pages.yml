@@ -29,10 +29,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Prepare Pages artifact (docs + web app)
+        run: |
+          mkdir -p _site
+          cp -r docs _site/docs
+          cp -r OmniRID-app _site/OmniRID-app
+        shell: bash
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
-          path: .
+          path: _site
           name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Deploy to GitHub Pages
