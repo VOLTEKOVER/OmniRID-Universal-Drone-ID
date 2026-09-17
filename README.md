@@ -116,21 +116,32 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 
 | Component | Stack |
 |---|---|
-| **Decoder** | Pure JavaScript (no deps), ASTM F3411-22a parser |
-| **Tracker** | Device tracking with trail, CSV/KML/JSON export |
+| **Framework** | Nuxt 3 (Vue 3, Vite, Nitro static) |
+| **UI** | Nuxt UI (@nuxt/ui) — pannelli, toggle protocolli, menù porte COM, modali sicurezza |
+| **PWA** | @vite-pwa/nuxt — installabile, 100% offline (Service Worker) |
+| **State** | Pinia (@pinia/nuxt) — telemetria ad alta frequenza (GPS, assetto) alle schede Mappa/Dashboard/CLI |
+| **Decoder** | Pure TS, ASTM F3411-22a parser |
 | **Capture** | PCAP import (WiFi beacon) + Web Bluetooth + Web Serial |
-| **UI** | Alpine.js + Tabler Icons + Inter, theme light/dark |
 
-Installable **Progressive Web App** — works offline, no toolchain required:
+Installable **Progressive Web App** — works offline:
 
 ```bash
 cd OmniRID-app
-npm run serve           # http://localhost:8080
+npm install
+npm run dev             # http://localhost:3000 (hot reload)
+npm run build           # static build in .output/public
+npm run preview         # serve the build
 ```
 
-On Windows, double-click `OmniRID-app.bat` — it starts the local server and opens the browser automatically.
+On Windows, double-click `OmniRID-app.bat` — it installs deps, starts the dev server and opens the browser automatically.
 
-For WiFi monitor-mode capture (real-time) build the native desktop version instead.
+For WiFi monitor-mode capture (real-time) import a `.pcap` in the Capture tab instead.
+
+### Telemetry & protocols
+
+- **Pinia store** aggregates decoded packets (Basic ID, Location/Vector, System, Operator ID, Self-ID) and distributes them reactively to Dashboard, Map and Timeline.
+- **Protocol toggles** (MAVLink, DroneCAN, MSP, NMEA) and the **COM port / baud selector** live in Settings.
+- **Safety checklist modal** gates arming until cleared.
 
 ---
 
@@ -255,13 +266,16 @@ OmniRID-Universal-Drone-ID/
 │   │
 │   └── scripts/                  # Build/helper scripts
 │
-├── OmniRID-app/                  # Ground station (PWA)
-│   ├── index.html                # Shell + Alpine UI
-│   ├── manifest.webmanifest
-│   ├── sw.js                     # Service worker (offline cache)
-│   ├── OmniRID-app.bat           # Windows launcher (serve + browser)
-│   ├── src/                      # decoder / tracker / capture / app
-│   └── renderer/                 # CSS
+├── OmniRID-app/                  # Ground station (Nuxt 3 PWA)
+│   ├── nuxt.config.ts            # Nuxt + UI + Pinia + Vite PWA config
+│   ├── app/                      # app.vue, pages/, components/, stores/, utils/
+│   │   ├── utils/                # decoder / tracker / capture (pure TS)
+│   │   ├── stores/               # Pinia: telemetry, settings
+│   │   ├── components/           # StatCard, TrackerMap, ProtocolToggle, SafetyModal...
+│   │   └── pages/                # /, /map, /devices, /timeline, /capture, /settings, /guide
+│   ├── public/icons/             # PWA icons (logo, maskable)
+│   ├── OmniRID-app.bat           # Windows launcher (dev server + browser)
+│   └── package.json
 │
 ├── docs/                         # GitHub Pages
 │   ├── index.html

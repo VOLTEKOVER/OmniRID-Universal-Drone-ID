@@ -565,18 +565,22 @@ esptool.py --chip esp32c6 --port COM3 write_flash 0x0 target/riscv32imc-unknown-
 &#x2502;   &#x2502;   &#x2514;&#x2500;&#x2500; opendroneid-sys/                 # Intel ODID FFI bindings
 &#x2502;   &#x2514;&#x2500;&#x2500; hardware/                        # Standalone ESP-IDF workspace
 &#x2502;       &#x2514;&#x2500;&#x2500; bsp-esp32/                     # ESP32 glue (WiFi, BLE, USB, web, NVS, OTA, LED)
-&#x251c;&#x2500;&#x2500; OmniRID-app/                               # Ground station (PWA)
-&#x2502;   &#x251c;&#x2500;&#x2500; index.html                     # Shell + Alpine UI
-&#x2502;   &#x251c;&#x2500;&#x2500; manifest.webmanifest           # PWA manifest
-&#x2502;   &#x251c;&#x2500;&#x2500; sw.js                         # Service worker (offline cache)
-&#x2502;   &#x251c;&#x2500;&#x2500; src/
-&#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; decoder.js                   # ASTM F3411-22a decoder (browser)
-&#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; tracker.js                   # Device tracking + CSV/KML/JSON
-&#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; capture.js                   # PCAP import + Web BLE + Web Serial
-&#x2502;   &#x2502;   &#x2514;&#x2500;&#x2500; app.js                       # Alpine UI logic
-&#x2502;   &#x251c;&#x2500;&#x2500; renderer/
-&#x2502;   &#x2502;   &#x2514;&#x2500;&#x2500; style.css
-&#x2502;   &#x2514;&#x2500;&#x2500; images/                        # Logos
+&#x251c;&#x2500;&#x2500; OmniRID-app/                               # Ground station (Nuxt 3 PWA)
+&#x2502;   &#x251c;&#x2500;&#x2500; nuxt.config.ts                 # Nuxt + UI + Pinia + Vite PWA
+&#x2502;   &#x251c;&#x2500;&#x2500; app/
+&#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; app.vue                    # Layout + sidebar shell
+&#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; pages/                     # /, map, devices, timeline, capture, settings
+&#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; components/                # StatCard, TrackerMap, ProtocolToggle, SafetyModal...
+&#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; stores/                    # Pinia: telemetry, settings
+&#x2502;   &#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; telemetry.ts              # ingesta ad alta frequenza, distribuzione reattiva
+&#x2502;   &#x2502;   &#x2502;   &#x2514;&#x2500;&#x2500; settings.ts              # protocolli, COM, sicurezza
+&#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; utils/
+&#x2502;   &#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; decoder.ts               # ASTM F3411-22a parser (pure TS)
+&#x2502;   &#x2502;   &#x2502;   &#x251c;&#x2500;&#x2500; tracker.ts               # tracking + CSV/KML
+&#x2502;   &#x2502;   &#x2502;   &#x2514;&#x2500;&#x2500; capture.ts               # PCAP + Web BLE + Web Serial
+&#x2502;   &#x2502;   &#x2514;&#x2500;&#x2500; assets/css/main.css        # stili globali
+&#x2502;   &#x251c;&#x2500;&#x2500; public/icons/                        # PWA icons
+&#x2502;   &#x2514;&#x2500;&#x2500; package.json                      # scripts dev/build/preview
 &#x251c;&#x2500;&#x2500; docs/                              # GitHub Pages site
 &#x2502;   &#x251c;&#x2500;&#x2500; index.html                     # Wiki + WebSerial installer
 &#x2502;   &#x251c;&#x2500;&#x2500; guide.html                     # Technical guide (this page)

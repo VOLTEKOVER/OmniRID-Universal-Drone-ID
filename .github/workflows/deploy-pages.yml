@@ -29,11 +29,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: OmniRID-app/package-lock.json
+
+      - name: Install web app deps
+        run: npm ci
+        working-directory: OmniRID-app
+
+      - name: Static build (Nuxt generate)
+        run: npm run build
+        working-directory: OmniRID-app
+        env:
+          NUXT_APP_BASE_URL: /OmniRID-Universal-Drone-ID/OmniRID-app/
+
       - name: Prepare Pages artifact (docs + web app)
         run: |
-          mkdir -p _site
+          mkdir -p _site/OmniRID-app
           cp -r docs _site/docs
-          cp -r OmniRID-app _site/OmniRID-app
+          cp -r OmniRID-app/.output/public/* _site/OmniRID-app/
         shell: bash
 
       - name: Upload Pages artifact

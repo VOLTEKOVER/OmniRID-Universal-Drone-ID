@@ -1,10 +1,29 @@
 {
   "name": "omnirid-app",
   "version": "1.0.0",
-  "description": "OmniRID Web App — Open DroneID Ground Station (PWA)",
+  "description": "OmniRID Web App — Open DroneID Ground Station (Nuxt 3 PWA)",
   "private": true,
+  "type": "module",
   "scripts": {
-    "serve": "npx --yes http-server . -p 8080 -c-1",
-    "deploy": "npx --yes gh-pages --dist ."
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^2.21.1",
+    "@pinia/nuxt": "^1.0.2",
+    "@vite-pwa/nuxt": "^1.1.1",
+    "nuxt": "^3.21.11",
+    "pinia": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "@types/web-bluetooth": "^0.0.21",
+    "typescript": "^5.5.4"
   }
 }

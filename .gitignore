@@ -83,6 +83,7 @@ OmniRID-Desktop/release/
 
 # Workflow-level npm CI relies on the lockfile
 !OmniRID-Desktop/package-lock.json
+!OmniRID-app/package-lock.json
 
 # ==================== IDE & EDITORS ====================
 .vscode/settings.json

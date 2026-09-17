@@ -16,8 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  check:
-    name: Syntax & smoke test
+  build:
+    name: Nuxt build (static PWA)
     runs-on: ubuntu-latest
 
     steps:
@@ -28,29 +28,30 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: OmniRID-app/package-lock.json
 
-      - name: Validate JavaScript syntax
-        run: |
-          for f in src/decoder.js src/tracker.js src/capture.js src/app.js sw.js; do
-            node --check "$f" || exit 1
-          done
+      - name: Install dependencies
+        run: npm ci
         working-directory: OmniRID-app
 
-      - name: Validate JSON
+      - name: Static build (Nuxt generate)
+        run: npm run build
+        working-directory: OmniRID-app
+        env:
+          NUXT_APP_BASE_URL: /OmniRID-Universal-Drone-ID/OmniRID-app/
+
+      - name: Verify artifacts
         run: |
-          node -e "JSON.parse(require('fs').readFileSync('package.json')); JSON.parse(require('fs').readFileSync('manifest.webmanifest')); console.log('JSON OK')"
+          test -f .output/public/index.html && echo "index OK"
+          test -f .output/public/sw.js && echo "SW OK"
+          test -f .output/public/manifest.webmanifest && echo "manifest OK"
+          test -d .output/public/icons && echo "icons OK"
         working-directory: OmniRID-app
 
-      - name: Serve smoke test
-        run: |
-          npx --yes http-server . -p 8080 -c-1 > /dev/null 2>&1 &
-          sleep 3
-          curl -fsS http://localhost:8080/ | grep -q 'OmniRID App' || exit 1
-          curl -fsS -o /dev/null http://localhost:8080/src/decoder.js
-          curl -fsS -o /dev/null http://localhost:8080/src/tracker.js
-          curl -fsS -o /dev/null http://localhost:8080/src/capture.js
-          curl -fsS -o /dev/null http://localhost:8080/src/app.js
-          curl -fsS -o /dev/null http://localhost:8080/manifest.webmanifest
-          curl -fsS -o /dev/null http://localhost:8080/sw.js
-          echo "SMOKE OK"
-        working-directory: OmniRID-app
+      - name: Upload build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: omnirid-app
+          path: OmniRID-app/.output/public
+          retention-days: 7

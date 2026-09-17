@@ -1,0 +1,94 @@
+html, body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* App scaffold */
+.omnirid-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.omnirid-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.omnirid-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6, 1.5rem);
+}
+
+/* Sidebar */
+.omnirid-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--ui-border) !important;
+}
+
+.omnirid-sidebar .omnirid-brand {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+
+.omnirid-sidebar .omnirid-brand img {
+  height: 30px;
+  width: 30px;
+}
+
+/* Maps */
+.map-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border-radius: var(--ui-radius);
+  background: linear-gradient(180deg, #0b1e3c 0%, #123a5e 100%);
+}
+
+/* Timeline / logs */
+.log-console {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: .78rem;
+  line-height: 1.5;
+  background: var(--ui-color-gray-950, #0a0a0f);
+  color: #cbd5e1;
+  border-radius: var(--ui-radius);
+  padding: .75rem;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.log-line {
+  display: flex;
+  gap: .6rem;
+  padding: 1px 0;
+}
+
+.log-line .log-time {
+  color: #64748b;
+}
+
+.log-line .log-mac {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.log-line .log-rssi {
+  min-width: 4.5rem;
+}
+
+/* Utility */
+.text-muted {
+  color: var(--ui-text-muted, #64748b);
+}
+
+.font-mono {
+  font-family: ui-monospace, monospace;
+}
