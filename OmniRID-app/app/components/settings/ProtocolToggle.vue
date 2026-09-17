@@ -22,11 +22,7 @@ const keys = computed(() => Object.keys(settings.protocols))
             <div class="text-xs text-muted">{{ settings.protocols[key].description }}</div>
           </div>
         </div>
-        <UToggle
-          :model-value="settings.protocols[key].enabled"
-          :color="settings.protocols[key].enabled ? 'primary' : 'gray'"
-          @update:model-value="settings.toggleProtocol(key as keyof typeof settings.protocols)"
-        />
+        <UToggle v-model="settings.protocols[key].enabled" />
       </div>
     </div>
   </UCard>

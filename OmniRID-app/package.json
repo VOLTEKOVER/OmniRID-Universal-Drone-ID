@@ -15,6 +15,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@iconify-json/tabler": "^1.2.38",
     "@nuxt/ui": "^2.21.1",
     "@pinia/nuxt": "^1.0.2",
     "@vite-pwa/nuxt": "^1.1.1",

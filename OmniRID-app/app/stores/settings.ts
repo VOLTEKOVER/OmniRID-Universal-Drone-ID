@@ -24,7 +24,7 @@ export const PROTOCOLS: Record<string, ProtocolState> = {
     enabled: false,
     label: 'MSP',
     description: 'MultiWii Serial Protocol — Betaflight/INAV',
-    icon: 'i-tabler-circuit-board',
+    icon: 'i-tabler-usb',
   },
   nmea: {
     enabled: true,
@@ -61,6 +61,12 @@ export const useSettingsStore = defineStore('settings', {
     },
   }),
 
+  getters: {
+    safetyReady(state): boolean {
+      return Object.values(state.safetyChecklist).every(Boolean)
+    },
+  },
+
   actions: {
     toggleProtocol(key: keyof typeof PROTOCOLS) {
       if (this.protocols[key]) this.protocols[key].enabled = !this.protocols[key].enabled
@@ -87,10 +93,6 @@ export const useSettingsStore = defineStore('settings', {
 
     toggleSafety(item: keyof SettingsState['safetyChecklist']) {
       this.safetyChecklist[item] = !this.safetyChecklist[item]
-    },
-
-    get safetyReady(): boolean {
-      return Object.values(this.safetyChecklist).every(Boolean)
     },
 
     reset() {

@@ -64,7 +64,7 @@ const toggleSerialUi = async () => {
       <UCard>
         <template #header>
           <div class="flex items-center gap-2">
-            <UIcon name="i-tabler-brand-bluetooth" class="w-4 h-4 text-primary-500" />
+            <UIcon name="i-tabler-bluetooth" class="w-4 h-4 text-primary-500" />
             <span class="text-sm font-semibold">Bluetooth LE</span>
           </div>
         </template>
@@ -74,7 +74,7 @@ const toggleSerialUi = async () => {
         <UAlert v-if="!bleAvailable()" color="amber" variant="subtle" icon="i-tabler-alert-triangle" title="Web Bluetooth non disponibile" description="Usa Chrome o Edge recenti su HTTPS." class="mb-3" />
         <UButton
           :color="telemetry.bleActive ? 'red' : 'primary'"
-          :icon="telemetry.bleActive ? 'i-tabler-player-stop' : 'i-tabler-brand-bluetooth'"
+          :icon="telemetry.bleActive ? 'i-tabler-player-stop' : 'i-tabler-bluetooth'"
           :label="telemetry.bleActive ? 'Stop scan' : 'Avvia scan BLE'"
           block
           @click="toggleBle()"
@@ -85,7 +85,7 @@ const toggleSerialUi = async () => {
       <UCard>
         <template #header>
           <div class="flex items-center gap-2">
-            <UIcon name="i-tabler-cable" class="w-4 h-4 text-primary-500" />
+            <UIcon name="i-tabler-plug" class="w-4 h-4 text-primary-500" />
             <span class="text-sm font-semibold">Seriale (COM)</span>
           </div>
         </template>
@@ -95,7 +95,7 @@ const toggleSerialUi = async () => {
         <UAlert v-if="!serialAvailable()" color="amber" variant="subtle" icon="i-tabler-alert-triangle" title="Web Serial non disponibile" description="Usa Chrome 89+ su HTTPS." class="mb-3" />
         <UButton
           :color="telemetry.serialActive ? 'red' : 'primary'"
-          :icon="telemetry.serialActive ? 'i-tabler-player-stop' : 'i-tabler-cable'"
+          :icon="telemetry.serialActive ? 'i-tabler-player-stop' : 'i-tabler-plug'"
           :label="telemetry.serialActive ? 'Disconnetti' : 'Connetti seriale'"
           :loading="busy"
           block

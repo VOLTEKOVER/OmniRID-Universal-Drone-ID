@@ -62,10 +62,10 @@ onMounted(() => {
     />
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <DashboardStatCard title="Droni rilevati" icon="i-tabler-radio" :value="telemetry.stats.total_devices" :sub="`${telemetry.stats.active_devices} attivi ora`" tone="primary" />
-      <DashboardStatCard title="RSSI medio" icon="i-tabler-signal-5g" :value="`${telemetry.avgRssi} dBm`" :sub="`Ultimi 20 pacchetti`" tone="green" />
-      <DashboardStatCard title="Pacchetti" icon="i-tabler-activity" :value="telemetry.stats.total_packets" :sub="`${telemetry.stats.packets_last_60s} negli ultimi 60s`" tone="orange" />
-      <DashboardStatCard title="Sessione" icon="i-tabler-clock" :value="telemetry.stats.recording ? `${telemetry.stats.session_packets} pkt` : 'off'" :sub="telemetry.stats.recording ? 'Registrazione attiva' : 'Nessuna registrazione'" tone="purple" />
+      <StatCard title="Droni rilevati" icon="i-tabler-radio" :value="telemetry.stats.total_devices" :sub="`${telemetry.stats.active_devices} attivi ora`" tone="primary" />
+      <StatCard title="RSSI medio" icon="i-tabler-signal-5g" :value="`${telemetry.avgRssi} dBm`" :sub="`Ultimi 20 pacchetti`" tone="green" />
+      <StatCard title="Pacchetti" icon="i-tabler-activity" :value="telemetry.stats.total_packets" :sub="`${telemetry.stats.packets_last_60s} negli ultimi 60s`" tone="orange" />
+      <StatCard title="Sessione" icon="i-tabler-clock" :value="telemetry.stats.recording ? `${telemetry.stats.session_packets} pkt` : 'off'" :sub="telemetry.stats.recording ? 'Registrazione attiva' : 'Nessuna registrazione'" tone="purple" />
     </div>
 
     <ActivityChart />

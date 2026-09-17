@@ -15,8 +15,7 @@ const nav = [
 
 <template>
   <div class="omnirid-shell">
-    <UApp>
-      <div class="omnirid-body">
+    <div class="omnirid-body">
         <aside class="omnirid-sidebar border-r border-gray-200 dark:border-gray-800 p-4">
           <NuxtLink to="/" class="omnirid-brand mb-6">
             <img :src="`${useRuntimeConfig().app.baseURL}icons/logo.svg`" alt="OmniRID">
@@ -46,6 +45,5 @@ const nav = [
           <NuxtPage />
         </main>
       </div>
-    </UApp>
   </div>
 </template>
