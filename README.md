@@ -116,12 +116,17 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 
 | Component | Stack |
 |---|---|
-| **Framework** | Nuxt 3 (Vue 3, Vite, Nitro static) |
-| **UI** | Nuxt UI (@nuxt/ui) — pannelli, toggle protocolli, menù porte COM, modali sicurezza |
-| **PWA** | @vite-pwa/nuxt — installabile, 100% offline (Service Worker) |
-| **State** | Pinia (@pinia/nuxt) — telemetria ad alta frequenza (GPS, assetto) alle schede Mappa/Dashboard/CLI |
-| **Decoder** | Pure TS, ASTM F3411-22a parser |
-| **Capture** | PCAP import (WiFi beacon) + Web Bluetooth + Web Serial |
+| **Framework** | Nuxt 4 / Vue 3 (Vite + Nitro static) |
+| **UI** | Nuxt UI (@nuxt/ui) — pannelli configurazione device, checklist, notifiche |
+| **PWA** | Installabile, 100% offline (Service Worker) |
+| **State** | Pinia + composables — stato configurazione e shell dashboard |
+| **Server API** | `OmniRID-app/server/api/*` — feed notifiche temporaneo |
+
+> **Current boundary**: `OmniRID-app` is a browser **configuration dashboard** for
+> the OmniRID ESP32 device. It does **not** contain a browser-side ASTM decoder,
+> a BLE/Serial capture pipeline or a PCAP/KML importer — decoding lives in the
+> Rust firmware (parsers) and ASTM output in `docs/demo`. The pages render grouped
+> configuration surfaces and are being connected incrementally to the firmware API.
 
 Installable **Progressive Web App** — works offline:
 
@@ -133,22 +138,36 @@ npm run build           # static build in .output/public
 npm run preview         # serve the build
 ```
 
-On Windows, double-click `OmniRID-app.bat` — it installs deps, starts the dev server and opens the browser automatically.
+On Windows, double-click `start-webui.bat` — it installs deps, starts the dev server and opens the browser automatically.
 
-For WiFi monitor-mode capture (real-time) import a `.pcap` in the Capture tab instead.
+### Current user-visible behavior
 
-### Telemetry & protocols
+1. **ESP connection indicator** — The header shows the connection state and the
+	configured address (`192.168.4.1` by default). The state is local UI state; it
+	is not yet confirmed by a live request to the ESP32.
+2. **ESP address editor** — The address popover accepts a new value during the
+	session. It does not yet persist the address or test the connection.
+3. **Configuration checklist** — Security, identity, flight controller and
+	transmission items can be checked manually; the percentage is computed in the
+	browser and is not yet derived from the actual device config.
+4. **Configuration pages** — Each page renders grouped fields from the shared
+	`ConfigPage` component. Inputs validate on blur (SSID 1-32, password 8-63,
+	GPS bounds, GPIO range, channel 1-13, …) and the Save button shows a success
+	toast. Persistence and `/api/config` writes are not yet connected.
+5. **Notifications** — The bell opens the error-history slideover and loads the
+	current static notification feed from `server/api/notifications.ts`. It is not
+	yet connected to live firmware logs or `/api/status`.
+6. **Theme** — The light/dark switch updates the Nuxt color mode and is shared by
+	the header and sidebar controls.
 
-- **Pinia store** aggregates decoded packets (Basic ID, Location/Vector, System, Operator ID, Self-ID) and distributes them reactively to Dashboard, Map and Timeline.
-- **Protocol toggles** (MAVLink, DroneCAN, MSP, NMEA) and the **COM port / baud selector** live in Settings.
-- **Safety checklist modal** gates arming until cleared.
+> Debug harness (CDP) lives in the OS temp dir, not in the repo; no commits.
 
 ---
 
 ## Web UI & Demo
 
 <p align="center">
-  <img src="docs/images/dashboard.png" alt="RID Hub Dashboard" width="820">
+  <img src="docs/images/dashboard.png" alt="OmniRID Dashboard" width="820">
 </p>
 
 A live configuration demo is available that simulates GPS, battery, counters and logs — no hardware required. Try it at [config(demo).html](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/config(demo).html).
@@ -266,16 +285,18 @@ OmniRID-Universal-Drone-ID/
 │   │
 │   └── scripts/                  # Build/helper scripts
 │
-├── OmniRID-app/                  # Ground station (Nuxt 3 PWA)
-│   ├── nuxt.config.ts            # Nuxt + UI + Pinia + Vite PWA config
-│   ├── app/                      # app.vue, pages/, components/, stores/, utils/
-│   │   ├── utils/                # decoder / tracker / capture (pure TS)
-│   │   ├── stores/               # Pinia: telemetry, settings
-│   │   ├── components/           # StatCard, TrackerMap, ProtocolToggle, SafetyModal...
-│   │   └── pages/                # /, /map, /devices, /timeline, /capture, /settings, /guide
-│   ├── public/icons/             # PWA icons (logo, maskable)
-│   ├── OmniRID-app.bat           # Windows launcher (dev server + browser)
-│   └── package.json
+├── OmniRID-app/                  # Ground station (Nuxt 4 PWA)
+│   ├── nuxt.config.ts            # Nuxt + UI + Pinia + PWA config
+│   ├── package.json
+│   ├── start-webui.bat           # Windows launcher (dev server + browser)
+│   ├── app/                      # Source (layouts, pages, components, composables)
+│   │   ├── pages.config.ts       # Navigation manifest (6 groups)
+│   │   ├── layouts/default.vue   # Dashboard shell (sidebar, header, search)
+│   │   ├── pages/                # device/, compliance-security/, tools/, docs/, dashboard, firmware, app-settings
+│   │   ├── components/           # device/ConfigPage, SectionTabs, NotificationsSlideover
+│   │   └── composables/          # useDashboard, useDeviceProfile
+│   ├── server/api/               # Notification feed stub
+│   └── public/                   # Static assets (logo, icons)
 │
 ├── docs/                         # GitHub Pages
 │   ├── index.html

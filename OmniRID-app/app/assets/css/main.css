@@ -1,0 +1,92 @@
+@import "tailwindcss" theme(static);
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: 'Inter', 'Segoe UI', sans-serif;
+
+  --color-primary-50: #eef4ff;
+  --color-primary-100: #dfeafe;
+  --color-primary-200: #bfd6ff;
+  --color-primary-300: #9bbdff;
+  --color-primary-400: #6a9cff;
+  --color-primary-500: #1a56db;
+  --color-primary-600: #1147b8;
+  --color-primary-700: #0d3b9e;
+  --color-primary-800: #0c2f7d;
+  --color-primary-900: #102861;
+
+  --color-green-50: #EFFDF5;
+  --color-green-100: #D9FBE8;
+  --color-green-200: #B3F5D1;
+  --color-green-300: #75EDAE;
+  --color-green-400: #00DC82;
+  --color-green-500: #00C16A;
+  --color-green-600: #00A155;
+  --color-green-700: #007F45;
+  --color-green-800: #016538;
+  --color-green-900: #0A5331;
+  --color-green-950: #052E16;
+
+  --color-surface: #ffffff;
+  --color-surface-alt: #f7f8fa;
+  --color-surface-hover: #eef0f4;
+  --color-text: #1a1a2e;
+  --color-text-secondary: #5a5a7a;
+  --color-text-muted: #8a90a5;
+  --color-border: #e2e4e9;
+  --color-border-light: #eef0f4;
+
+  --radius-card: 12px;
+  --radius-panel: 16px;
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+:root {
+  --ui-bg: #ffffff;
+  --ui-bg-elevated: #ffffff;
+  --ui-bg-muted: #f7f8fa;
+  --ui-border: #e2e4e9;
+  --ui-border-muted: #eef0f4;
+  --ui-text: #1a1a2e;
+  --ui-text-muted: #5a5a7a;
+  --ui-text-dimmed: #8a90a5;
+  --ui-primary: #1a56db;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--ui-bg-muted);
+  color: var(--ui-text);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+::selection {
+  background: rgba(26, 86, 219, 0.18);
+}
+
+button,
+a {
+  transition: all 0.2s ease;
+}
+
+hr {
+  border-color: var(--ui-border);
+}
+
+.dark {
+  --ui-bg: #0d0d0d;
+  --ui-bg-elevated: #141414;
+  --ui-bg-muted: #141414;
+  --ui-border: #2a2a2a;
+  --ui-border-muted: #23262f;
+  --ui-text: #e8e8ee;
+  --ui-text-muted: #a7a9b6;
+  --ui-text-dimmed: #6f7487;
+  --ui-primary: #7a9fdb;
+}

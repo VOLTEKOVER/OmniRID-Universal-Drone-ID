@@ -1,14 +1,14 @@
 # OmniRID — Web UI, Desktop App & Documentation Status
 
 > Embedded web UI served by `bsp-esp32` from flash (`include_str!`).
-> Desktop app: Electron + React 19 + Ant Design 6 + Vite 8.
-> Documentation: README.md + docs/index.html + docs/guide.html
-> Last updated: 2026-09-16 (session 2026-09-16: CI all green)
+> Browser app: Nuxt 4 + Vue 3 + Nuxt UI, developed in `OmniRID-app/`.
+> Firmware and protocol architecture: Rust workspace in `OmniRID/`.
+> Documentation: `README.md` + `docs/index.html` + `docs/guide.html`.
+> Last updated: 2026-09-18 (notifications system, console/logging/presets tools, shortcuts, mobile pass).
 >
-> Session notes: `OmniRID-Desktop/package-lock.json` committed (was gitignored → `npm ci` cache failed);
-> used `overrides: { "node-abi": "4.35.0" }` for Electron 44 ABI support in electron-builder rebuild;
-> removed unused optional deps `@abandonware/noble` + `pcap` (only prereleases, unresolved `^1.9.2`);
-> orphan `main` branch deleted (default = `universal`). See `todolist/softwarestatus.md`.
+> The old Electron/React desktop application and the temporary Alpine PWA are no
+> longer the active web-app architecture. The current browser app is a Nuxt
+> configuration dashboard and remains under active visual and interaction work.
 
 ---
 
@@ -69,47 +69,186 @@
 | `/api/logs` | GET | Log entries |
 | `/ota` | POST | Firmware upload |
 
+### ✅ Regole app da rispettare (da fare)
+
+**Requisiti trasversali per tutta l'app:**
+
+- [x] **Stato per feature** — Ogni feature/pagina mostra se è `stable`,
+	`implemented` o `wip`: badge derivato da `pages.config.ts` reso da
+	`PageHero` su tutte le pagine (incluso firmware e guide).
+- [ ] **Nomenclatura pagine obbligatoria** — Architettura evoluta: la navigazione
+	nasce dal manifest `pages.config.ts` con rotte annidate (`/device/*`,
+	`/tools/*`), non più file flat; la regola `drone-<pagina>`/`app-<pagina>` è
+	superseded dal campo `kind` (`drone`/`app`) presente nel manifest.
+- [x] **Sistema notifiche completo** — `useNotifications()` (error / warning /
+	info) alimentato da eventi reali: connessione ESP (loss/gain), salvataggio
+	config, export/import, preset apply. Slideover con mark-all-read/clear e
+	badge non letti sulla campanella. Rimossa la vecchia route statica
+	`server/api/notifications.ts`.
+- [x] **Componentizzazione massiccia** — `PageHero`, `ContentSection`,
+	`SectionTabs`, `DeviceConfigPage`, `ConsoleTerminal`, `TelemetryRecorder`,
+	`PresetManager`, `AppSettingsPopover`, `NotificationsSlideover`: la UI
+	riusa blocchi pronti, quasi nessun markup manuale.
+
 ### 🔧 TODO — UI Improvements
 
 **High:**
-- [ ] WiFi SSID/password maxlength 20 → 32/63
-- [ ] Operator lat/lon precision float → f64
-- [ ] Demo public-safe hardening
+- [x] WiFi SSID/password maxlength 20 → 32/63
+- [x] Operator lat/lon precision float → f64 (valori passati come stringa
+	full-precision, nessun troncamento `toFixed`/`parseFloat` nel codice)
+- [ ] Demo public-safe hardening — lato firmware
 
 **Medium:**
-- [ ] manifest.json version auto-gen
-- [ ] Settings search across all tabs
-- [ ] Export/import with auth keys
-- [ ] Console CLI history (up/down arrows)
-- [ ] Sensors tab real data
-- [ ] Mobile responsiveness verify
+- [ ] manifest.json version auto-gen — N/A: l'architettura PWA (Alpine) non è
+	più attiva; l'app Nuxt non è una PWA installabile.
+- [x] Settings search across all tabs — coperto dalla command palette
+	(`UDashboardSearch`) costruita sullo stesso manifest; le impostazioni app
+	sono nel popover header.
+- [x] Export/import — export/import JSON in `DeviceConfigPage` (Ctrl+E/Ctrl+S)
+	e in `PresetManager`; le chiavi auth non sono ancora esposte nell'UI,
+	restano lato firmware.
+- [x] Console CLI history (up/down arrows) — `ConsoleTerminal` con history,
+	live log da `GET /api/logs`, invio a `POST /api/command` + `X-Signature`.
+- [ ] Sensors tab real data — richiede endpoint sensori lato firmware.
+- [x] Mobile responsiveness verify — header adattivo (search/etichette
+	nascoste su schermi piccoli, bottoni icona).
 
 **Low:**
-- [ ] Dark mode polish
-- [ ] Keyboard shortcuts (Ctrl+S, Ctrl+E)
-- [ ] Loading states / error toasts
-- [ ] OTA progress bar
-- [ ] Compliance region auto-detect from GPS
-- [ ] Config diff view before save
-- [ ] Lighting pattern preview
+- [x] Dark mode polish — verificato: nessun colore hardcoded, solo token UI.
+- [x] Keyboard shortcuts — Ctrl+S (save) / Ctrl+E (export) via event bus
+	`useDashboard.configActions`.
+- [x] Loading states / error toasts — refresh connessione cliccabile, save
+	loading, toast + notifiche su tutti gli esiti.
+- [ ] OTA progress bar — richiede upload `/ota` lato firmware (al momento
+	risponde "not yet wired - use /update").
+- [ ] Compliance region auto-detect from GPS — richiede GPS lato firmware.
+- [ ] Config diff view before save — richiede confronto con `/api/config`
+	caricato; oggi la pagina non legge ancora lo stato del device (integrazione API incrementale).
+- [ ] Lighting pattern preview — visualizzazione pattern in UI non ancora fatta.
 
 ---
 
-## Part 2 — Web App PWA (OmniRID-app)
+## Part 2 — Browser Configuration App (OmniRID-app)
 
-> **Superseded 2026-09-17** — desktop Electron ground station removed, replaced by the
-> installable `OmniRID-app` PWA (branch `omnirid-webapp-pwa`). Modules ported to the
-> browser (no Node/Electron), capture via Web Bluetooth + Web Serial + PCAP import.
+`OmniRID-app/` is the active browser UI. It is a standalone Nuxt 4 application,
+separate from the Rust firmware workspace, and is intended to configure and
+monitor an OmniRID device through the ESP32 web API.
 
-| Module | File | Status |
-|--------|------|--------|
-| ASTM Decoder | `src/decoder.js` | ✅ (browser, no Buffer) |
-| Per-MAC Tracker | `src/tracker.js` | ✅ |
-| Capture (BLE/Serial/PCAP) | `src/capture.js` | ✅ (Web Bluetooth/Serial client-side) |
-| UI (4 tabs) | `src/app.js` (Alpine) | ✅ |
-| App CI | `.github/workflows/omnirid-app-ci.yml` (syntax + smoke) | ✅ |
+### Current application architecture
 
-Tabs: Ground, Capture, Guide, About
+| Layer | Location | Responsibility |
+|-------|----------|----------------|
+| Nuxt shell | `OmniRID-app/nuxt.config.ts`, `app/app.vue` | Nuxt modules, global CSS, SEO and application bootstrap |
+| Navigation manifest | `OmniRID-app/app/pages.config.ts` | Single source of truth: 6 groups, page status (`stable`/`implemented`/`wip`), route resolution |
+| Shared layout | `OmniRID-app/app/layouts/default.vue` | Header, sidebar (manifest-driven), connection indicator, theme, checklist and search |
+| Reusable config surface | `OmniRID-app/app/components/device/ConfigPage.vue` | Shared sections, controls, validation and action bar used by device configuration pages |
+| Section tabs | `OmniRID-app/app/components/SectionTabs.vue` | In-group tab band rendered from the manifest (filters `wip` pages) |
+| Nested pages | `OmniRID-app/app/pages/` | device/, compliance-security/, tools/, docs/ sections plus dashboard, firmware and index |
+| Shared state | `OmniRID-app/app/composables/` | `useDashboard` (slideover, shortcuts, event bus), `useEspConnection` (proxy `/api/esp/*`, conn state), `useDeviceProfile`, `useAppSettings`, `useNotifications` (3-level feed) |
+| Shared components | `OmniRID-app/app/components/` | `PageHero`, `ContentSection`, `SectionTabs`, `device/ConfigPage`, `ConsoleTerminal`, `TelemetryRecorder`, `PresetManager`, `AppSettingsPopover`, `NotificationsSlideover` |
+| Static assets | `OmniRID-app/public/images/` | OmniRID logo and supported ESP32/flight-controller hardware images |
+
+### Active routes (manifest-driven, 6 groups)
+
+| Group | Routes |
+|-------|--------|
+| Monitor | `/dashboard` |
+| Configurazione drone | `/device/identity`, `/device/flight-controller`, `/device/transmission`, `/device/access-point`, `/device/hardware`, `/device/system` |
+| Compliance & Security | `/compliance-security/compliance`, `/compliance-security/security` |
+| Strumenti | `/tools/console`, `/tools/presets`, `/tools/logging`, `/tools/sensors` |
+| Firmware | `/firmware` |
+| Guida | `/docs/guide`, `/docs/help` |
+
+Impostazioni app non è più una rotta: la pagina `/app-settings` è stata eliminata
+e sostituita dal popover header `AppSettingsPopover` (terni, lingua, scala UI,
+rapp, experience mode, disabilita internet, reopen last tab).
+
+The old flat routes (`/identity`, `/transmission`, `/guide`, …) were removed;
+navigation is entirely derived from `pages.config.ts`. Sidebar and search filter
+out `wip` pages (e.g. Sensors), while the manifest still lists them for future
+tabs.
+
+### Current integration boundary
+
+- The Rust firmware remains the owner of device configuration, persistence,
+	telemetry, OTA, authentication and protocol processing.
+- `OmniRID-app` currently provides the browser presentation and interaction
+	layer; the pages use structured configuration surfaces and are being connected
+	incrementally to the firmware API.
+- The old template demo pages, demo APIs, nested repository metadata and unused
+	template dependencies have been removed.
+- There is no active browser-side ASTM decoder, BLE/Serial capture pipeline or
+	PCAP importer in this app; those are not part of the current architecture.
+
+### Current user-visible behavior
+
+1. **Application startup** — Nuxt loads the global shell, applies the saved light
+	or dark color preference, sets the OmniRID page metadata and renders the
+	current route inside the shared dashboard layout.
+2. **Navigation** — The sidebar renders the 7 manifest groups (Monitor,
+	Configurazione drone, Compliance & Security, Strumenti, Firmware, Guida,
+	Impostazioni) with per-page status badges and offline locking; `wip` pages
+	are hidden. It can collapse and the header exposes quick navigation and search
+	built from the same manifest.
+3. **ESP connection indicator** — The header displays the ESP connection state
+	and the configured address (`192.168.4.1` by default), verified by a live
+	`GET /api/capabilities` request. The button is clickable for a manual retry
+	(with loading state) and connection state changes surface as info/error
+	notifications in the slideover.
+4. **ESP address editor** — The address popover accepts and displays a new value,
+	persists it in `localStorage` and immediately tests the connection.
+5. **Configuration checklist** — Identity, flight controller, transmission and
+	security items can be checked manually. The percentage is calculated in the
+	browser and is not yet derived from the actual device configuration.
+6. **Configuration pages** — Each page renders grouped fields from a shared
+	`ConfigPage` component. Text, numeric, password, textarea, select and toggle
+	controls update local reactive state.
+7. **Save action** — Validates the form, POSTs the payload to `/api/config` via
+	the ESP proxy and reports the outcome with a toast plus a 3-level
+	notification. Save is blocked while the device is offline.
+8. **Notifications** — `useNotifications()` keeps an in-memory feed seeded with
+	welcome/checklist items; real events (connection loss/gain, config saved,
+	preset applied, import/export) append error/warning/info entries. The bell
+	shows an unread count and the slideover supports mark-all-read and clear.
+9. **Theme** — The light/dark switch updates the Nuxt color mode and is shared by
+	the header and sidebar controls.
+10. **Firmware and tools** — Firmware page is presentational (install flow via
+	WebSerial pending); Console is a working terminal (live logs from
+	`GET /api/logs`, command history with ↑/↓, POST `/api/command`);
+	Presets capture/apply real `/api/config` round-trips from localStorage;
+	Logging records `/api/status` telemetry and exports CSV. Sensors remain a WIP
+	placeholder pending a firmware endpoint.
+11. **Availability by connection** — Home, Firmware, Guide and Help remain
+	accessible without an ESP32 connection. Dashboard, telemetry, configuration
+	and device tools are connection-dependent and are shown as offline/locked
+	until the device is available.
+12. **Guided configuration** — The checklist is the main onboarding path. Each
+	step opens the corresponding Identity, Flight Controller, Transmission or
+	Security page, while completion is tracked separately so the user can verify
+	every step instead of only opening it.
+13. **Profile-dependent UI** — Protocol and regulatory region are shared device
+	profile selections. Flight Controller, Compliance, Transmission and Identity
+	read the same profile and adapt their labels, defaults, available options and
+	sections. For example, `none` exposes demo-oriented behavior, MAVLink/MSP/NMEA
+	determine the relevant input context, and the China profile hides the second
+	Basic ID while required operator fields vary by region.
+14. **Conditional controls** — Inputs that do not apply to the selected profile
+	are disabled instead of accepting misleading data. MAVLink SysID is available
+	only for MAVLink or auto-detect, UART settings are blocked in Demo/None mode,
+	and Operator ID/Self-ID are locked for the China GB 42590 profile. Disabled
+	controls remain visible with an explanation so the user understands the rule.
+15. **Input validation** — Configuration forms validate identifiers, text lengths,
+	passwords, IPv4 addresses, GPS coordinates, channels, radio rates, GPIO ranges
+	and startup delays. Save is blocked when a value is invalid or when settings
+	conflict, such as equal TX/RX pins, incomplete DroneCAN pin pairs or MAVLink
+	USB selected with a non-MAVLink protocol. Hardware target selection also
+	disables BLE 5 and MAVLink USB when the selected ESP32 board cannot support
+	them.
+
+In summary, the current app is an interactive configuration prototype: routing,
+layout, controls, local state, theme, checklist, search and notifications work
+in the browser, while persistence, live connection status, telemetry, OTA and
+device commands still have to be connected to the Rust firmware endpoints.
 
 ---
 
