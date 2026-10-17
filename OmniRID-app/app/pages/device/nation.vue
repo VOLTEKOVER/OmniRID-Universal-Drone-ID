@@ -40,6 +40,15 @@ const sections = computed<ConfigSection[]>(() => [{
     { name: 'ble5_power_dbm', label: 'BLE 5.0 power (dBm)', type: 'number', value: DEFAULTS.ble5_power_dbm },
     ...rateKeys.map(k => ({ name: k, label: k.replace('_rate_hz', '').replaceAll('_', ' ').toUpperCase() + ' rate (Hz)', type: 'number' as const, value: DEFAULTS[k] }))
   ]
+}, {
+  title: 'Compliance checklist',
+  description: 'Regulatory readiness checks for the selected region and standard.',
+  fields: [
+    { name: 'identity_ready', label: 'Identity fields complete', type: 'toggle', value: false },
+    { name: 'broadcast_ready', label: 'At least one broadcast channel enabled', type: 'toggle', value: true },
+    { name: 'gps_ready', label: 'GPS or approved fallback configured', type: 'toggle', value: false },
+    { name: 'security_reviewed', label: 'Security settings reviewed', type: 'toggle', value: false }
+  ]
 }])
 
 const mapPayload = (state: Record<string, unknown>): Record<string, unknown> => {
@@ -75,7 +84,7 @@ const validate = (cfg: DeviceConfig): Issue[] => validateDeviceConfig(cfg, { chi
 <template>
   <DeviceConfigPage
     group="device"
-    description="Select the operating nation, Remote ID standard and transmission schedule."
+    description="Select the operating nation, Remote ID standard and transmission schedule, and check regulatory compliance."
     :sections="sections"
     :load="true"
     :validate-config="validate"

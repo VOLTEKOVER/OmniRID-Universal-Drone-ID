@@ -10,7 +10,7 @@ type Preset = {
 const PRESETS_KEY = 'omnirid:presets'
 
 const { isEspConnected, canConfig, proxyFetch } = useEspConnection()
-const { add: addNotification } = useNotifications()
+const { notifyInfo, notifyError } = useNotifications()
 const toast = useToast()
 
 const loadPresets = (): Preset[] => {
@@ -29,9 +29,30 @@ const capturedConfig = ref<Record<string, unknown> | null>(null)
 const isCapturing = ref(false)
 const applyingId = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
+const query = ref('')
+const expandedId = ref<string | null>(null)
 
 const persist = () => {
   if (import.meta.client) localStorage.setItem(PRESETS_KEY, JSON.stringify(presets.value))
+}
+
+const filteredPresets = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!q) return presets.value
+  return presets.value.filter(preset =>
+    preset.name.toLowerCase().includes(q) || preset.notes.toLowerCase().includes(q)
+  )
+})
+
+const fieldCount = (preset: Preset) => Object.keys(preset.config).length
+
+const formatDate = (iso: string) => {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? 'unknown' : date.toLocaleString()
+}
+
+const togglePreview = (preset: Preset) => {
+  expandedId.value = expandedId.value === preset.id ? null : preset.id
 }
 
 const captureFromDevice = async () => {
@@ -49,12 +70,14 @@ const captureFromDevice = async () => {
     })
   } catch (error) {
     capturedConfig.value = null
+    const message = error instanceof Error ? error.message : 'Could not read the device configuration.'
     toast.add({
       title: 'Capture failed',
-      description: error instanceof Error ? error.message : 'Could not read the device configuration.',
+      description: message,
       icon: 'i-lucide-circle-alert',
       color: 'error'
     })
+    notifyError('Capture failed', message)
   } finally {
     isCapturing.value = false
   }
@@ -93,7 +116,7 @@ const applyPreset = async (preset: Preset) => {
       icon: 'i-lucide-check',
       color: 'success'
     })
-    addNotification('info', 'Preset applied', `${preset.name} was sent to the device.`)
+    notifyInfo('Preset applied', `${preset.name} was sent to the device.`)
   } catch (error) {
     toast.add({
       title: 'Apply failed',
@@ -101,7 +124,7 @@ const applyPreset = async (preset: Preset) => {
       icon: 'i-lucide-circle-alert',
       color: 'error'
     })
-    addNotification('error', 'Preset apply failed', `The device did not accept ${preset.name}.`)
+    notifyError('Preset apply failed', `The device did not accept ${preset.name}.`)
   } finally {
     applyingId.value = null
   }
@@ -119,6 +142,7 @@ const exportPreset = (preset: Preset) => {
 
 const removePreset = (preset: Preset) => {
   presets.value = presets.value.filter(item => item.id !== preset.id)
+  if (expandedId.value === preset.id) expandedId.value = null
   persist()
 }
 
@@ -146,33 +170,37 @@ const importPreset = async (event: Event) => {
       color: 'success'
     })
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'The selected file is not a valid OmniRID preset.'
     toast.add({
       title: 'Import failed',
-      description: error instanceof Error ? error.message : 'The selected file is not a valid OmniRID preset.',
+      description: message,
       icon: 'i-lucide-circle-alert',
       color: 'error'
     })
+    notifyError('Preset import failed', message)
   }
 }
 </script>
 
 <template>
-  <div class="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+  <div class="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+    <!-- Capture & save -->
     <div class="space-y-4">
-      <div class="rounded-lg border border-default bg-elevated/40 p-4">
-        <div class="flex items-center justify-between gap-2">
+      <div class="overflow-hidden rounded-lg border border-default bg-elevated/40">
+        <div class="flex items-start justify-between gap-3 border-b border-default px-4 py-3.5">
           <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-highlighted">
-              Capture device configuration
+            <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+              <UIcon name="i-lucide-download" class="size-4 text-primary" />
+              Capture from device
             </h3>
             <p class="mt-1 text-xs text-muted">
-              Read the current settings from the ESP32 via GET /api/config.
+              Read the live settings from the ESP32 over <code class="font-mono">GET /api/config</code>.
             </p>
           </div>
           <UButton
             color="primary"
             variant="soft"
-            icon="i-lucide-download"
+            icon="i-lucide-scan-line"
             class="shrink-0"
             :loading="isCapturing"
             :disabled="!canConfig"
@@ -182,15 +210,27 @@ const importPreset = async (event: Event) => {
             <span class="hidden sm:inline">Capture</span>
           </UButton>
         </div>
-        <p v-if="!canConfig" class="mt-3 flex items-center gap-2 text-xs text-warning">
-          <UIcon :name="isEspConnected ? 'i-lucide-usb' : 'i-lucide-wifi-off'" class="size-4 shrink-0" />
-          <span v-if="isEspConnected">Presets capture and apply device configuration, which is only available over WiFi.</span>
-          <span v-else>ESP not connected — capture and apply are disabled until the device is reachable.</span>
-        </p>
+        <div class="px-4 py-3">
+          <div v-if="capturedConfig" class="flex items-center gap-2">
+            <span class="size-1.5 shrink-0 rounded-full bg-success" aria-hidden="true" />
+            <span class="font-mono text-xs text-highlighted">{{ Object.keys(capturedConfig).length }} fields</span>
+            <span class="text-xs text-muted">ready to save</span>
+          </div>
+          <p v-else class="flex items-center gap-2 text-xs text-dimmed">
+            <span class="size-1.5 shrink-0 rounded-full bg-accented" aria-hidden="true" />
+            No configuration captured yet
+          </p>
+          <p v-if="!canConfig" class="mt-3 flex items-start gap-2 text-xs text-warning">
+            <UIcon :name="isEspConnected ? 'i-lucide-usb' : 'i-lucide-wifi-off'" class="mt-0.5 size-4 shrink-0" />
+            <span v-if="isEspConnected">Presets capture and apply device configuration, which is only available over WiFi.</span>
+            <span v-else>ESP not connected — capture and apply are disabled until the device is reachable.</span>
+          </p>
+        </div>
       </div>
 
       <div class="space-y-3 rounded-lg border border-default bg-elevated/40 p-4">
-        <h3 class="text-sm font-semibold text-highlighted">
+        <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+          <UIcon name="i-lucide-save" class="size-4 text-primary" />
           Save preset
         </h3>
         <UInput v-model="name" placeholder="Preset name (e.g. Racing - EU)" aria-label="Preset name" />
@@ -200,12 +240,9 @@ const importPreset = async (event: Event) => {
           aria-label="Preset notes"
           :rows="3"
         />
-        <p v-if="capturedConfig" class="rounded-lg bg-elevated px-2 py-1 font-mono text-[11px] text-muted">
-          {{ Object.keys(capturedConfig).length }} fields captured
-        </p>
         <UButton
           color="primary"
-          icon="i-lucide-save"
+          icon="i-lucide-plus"
           label="Save preset"
           block
           :disabled="!name.trim() || !capturedConfig"
@@ -231,63 +268,106 @@ const importPreset = async (event: Event) => {
       >
     </div>
 
-    <div class="space-y-3">
-      <h3 class="flex items-center justify-between text-sm font-semibold text-highlighted">
-        <span>Preset library</span>
-        <span class="text-xs font-normal text-muted">{{ presets.length }} preset{{ presets.length === 1 ? '' : 's' }}</span>
-      </h3>
+    <!-- Library -->
+    <div class="space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+          <UIcon name="i-lucide-library" class="size-4 text-primary" />
+          Preset library
+          <span class="rounded-sm bg-elevated px-1.5 py-0.5 font-mono text-[11px] font-normal text-muted">{{ presets.length }}</span>
+        </h3>
+        <UInput
+          v-if="presets.length"
+          v-model="query"
+          icon="i-lucide-search"
+          size="sm"
+          placeholder="Filter presets…"
+          aria-label="Filter presets"
+          class="w-full sm:w-56"
+        />
+      </div>
 
       <UEmpty
         v-if="!presets.length"
-        icon="i-lucide-list"
+        icon="i-lucide-library"
         title="No presets yet"
-        description="Capture the current device configuration and save it as a reusable preset."
+        description="Capture the current device configuration and save it here as a reusable preset."
       />
 
-      <div v-for="preset in presets" :key="preset.id" class="rounded-lg border border-default bg-elevated/40 p-4">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="truncate text-sm font-semibold text-highlighted">
-              {{ preset.name }}
-            </p>
-            <p class="mt-0.5 text-xs text-muted">
-              {{ Object.keys(preset.config).length }} fields · saved {{ new Date(preset.createdAt).toLocaleString() }}
-            </p>
+      <UEmpty
+        v-else-if="!filteredPresets.length"
+        icon="i-lucide-search-x"
+        title="No matches"
+        :description="`No preset matches “${query}”.`"
+      />
+
+      <div v-else class="space-y-3">
+        <article
+          v-for="preset in filteredPresets"
+          :key="preset.id"
+          class="overflow-hidden rounded-lg border border-default bg-elevated/40"
+        >
+          <div class="flex items-start justify-between gap-3 p-4">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-highlighted">
+                {{ preset.name }}
+              </p>
+              <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted">
+                <span>{{ fieldCount(preset) }} fields</span>
+                <span aria-hidden="true" class="text-dimmed">·</span>
+                <span>{{ formatDate(preset.createdAt) }}</span>
+              </p>
+            </div>
+            <div class="flex shrink-0 items-center gap-1">
+              <UButton
+                color="primary"
+                size="xs"
+                icon="i-lucide-play"
+                label="Apply"
+                :loading="applyingId === preset.id"
+                :disabled="!canConfig || !!applyingId"
+                @click="applyPreset(preset)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-download"
+                aria-label="Export preset"
+                @click="exportPreset(preset)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-trash"
+                aria-label="Delete preset"
+                @click="removePreset(preset)"
+              />
+            </div>
           </div>
-          <div class="flex shrink-0 gap-1">
-            <UButton
-              color="primary"
-              size="xs"
-              icon="i-lucide-play"
-              label="Apply"
-              :loading="applyingId === preset.id"
-              :disabled="!canConfig || !!applyingId"
-              @click="applyPreset(preset)"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-download"
-              aria-label="Export preset"
-              @click="exportPreset(preset)"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-trash"
-              aria-label="Delete preset"
-              @click="removePreset(preset)"
-            />
+
+          <p v-if="preset.notes" class="border-t border-default px-4 py-2.5 text-xs leading-5 text-muted">
+            {{ preset.notes }}
+          </p>
+
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-2 border-t border-default px-4 py-2 text-left text-xs text-muted transition-colors hover:bg-elevated/60"
+            :aria-expanded="expandedId === preset.id"
+            @click="togglePreview(preset)"
+          >
+            <span class="flex items-center gap-1.5">
+              <UIcon :name="expandedId === preset.id ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="size-3.5" />
+              Configuration
+            </span>
+            <span class="font-mono text-[11px] text-dimmed">{{ expandedId === preset.id ? 'hide' : 'preview' }}</span>
+          </button>
+
+          <div v-if="expandedId === preset.id" class="border-t border-default bg-default/60 p-3">
+            <pre class="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-dimmed">{{ JSON.stringify(preset.config, null, 2) }}</pre>
           </div>
-        </div>
-        <p v-if="preset.notes" class="mt-2 text-xs text-muted">
-          {{ preset.notes }}
-        </p>
-        <div class="mt-3 max-h-24 overflow-y-auto rounded-lg bg-default/60 p-2 font-mono text-[11px] leading-5 text-dimmed">
-          <pre class="whitespace-pre-wrap">{{ JSON.stringify(preset.config, null, 2).slice(0, 800) }}{{ JSON.stringify(preset.config).length > 800 ? '…' : '' }}</pre>
-        </div>
+        </article>
       </div>
     </div>
   </div>

@@ -1,37 +1,37 @@
 <script setup lang="ts">
-import { appName, appTagline, appVersion } from "~/config/app";
+import { appName, appTagline, appVersion } from '~/config/app'
 
 const flightControllers = [
-  { name: "ArduPilot", logo: "/images/ardupilot_logo.webp" },
-  { name: "Betaflight", logo: "/images/betaflight_logo.svg" },
-  { name: "INAV", logo: "/images/inav_logo.png" },
-];
+  { name: 'ArduPilot', logo: '/images/ardupilot_logo.webp' },
+  { name: 'Betaflight', logo: '/images/betaflight_logo.svg' },
+  { name: 'INAV', logo: '/images/inav_logo.png' }
+]
 
 const channels = [
-  { name: "WiFi Beacon", detail: "2.4 GHz", icon: "i-lucide-wifi" },
-  { name: "WiFi NAN", detail: "2.4 / 5 GHz", icon: "i-lucide-signal" },
-  { name: "Bluetooth", detail: "BLE 4.0 / 5.0", icon: "i-lucide-bluetooth" },
-];
+  { name: 'WiFi Beacon', detail: '2.4 GHz', icon: 'i-lucide-wifi' },
+  { name: 'WiFi NAN', detail: '2.4 / 5 GHz', icon: 'i-lucide-signal' },
+  { name: 'Bluetooth', detail: 'BLE 4.0 / 5.0', icon: 'i-lucide-bluetooth' }
+]
 
-const inputs = ["MAVLink", "MSP", "NMEA", "DroneCAN"];
+const inputs = ['MAVLink', 'MSP', 'NMEA', 'DroneCAN']
 
 const capabilities = [
   {
-    icon: "i-lucide-cable",
-    title: "Reads any flight controller",
-    text: "MAVLink, MSP, NMEA and DroneCAN over a single serial link, auto-detected.",
+    icon: 'i-lucide-cable',
+    title: 'Reads any flight controller',
+    text: 'MAVLink, MSP, NMEA and DroneCAN over a single serial link, auto-detected.'
   },
   {
-    icon: "i-lucide-radio",
-    title: "Broadcasts Remote ID",
-    text: "ASTM F3411-22a Open DroneID over WiFi Beacon, WiFi NAN and BLE.",
+    icon: 'i-lucide-radio',
+    title: 'Broadcasts Remote ID',
+    text: 'ASTM F3411-22a Open DroneID over WiFi Beacon, WiFi NAN and BLE.'
   },
   {
-    icon: "i-lucide-shield-check",
-    title: "Signed and auditable",
-    text: "Ed25519 OTA verification, lock levels and full config persistence.",
-  },
-];
+    icon: 'i-lucide-shield-check',
+    title: 'Signed and auditable',
+    text: 'Ed25519 OTA verification, lock levels and full config persistence.'
+  }
+]
 </script>
 
 <template>
@@ -60,9 +60,14 @@ const capabilities = [
                   src="/images/logo.svg"
                   alt="OmniRID logo"
                   class="size-10 rounded-md ring-1 ring-default"
-                />
+                >
                 <span class="label-data">{{ appName }} / {{ appTagline }}</span>
-                <UBadge color="warning" variant="soft" size="sm" label="Beta" />
+                <UBadge
+                  color="warning"
+                  variant="soft"
+                  size="sm"
+                  label="Beta"
+                />
               </div>
 
               <h1
@@ -106,9 +111,7 @@ const capabilities = [
                 class="flex items-center justify-between gap-3 border-b border-default px-4 py-3"
               >
                 <span class="label-data">Transmit stack</span>
-                <span class="font-mono text-[11px] text-primary"
-                  >ASTM F3411-22a</span
-                >
+                <span class="font-mono text-[11px] text-primary">ASTM F3411-22a</span>
               </div>
 
               <ul class="divide-y divide-default">
@@ -192,7 +195,7 @@ const capabilities = [
                   :src="fc.logo"
                   :alt="`${fc.name} logo`"
                   class="size-7 object-contain"
-                />
+                >
                 <span class="text-sm font-semibold text-highlighted">{{
                   fc.name
                 }}</span>

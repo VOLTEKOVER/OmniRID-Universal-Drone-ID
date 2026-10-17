@@ -3,18 +3,13 @@ const colorMode = useColorMode()
 
 const color = computed(() => colorMode.value === 'dark' ? '#06090d' : 'white')
 
+// Static PWA/head metadata (manifest, icons, referrer, apple-* metas) lives in
+// nuxt.config.ts so it is present in the static HTML shell. Only the reactive
+// theme colour is set here.
 useHead({
   meta: [
-    { charset: 'utf-8' },
-    { name: 'viewport', content: 'width=device-width, initial-scale=1' },
     { key: 'theme-color', name: 'theme-color', content: color }
-  ],
-  link: [
-    { rel: 'icon', href: '/favicon.ico' }
-  ],
-  htmlAttrs: {
-    lang: 'en'
-  }
+  ]
 })
 
 const title = 'OmniRID'

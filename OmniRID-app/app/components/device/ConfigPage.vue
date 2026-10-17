@@ -50,7 +50,7 @@ const props = defineProps<{
 
 const toast = useToast()
 const { protocol, region, target } = useDeviceProfile()
-const { add: addNotification } = useNotifications()
+const { notifyInfo, notifyWarning, notifyError } = useNotifications()
 const { configActions } = useDashboard()
 
 const route = useRoute()
@@ -63,8 +63,8 @@ const heroId = computed(() => heroTitle.value.toLowerCase().replaceAll(' ', '-')
 const pageId = computed<PageId | undefined>(() => {
   const segment = route.path.split('/')[2]
   const map: Record<string, PageId | undefined> = {
-    'nation': 'nation', 'inputs': 'inputs', 'identity': 'identity',
-    'flight-controller': 'fc', 'hardware': 'hardware', 'system': 'system', 'sensors': 'hardware'
+    'nation': 'nation', 'identity': 'identity',
+    'flight-controller': 'fc', 'hardware': 'hardware', 'system': 'system', 'security': 'system'
   }
   return segment ? map[segment] : undefined
 })
@@ -265,8 +265,19 @@ onMounted(async () => {
           if (cfg[field.name] !== undefined) state[field.name] = cfg[field.name]
         }
       }
-    } catch {
-      /* device offline: keep the defaults */
+    } catch (error) {
+      /* Device offline: the connection watcher already flags it. Only warn when
+         the device is reachable but refused/errored on the config request. */
+      if (isEspConnected.value) {
+        const message = lastError.value ?? error instanceof Error ? error.message : 'The device did not return its configuration.'
+        toast.add({
+          title: 'Configuration not loaded',
+          description: message,
+          icon: 'i-lucide-circle-alert',
+          color: 'warning'
+        })
+        notifyWarning('Configuration not loaded', message)
+      }
     }
   }
   validateSchema()
@@ -315,14 +326,16 @@ const importConfig = async (event: Event) => {
       icon: 'i-lucide-check',
       color: 'success'
     })
-    addNotification('info', 'Configuration imported', `Applied ${applied} fields from ${file.name}.`)
+    notifyInfo('Configuration imported', `Applied ${applied} fields from ${file.name}.`)
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'The selected file is not a valid configuration.'
     toast.add({
       title: 'Import failed',
-      description: error instanceof Error ? error.message : 'The selected file is not a valid configuration.',
+      description: message,
       icon: 'i-lucide-circle-alert',
       color: 'error'
     })
+    notifyError('Configuration import failed', message)
   }
 }
 
@@ -350,7 +363,7 @@ const save = async () => {
       icon: 'i-lucide-circle-alert',
       color: 'error'
     })
-    addNotification('error', 'Configuration not saved', 'Some values are invalid or incompatible with the selected profile.')
+    notifyError('Configuration not saved', 'Some values are invalid or incompatible with the selected profile.')
     return
   }
 
@@ -363,7 +376,7 @@ const save = async () => {
       icon: 'i-lucide-check',
       color: 'success'
     })
-    addNotification('info', `${heroTitle.value} saved`, 'Configuration sent to the ESP.')
+    notifyInfo(`${heroTitle.value} saved`, 'Configuration sent to the ESP.')
   } catch {
     toast.add({
       title: 'ESP unreachable',
@@ -373,7 +386,7 @@ const save = async () => {
       icon: 'i-lucide-circle-alert',
       color: 'error'
     })
-    addNotification('error', 'ESP unreachable', !isEspConnected.value
+    notifyError('ESP unreachable', !isEspConnected.value
       ? 'The device is not connected. Set the ESP address from the header.'
       : lastError.value ?? 'The device did not accept the configuration.')
   } finally {

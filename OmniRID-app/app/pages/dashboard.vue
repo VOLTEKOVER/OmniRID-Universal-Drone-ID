@@ -96,15 +96,41 @@ const stats = computed(() => [
 ])
 
 const counters = computed(() => [
+  { label: 'Total', value: fmt(status.value.tx_total ?? 0, 0) },
   { label: 'WiFi Beacon', value: fmt(status.value.tx_wifi_bcn, 0) },
   { label: 'WiFi NAN', value: fmt(status.value.tx_wifi_nan, 0) },
   { label: 'BLE 4 Legacy', value: fmt(status.value.tx_ble4, 0) },
-  { label: 'BLE 5 Long Range', value: fmt(status.value.tx_ble5, 0) },
-  { label: 'Ticks', value: fmt(status.value.ticks ?? 0, 0) },
-  { label: 'GPS updates', value: fmt(status.value.gps_updates ?? 0, 0) },
-  { label: 'Signatures ok', value: `${fmt(status.value.signatures_ok ?? 0, 0)} / ${fmt(status.value.signatures_total ?? 0, 0)}` },
-  { label: 'OTA count', value: fmt(status.value.ota_count ?? 0, 0) }
+  { label: 'BLE 5 Long Range', value: fmt(status.value.tx_ble5, 0) }
 ])
+
+type HealthTone = 'ok' | 'warn' | 'info'
+
+const health = computed(() => {
+  const s = status.value
+  const count = (value: unknown) => Number(value ?? 0)
+  const discarded = count(s.gps_discarded)
+  const parseErrors = count(s.parse_errors)
+  const wifiFail = count(s.wifi_tx_fail)
+  const bleFail = count(s.ble_tx_fail)
+  const sigTotal = count(s.signatures_total)
+  const sigOk = count(s.signatures_ok)
+  const sigClean = sigTotal === 0 || sigOk === sigTotal
+
+  return [
+    { label: 'GPS updates', value: fmt(s.gps_updates ?? 0, 0), sub: discarded ? `${fmt(discarded, 0)} discarded` : 'none discarded', icon: 'i-lucide-satellite', tone: (discarded ? 'warn' : 'ok') as HealthTone },
+    { label: 'Parse errors', value: fmt(parseErrors, 0), sub: parseErrors ? 'Malformed frames' : 'Frames clean', icon: 'i-lucide-bug', tone: (parseErrors ? 'warn' : 'ok') as HealthTone },
+    { label: 'WiFi TX fails', value: fmt(wifiFail, 0), sub: 'Beacon / NAN', icon: 'i-lucide-wifi-off', tone: (wifiFail ? 'warn' : 'ok') as HealthTone },
+    { label: 'BLE TX fails', value: fmt(bleFail, 0), sub: 'BLE 4 / 5', icon: 'i-lucide-bluetooth', tone: (bleFail ? 'warn' : 'ok') as HealthTone },
+    { label: 'Signatures', value: `${fmt(sigOk, 0)} / ${fmt(sigTotal, 0)}`, sub: sigClean ? 'All verified' : 'Verification mismatch', icon: 'i-lucide-shield-check', tone: (sigClean ? 'ok' : 'warn') as HealthTone },
+    { label: 'OTA updates', value: fmt(s.ota_count ?? 0, 0), sub: 'Applied since flash', icon: 'i-lucide-hard-drive', tone: 'info' as HealthTone }
+  ]
+})
+
+const healthToneClass: Record<HealthTone, string> = {
+  ok: 'text-success',
+  warn: 'text-warning',
+  info: 'text-muted'
+}
 
 const hasTakeoff = computed(() => {
   const s = status.value
@@ -146,6 +172,11 @@ const hasTakeoff = computed(() => {
           <UIcon name="i-lucide-wifi-off" class="size-4 shrink-0" />
           <span>ESP not connected — check the connection settings or enable the simulated connection to preview the dashboard.</span>
         </div>
+
+        <p v-if="lastError" class="flex items-center gap-2 rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-sm text-error">
+          <UIcon name="i-lucide-triangle-alert" class="size-4 shrink-0" />
+          <span>Status request failed: {{ lastError }}</span>
+        </p>
 
         <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-default bg-accented sm:grid-cols-3 xl:grid-cols-6">
           <div
@@ -204,10 +235,24 @@ const hasTakeoff = computed(() => {
           </ClientOnly>
         </section>
 
-        <p v-if="lastError" class="flex items-center gap-2 rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-sm text-error">
-          <UIcon name="i-lucide-triangle-alert" class="size-4 shrink-0" />
-          <span>Status request failed: {{ lastError }}</span>
-        </p>
+        <ContentSection title="Device health" description="Runtime counters and diagnostics reported by the firmware.">
+          <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-default bg-accented sm:grid-cols-3 xl:grid-cols-6">
+            <div v-for="item in health" :key="item.label" class="min-w-0 bg-default p-4">
+              <div class="flex items-center gap-2">
+                <UIcon :name="item.icon" class="size-3.5 shrink-0" :class="healthToneClass[item.tone]" />
+                <dt class="label-data truncate">
+                  {{ item.label }}
+                </dt>
+              </div>
+              <dd class="mt-2 truncate font-mono text-base font-semibold text-highlighted">
+                {{ item.value }}
+              </dd>
+              <p class="mt-0.5 truncate text-xs" :class="item.tone === 'warn' ? 'text-warning' : 'text-muted'">
+                {{ item.sub }}
+              </p>
+            </div>
+          </dl>
+        </ContentSection>
 
         <ContentSection title="Transmission log" description="Runtime counters reported by the device.">
           <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-default bg-accented sm:grid-cols-4">

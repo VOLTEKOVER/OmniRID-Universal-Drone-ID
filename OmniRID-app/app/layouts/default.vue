@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui/runtime/components/CommandPalette.vue'
+import { useMediaQuery } from '@vueuse/core'
 import { appRepoUrl, espDefaultIp } from '~/config/app'
 import { sectionSearchText, guideSections } from '~/config/guide'
 import { appSettingEntries, contentKeywords, loadAutoSearchIndex, referenceEntries, searchSummary, toCommandItems } from '~/config/search'
@@ -24,7 +25,19 @@ const { espIp, isEspConnected, isChecking, lastError, isSimulated, isWifiTranspo
 const { status: telemetryStatus } = useTelemetry()
 const { target } = useDeviceProfile()
 const { unreadCount } = useNotifications()
+// Start the shared firmware log poller app-wide: console warnings/errors are
+// mirrored into the notification panel even when the Console page is closed.
+useFirmwareLogs()
+// Below `lg` the navigation lives in the sidebar drawer, so the theme /
+// notifications / settings actions move there too (see the sidebar footer).
+const isMobileNav = useMediaQuery('(max-width: 1023.98px)')
 const open = ref(false)
+// On phone the sidebar hosts the actions drawer; close it before opening the
+// settings slideover so the two overlays don't stack.
+const openMobileSettings = () => {
+  open.value = false
+  isSettingsOpen.value = true
+}
 const isChecklistOpen = ref(false)
 const isEspIpOpen = ref(false)
 const draftEspIp = ref(espIp.value)
@@ -176,10 +189,9 @@ const complianceMeta: Record<RequiredConfigItem | RuntimeCheck, { label: string,
 const configPages: { id: PageId, label: string, route: string }[] = [
   { id: 'identity', label: 'Identity', route: '/device/identity' },
   { id: 'nation', label: 'Nation & transmission', route: '/device/nation' },
-  { id: 'inputs', label: 'Input protocols', route: '/device/inputs' },
   { id: 'fc', label: 'Flight controller', route: '/device/flight-controller' },
   { id: 'hardware', label: 'Hardware', route: '/device/hardware' },
-  { id: 'system', label: 'System', route: '/device/system' }
+  { id: 'system', label: 'Security & options', route: '/compliance-security/security' }
 ]
 
 const configPageStatus = (id: PageId) => pageStatus(checklistIssues.value, id)
@@ -796,6 +808,7 @@ watch(searchTerm, (term) => {
           </UPopover>
 
           <UButton
+            v-if="!isMobileNav"
             color="neutral"
             variant="ghost"
             square
@@ -803,7 +816,7 @@ watch(searchTerm, (term) => {
             aria-label="Toggle theme"
             @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
           />
-          <div class="relative">
+          <div v-if="!isMobileNav" class="relative">
             <UButton
               color="neutral"
               variant="ghost"
@@ -815,7 +828,7 @@ watch(searchTerm, (term) => {
             />
             <span v-if="unreadCount" class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white">{{ unreadCount }}</span>
           </div>
-          <AppSettingsPopover v-model:open="isSettingsOpen" />
+          <AppSettingsPopover v-if="!isMobileNav" v-model:open="isSettingsOpen" />
         </div>
       </div>
     </header>
@@ -844,8 +857,44 @@ watch(searchTerm, (term) => {
             }"
           />
 
-          <div v-if="collapsed" class="mt-auto">
-            <UPopover :content="{ sideOffset: 8 }">
+          <div class="mt-auto space-y-3">
+            <!-- Phone/tablet: the header controls live here instead (see `isMobileNav`). -->
+            <div
+              v-if="isMobileNav"
+              class="flex items-center justify-between gap-1 rounded-lg border border-default bg-elevated/40 p-1.5"
+            >
+              <UButton
+                color="neutral"
+                variant="ghost"
+                square
+                :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
+                aria-label="Toggle theme"
+                @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
+              />
+              <div class="relative">
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  square
+                  icon="i-lucide-bell"
+                  aria-label="Open notifications"
+                  title="Notifications"
+                  @click="isNotificationsSlideoverOpen = true"
+                />
+                <span v-if="unreadCount" class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white">{{ unreadCount }}</span>
+              </div>
+              <UButton
+                color="neutral"
+                variant="ghost"
+                square
+                icon="i-lucide-settings"
+                aria-label="Open app settings"
+                title="App settings"
+                @click="openMobileSettings"
+              />
+            </div>
+
+            <UPopover v-if="collapsed" :content="{ sideOffset: 8 }">
               <UButton
                 color="error"
                 variant="solid"
@@ -864,10 +913,9 @@ watch(searchTerm, (term) => {
                 </div>
               </template>
             </UPopover>
-          </div>
 
-          <div v-else class="mt-auto">
             <UAlert
+              v-else
               color="error"
               variant="solid"
               icon="i-lucide-triangle-alert"
@@ -895,5 +943,6 @@ watch(searchTerm, (term) => {
     />
     <slot />
     <NotificationsSlideover />
+    <AppSettingsSlideover v-if="isMobileNav" />
   </UDashboardGroup>
 </template>

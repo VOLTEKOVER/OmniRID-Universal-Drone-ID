@@ -128,9 +128,11 @@ version = "0.1.0"
 dependencies = [
  "app",
  "embedded-svc",
+ "embuild",
  "esp-idf-hal",
  "esp-idf-svc",
  "esp-idf-sys",
+ "log",
  "out-astm",
  "rid-app",
  "rid-core",

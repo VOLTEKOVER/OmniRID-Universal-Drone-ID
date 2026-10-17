@@ -367,7 +367,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const option of Object.keys(OPTIONS)) {
     out.push({
       label: humanize(option),
-      to: '/device/system',
+      to: '/compliance-security/security',
       icon: 'i-lucide-toggle-right',
       suffix: 'Firmware option',
       keywords: `option flag ${option} ${humanize(option)}`

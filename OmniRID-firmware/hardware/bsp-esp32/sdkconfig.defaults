@@ -26,3 +26,35 @@ CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y
 CONFIG_BT_BLE_50_FEATURES_SUPPORTED=y
 CONFIG_BT_BLE_50_EXTEND_ADV_EN=y
 CONFIG_BT_BLE_EXT_ADV=y
+
+# ---------------------------------------------------------------------------
+# OPTIONAL PRODUCTION HARDENING - Secure Boot v2 + Flash Encryption
+# ---------------------------------------------------------------------------
+# The options below are deliberately LEFT DISABLED (commented out).
+#
+# Enabling Secure Boot or Flash Encryption is a ONE-WAY operation on the
+# device: it burns eFuses and cannot be reverted or undone in the field.  Do it
+# only after the signing/encryption keys have been generated and backed up, and
+# only on hardware you can afford to lose.  Turning either option on here
+# without provisioning keys WILL produce a build that cannot boot.
+#
+# The full, step-by-step procedure (key generation, keyring, first encrypted
+# flash, eFuse read/write protection, recovery mode, and the exact
+# `idf.py menuconfig` paths) is documented in `docs/security-hardening.md`.
+#
+# What each option protects against:
+#   * Secure Boot   -> prevents RUNNING modified/unauthorised firmware.
+#     It does NOT prevent disassembling a firmware image that is distributed.
+#   * Flash Encryption -> prevents READING flash contents (firmware image and
+#     the NVS partition that holds the WiFi password and Ed25519 keys) with
+#     physical access.
+#
+# CONFIG_SECURE_BOOT=y
+# CONFIG_SECURE_BOOT_V2_ENABLED=y
+# CONFIG_SECURE_FLASH_ENC_ENABLED=y
+# CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=y
+# CONFIG_EFUSE_VIRTUAL=n
+#
+# For development-only testing WITHOUT burning eFuses (never ship this):
+# CONFIG_SECURE_BOOT_INSECURE=y
+# CONFIG_EFUSE_VIRTUAL=y

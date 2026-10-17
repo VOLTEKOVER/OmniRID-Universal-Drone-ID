@@ -38,6 +38,33 @@ This project implements a **WiFi AP + REST API** Remote ID transmitter:
 - **OTA updates** with SHA-256 integrity + optional Ed25519 signature verification
 - **Key management** — Ed25519 keys stored in NVS (flash encryption on the roadmap, see issue #47)
 
+### Hardening guide
+
+See [`docs/security-hardening.md`](docs/security-hardening.md) for the full
+threat model and the step-by-step procedure to enable WPA2 on the AP, the lock
+system, and Secure Boot v2 + Flash Encryption. Those features are **not enabled
+by default**.
+
+### What is (and is not) protectable
+
+- A **client-side web app cannot be protected from reverse engineering**: its
+  HTML/CSS/JS are delivered to the browser. Minification/obfuscation only raise
+  the cost. **No secret may be embedded in the app** — and none is.
+- A **distributed firmware image cannot be protected from reverse engineering.**
+  Secure Boot prevents *running* modified firmware; Flash Encryption prevents
+  *reading* flash. Neither hides a published `.bin`.
+- The web app is treated as **untrusted**: all authorisation is enforced on the
+  device.
+
+### GitHub Pages hosting
+
+The app is published as a **static SPA** to GitHub Pages, where **no server
+runs**. Consequently the `/api/esp/**` proxy (local development and self-hosted
+deployments only) is absent, and browsers block HTTPS→HTTP access to the device
+(mixed content), which also sends no CORS headers. On GitHub Pages the app is
+usable in **simulated mode** and as documentation; real device control over WiFi
+requires the device's own UI or a self-hosted deployment of the app.
+
 ### Web Configuration
 
 The web configuration interface is served on the AP network (192.168.4.1) with
@@ -61,3 +88,12 @@ ensures automatic rollback on failure.
 - **Safe string handling** — Rust's ownership model prevents buffer overflows
 - **psa_crypto_init()** — PSA Crypto API initialized at boot for ESP-IDF v5+
 - **Shared verification module** — `rid-core::security` used by both web config and OTA
+
+### Known gaps (tracked, not yet closed)
+
+The Rust HTTP layer `hardware/bsp-esp32/src/web.rs` does **not yet enforce** the
+lock-level / `X-Signature` checks on `POST /api/config`, `POST /api/reset` and
+`POST /ota`; the logic exists and is tested in `rid-app/src/web_config.rs` but is
+not wired into the handlers. Until then, lock level ≥ 1 is not enforced on the
+Rust firmware. Closing this is the highest-impact firmware security task. See
+`docs/security-hardening.md` §6 for details.

@@ -84,7 +84,9 @@
 	info) alimentato da eventi reali: connessione ESP (loss/gain), salvataggio
 	config, export/import, preset apply. Slideover con mark-all-read/clear e
 	badge non letti sulla campanella. Rimossa la vecchia route statica
-	`server/api/notifications.ts`.
+	`server/api/notifications.ts`. Log firmware condivisi (`useFirmwareLogs`)
+	mirrorati globalmente alle notifiche; feedback standardizzato (toast + notifica
+	per azioni utente, solo notifica per eventi background); API unificata.
 - [x] **Componentizzazione massiccia** — `PageHero`, `ContentSection`,
 	`SectionTabs`, `DeviceConfigPage`, `ConsoleTerminal`, `TelemetryRecorder`,
 	`PresetManager`, `AppSettingsPopover`, `NotificationsSlideover`: la UI
@@ -111,14 +113,15 @@
 	live log da `GET /api/logs`, invio a `POST /api/command` + `X-Signature`.
 - [ ] Sensors tab real data — richiede endpoint sensori lato firmware.
 - [x] Mobile responsiveness verify — header adattivo (search/etichette
-	nascoste su schermi piccoli, bottoni icona).
+	nascoste su schermi piccoli, bottoni icona); pulsanti tema/notifiche/impostazioni
+	spostati nella sidebar su mobile (< lg) e slideover impostazioni dedicato.
 
 **Low:**
 - [x] Dark mode polish — verificato: nessun colore hardcoded, solo token UI.
 - [x] Keyboard shortcuts — Ctrl+S (save) / Ctrl+E (export) via event bus
 	`useDashboard.configActions`.
 - [x] Loading states / error toasts — refresh connessione cliccabile, save
-	loading, toast + notifiche su tutti gli esiti.
+	loading, toast + notifiche su tutti gli esiti (standardizzato).
 - [ ] OTA progress bar — richiede upload `/ota` lato firmware (al momento
 	risponde "not yet wired - use /update").
 - [ ] Compliance region auto-detect from GPS — richiede GPS lato firmware.

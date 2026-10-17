@@ -1,49 +1,21 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
-import { useIntervalFn } from '@vueuse/core'
-
-type LogLevel = 'debug' | 'info' | 'warning' | 'error' | 'command'
-
-type LogLine = {
-  id: number
-  at: number
-  level: LogLevel
-  text: string
-}
-
-type FirmwareLogEntry = {
-  t?: number
-  l?: string
-  m?: string
-}
+import { nextTick, onMounted, watch } from 'vue'
+import type { FirmwareLogLevel as LogLevel } from '~/composables/useFirmwareLogs'
 
 const { isEspConnected, proxyFetch } = useEspConnection()
+const { lines, push, clear: clearLines } = useFirmwareLogs()
+const { notifyError } = useNotifications()
+const toast = useToast()
 
-const lines = ref<LogLine[]>([])
 const command = ref('')
 const signature = ref('')
 const isSending = ref(false)
 const autoScroll = ref(true)
+const showTimestamps = ref(true)
+const levelFilter = ref<'all' | LogLevel>('all')
 const history = ref<string[]>([])
 const historyCursor = ref(-1)
 const scrollRef = ref<HTMLElement | null>(null)
-
-let lineId = 0
-
-const push = (level: LogLevel, text: string) => {
-  lines.value.push({ id: ++lineId, at: Date.now(), level, text })
-  if (lines.value.length > 500) lines.value.splice(0, lines.value.length - 500)
-}
-
-const levelCharMap: Record<string, LogLevel> = {
-  D: 'debug', d: 'debug', 0: 'debug',
-  I: 'info', i: 'info', 1: 'info', 2: 'info',
-  W: 'warning', w: 'warning', 3: 'warning',
-  E: 'error', e: 'error', 4: 'error', 5: 'error',
-  6: 'error'
-}
-
-const firmwareLevel = (level?: string): LogLevel => levelCharMap[level ?? ''] ?? 'info'
 
 const levelTag: Record<LogLevel, string> = {
   debug: 'D',
@@ -69,36 +41,28 @@ const levelTextClass: Record<LogLevel, string> = {
   command: 'text-sky-400'
 }
 
-const pollLogs = async () => {
-  if (!isEspConnected.value) return
-  try {
-    const data = await proxyFetch<FirmwareLogEntry[] | null>('api/logs', { timeout: 3000 })
-    if (!Array.isArray(data)) return
-    const seen = new Set(lines.value.map(line => `${line.at}:${line.text}`))
-    for (const row of data) {
-      const text = String(row.m ?? '').trim()
-      if (!text) continue
-      const at = Number(row.t ?? 0)
-      const key = `${at}:${text}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      push(firmwareLevel(row.l), text)
-    }
-  } catch {
-    // Logs are best-effort; connection errors surface in the header.
-  }
-}
+const visibleLines = computed(() =>
+  levelFilter.value === 'all' ? lines.value : lines.value.filter(line => line.level === levelFilter.value)
+)
 
-const { pause: pausePolling, resume: resumePolling } = useIntervalFn(pollLogs, 3000)
-
-watch(isEspConnected, (connected) => {
-  if (connected) {
-    pollLogs()
-    resumePolling()
-  } else {
-    pausePolling()
-  }
+const filterOptions = computed(() => {
+  const byLevel = (level: LogLevel) => lines.value.filter(line => line.level === level).length
+  return [
+    { value: 'all' as const, label: 'All', count: lines.value.length },
+    { value: 'debug' as const, label: 'Debug', count: byLevel('debug') },
+    { value: 'info' as const, label: 'Info', count: byLevel('info') },
+    { value: 'warning' as const, label: 'Warn', count: byLevel('warning') },
+    { value: 'error' as const, label: 'Error', count: byLevel('error') }
+  ]
 })
+
+const formatTime = (at: number) => new Date(at).toLocaleTimeString([], { hour12: false })
+
+const quickCommands = [
+  { cmd: 'status', destructive: false },
+  { cmd: 'restart', destructive: true },
+  { cmd: 'reset', destructive: true }
+]
 
 const scrollToBottom = async () => {
   if (!autoScroll.value || !scrollRef.value) return
@@ -106,10 +70,10 @@ const scrollToBottom = async () => {
   scrollRef.value.scrollTop = scrollRef.value.scrollHeight
 }
 
-watch(() => lines.value.length, scrollToBottom)
+watch(() => visibleLines.value.length, scrollToBottom)
 
 const clearOutput = () => {
-  lines.value = []
+  clearLines()
 }
 
 const copyOutput = async () => {
@@ -141,7 +105,14 @@ const send = async () => {
     push('info', 'Command accepted.')
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Request failed'
-    push('error', `Command rejected: ${message}. The firmware must expose POST /api/command.`)
+    push('error', `Command rejected: ${message}.`)
+    notifyError('Command rejected', `${cmd}: ${message}`)
+    toast.add({
+      title: 'Command rejected',
+      description: `${cmd}: ${message}`,
+      icon: 'i-lucide-circle-alert',
+      color: 'error'
+    })
   } finally {
     isSending.value = false
   }
@@ -160,14 +131,20 @@ const onKeydown = (event: KeyboardEvent) => {
   }
 }
 
-const inputRef = ref<HTMLInputElement | null>(null)
+const inputRef = ref<{ inputRef?: HTMLInputElement } | null>(null)
+
+const focusInput = () => {
+  inputRef.value?.inputRef?.focus()
+}
+
+const useQuickCommand = (cmd: string) => {
+  command.value = cmd
+  focusInput()
+}
 
 onMounted(() => {
-  if (isEspConnected.value) resumePolling()
-  nextTick(() => inputRef.value?.focus())
+  nextTick(() => focusInput())
 })
-
-onBeforeUnmount(pausePolling)
 
 const termInputUi = {
   root: '!bg-neutral-900',
@@ -184,66 +161,103 @@ const ghostUi = {
 <template>
   <div class="space-y-3">
     <div class="overflow-hidden rounded-lg border border-neutral-700/70 bg-neutral-950 shadow-sm">
-      <div class="flex items-center justify-between gap-2 border-b border-neutral-800 bg-neutral-900 px-2 py-2 sm:px-3">
-        <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
-          <span class="relative flex size-2">
-            <span class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-            <span class="relative inline-flex size-2 rounded-full bg-emerald-500" />
-          </span>
-          <span class="hidden sm:inline">Live log</span>
-        </p>
-        <div class="flex gap-1">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            icon="i-lucide-chevrons-down"
-            class="hover:!bg-neutral-800"
-            :ui="ghostUi"
-            :aria-label="autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'"
-            @click="autoScroll = !autoScroll"
+      <div class="border-b border-neutral-800 bg-neutral-900">
+        <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+          <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
+            <span class="relative flex size-2">
+              <span
+                v-if="isEspConnected"
+                class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60"
+              />
+              <span class="relative inline-flex size-2 rounded-full" :class="isEspConnected ? 'bg-emerald-500' : 'bg-neutral-600'" />
+            </span>
+            <span class="hidden sm:inline">{{ isEspConnected ? 'Live log' : 'Offline' }}</span>
+          </p>
+          <div class="flex items-center gap-1">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-clock"
+              class="hover:!bg-neutral-800"
+              :ui="ghostUi"
+              :aria-label="showTimestamps ? 'Hide timestamps' : 'Show timestamps'"
+              @click="showTimestamps = !showTimestamps"
+            >
+              <span class="hidden lg:inline">{{ showTimestamps ? 'Timestamps on' : 'Timestamps off' }}</span>
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-chevrons-down"
+              class="hover:!bg-neutral-800"
+              :ui="ghostUi"
+              :aria-label="autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'"
+              @click="autoScroll = !autoScroll"
+            >
+              <span class="hidden lg:inline">{{ autoScroll ? 'Auto-scroll on' : 'Auto-scroll off' }}</span>
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-copy"
+              :disabled="!lines.length"
+              class="hover:!bg-neutral-800"
+              :ui="ghostUi"
+              aria-label="Copy output"
+              @click="copyOutput"
+            >
+              <span class="hidden md:inline">Copy</span>
+            </UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-trash"
+              :disabled="!lines.length"
+              class="hover:!bg-neutral-800"
+              :ui="ghostUi"
+              aria-label="Clear output"
+              @click="clearOutput"
+            >
+              <span class="hidden md:inline">Clear</span>
+            </UButton>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1 border-t border-neutral-800 px-3 py-1.5">
+          <button
+            v-for="option in filterOptions"
+            :key="option.value"
+            type="button"
+            class="flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[11px] transition-colors"
+            :class="levelFilter === option.value ? 'bg-neutral-700 text-neutral-100' : 'text-neutral-400 hover:bg-neutral-800'"
+            @click="levelFilter = option.value"
           >
-            <span class="hidden lg:inline">{{ autoScroll ? 'Auto-scroll on' : 'Auto-scroll off' }}</span>
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            icon="i-lucide-copy"
-            :disabled="!lines.length"
-            class="hover:!bg-neutral-800"
-            :ui="ghostUi"
-            aria-label="Copy output"
-            @click="copyOutput"
-          >
-            <span class="hidden md:inline">Copy</span>
-          </UButton>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            icon="i-lucide-trash"
-            :disabled="!lines.length"
-            class="hover:!bg-neutral-800"
-            :ui="ghostUi"
-            aria-label="Clear output"
-            @click="clearOutput"
-          >
-            <span class="hidden md:inline">Clear</span>
-          </UButton>
+            {{ option.label }}
+            <span class="text-neutral-500">{{ option.count }}</span>
+          </button>
+          <span class="ml-auto font-mono text-[11px] text-neutral-500">{{ visibleLines.length }}/{{ lines.length }} lines</span>
         </div>
       </div>
 
       <div ref="scrollRef" class="h-80 overflow-y-auto p-4 font-mono text-[13px] leading-6">
-        <p v-if="!lines.length" class="text-neutral-600">
-          Waiting for logs…
+        <p v-if="!visibleLines.length" class="text-neutral-600">
+          {{ lines.length
+            ? 'No lines match this filter.'
+            : isEspConnected
+              ? 'Waiting for logs…'
+              : 'ESP not connected — logs appear once the device is reachable.' }}
         </p>
         <p
-          v-for="line in lines"
+          v-for="line in visibleLines"
           :key="line.id"
           class="flex gap-2 whitespace-pre-wrap break-words"
         >
           <span class="w-4 shrink-0 select-none text-center text-xs" :class="levelTagClass[line.level]">{{ levelTag[line.level] }}</span>
+          <span v-if="showTimestamps" class="shrink-0 select-none text-[11px] text-neutral-500">{{ formatTime(line.at) }}</span>
           <span class="min-w-0" :class="levelTextClass[line.level]">{{ line.text }}</span>
         </p>
       </div>
@@ -273,6 +287,19 @@ const ghostUi = {
           @click="send"
         />
       </div>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="text-[11px] uppercase tracking-wider text-neutral-500">Quick</span>
+        <button
+          v-for="quick in quickCommands"
+          :key="quick.cmd"
+          type="button"
+          class="rounded-sm border border-neutral-700 px-2 py-0.5 font-mono text-[11px] transition-colors hover:bg-neutral-800"
+          :class="quick.destructive ? 'text-amber-400' : 'text-neutral-300'"
+          @click="useQuickCommand(quick.cmd)"
+        >
+          {{ quick.cmd }}
+        </button>
+      </div>
       <div class="flex flex-wrap items-center gap-2">
         <UInput
           v-model="signature"
@@ -290,7 +317,7 @@ const ghostUi = {
 
     <p class="text-xs text-muted">
       Logs: <code class="rounded bg-elevated px-1">GET /api/logs</code> ·
-      Commands: <code class="rounded bg-elevated px-1">POST /api/command</code> (restart and reset require an <code>X-Signature</code> when locked).
+      Commands: <code class="rounded bg-elevated px-1">POST /api/command</code> (restart and reset require an <code class="rounded bg-elevated px-1">X-Signature</code> when locked).
     </p>
   </div>
 </template>

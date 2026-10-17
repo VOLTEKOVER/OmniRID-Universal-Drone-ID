@@ -1,4 +1,4 @@
-export type PageId = 'nation' | 'transmission' | 'inputs' | 'identity' | 'ap' | 'fc' | 'hardware' | 'system'
+export type PageId = 'nation' | 'transmission' | 'identity' | 'ap' | 'fc' | 'hardware' | 'system'
 export type Severity = 'error' | 'warning'
 export interface Issue {
   field: string
@@ -397,7 +397,7 @@ export function validateConfig(c: DeviceConfig, ctx: ValidationContext = {}): Is
   if (c.wifi_password && (c.wifi_password.length < LIMITS.wifiPassMin || c.wifi_password.length > LIMITS.wifiPassMax))
     err('wifi_password', 'ap', `Leave empty or use ${LIMITS.wifiPassMin}-${LIMITS.wifiPassMax} characters.`)
 
-  if (![255, 1, 2, 3, 4].includes(c.protocol)) err('protocol', 'inputs', 'Invalid protocol.')
+  if (![255, 1, 2, 3, 4].includes(c.protocol)) err('protocol', 'fc', 'Invalid protocol.')
   if (c.protocol !== 4 && !(BAUD_RATES as readonly number[]).includes(c.baud_rate)) err('baud_rate', 'fc', 'Invalid baud rate.')
   if (!inRange(c.mavlink_sysid, LIMITS.mavSysid)) err('mavlink_sysid', 'fc', 'MAVLink SysID must be 0-254.')
   else if (c.protocol === 1 && c.mavlink_sysid === 0)
@@ -405,7 +405,7 @@ export function validateConfig(c: DeviceConfig, ctx: ValidationContext = {}): Is
   const canPins = (c.dronecan_rx_gpio >= 0 ? 1 : 0) + (c.dronecan_tx_gpio >= 0 ? 1 : 0)
   const hasInput = c.rx_pin >= 0 || c.mavlink_usb_enable === 1 || canPins > 0
   if (c.protocol !== 4 && !hasInput)
-    err('rx_pin', 'inputs', 'No data input configured (UART RX, MAVLink USB or DroneCAN).')
+    err('rx_pin', 'hardware', 'No data input configured (UART RX, MAVLink USB or DroneCAN).')
 
   const gpioRange = chip ? ([-1, CHIPS[chip].maxGpio] as const) : LIMITS.gpioGeneric
   const used = new Map<number, string[]>()

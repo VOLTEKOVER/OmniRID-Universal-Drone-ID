@@ -1,1 +1,3 @@
 target/
+# esp-idf-sys / embuild downloads ESP-IDF + tools here (multi-GB cache)
+.embuild/

@@ -34,6 +34,7 @@ const isFlashing = ref(false)
 const flashProgress = ref(0)
 const flashMessage = ref<string | null>(null)
 const toast = useToast()
+const { notifyInfo, notifyError } = useNotifications()
 
 onMounted(() => {
   if (import.meta.client) {
@@ -75,6 +76,7 @@ const flashFirmware = async () => {
     icon: 'i-lucide-check',
     color: 'success'
   })
+  notifyInfo(`${target} flashed`, `Firmware written over ${usbPort.value} (WebSerial).`)
 }
 
 const formatBytes = (bytes: number) => {
@@ -173,6 +175,13 @@ const pickFile = (file: File | null) => {
     })
     .catch(() => {
       hashingNotice.value = 'Could not hash the selected file'
+      notifyError('Firmware hashing failed', `Could not compute SHA-256 for ${file.name}.`)
+      toast.add({
+        title: 'Firmware hashing failed',
+        description: `Could not compute SHA-256 for ${file.name}.`,
+        icon: 'i-lucide-circle-alert',
+        color: 'error'
+      })
     })
     .finally(() => {
       isHashing.value = false
@@ -236,13 +245,34 @@ const startUpload = () => {
     if (xhr.status >= 200 && xhr.status < 300) {
       uploadMessage.value = 'Upload complete. The device is rebooting into the new firmware.'
       isEspConnected.value = false
+      notifyInfo('Firmware uploaded', 'The device is rebooting into the new firmware.')
+      toast.add({
+        title: 'Firmware uploaded',
+        description: 'The device is rebooting into the new firmware.',
+        icon: 'i-lucide-check',
+        color: 'success'
+      })
     } else {
       uploadError.value = readOtaError(xhr.responseText) ?? `Upload failed (HTTP ${xhr.status}).`
+      notifyError('Firmware upload failed', uploadError.value)
+      toast.add({
+        title: 'Firmware upload failed',
+        description: uploadError.value,
+        icon: 'i-lucide-circle-alert',
+        color: 'error'
+      })
     }
   }
   xhr.onerror = () => {
     isUploading.value = false
     uploadError.value = 'Upload failed — the device became unreachable. Keep it powered and retry.'
+    notifyError('Firmware upload failed', uploadError.value)
+    toast.add({
+      title: 'Firmware upload failed',
+      description: uploadError.value,
+      icon: 'i-lucide-circle-alert',
+      color: 'error'
+    })
   }
   xhr.onabort = () => {
     isUploading.value = false
