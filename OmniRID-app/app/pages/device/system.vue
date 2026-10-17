@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ConfigSection, ConfigDanger } from '~/components/device/ConfigPage.vue'
-import { LOCK_LEVELS, OPTIONS, DEFAULTS, hasFlag, setFlag, validateConfig as validateDeviceConfig, detectChip } from '~/config/device'
+import { LOCK_LEVELS, OPTIONS, hasFlag, setFlag, validateConfig as validateDeviceConfig, detectChip } from '~/config/device'
 import type { DeviceConfig, Issue } from '~/config/device'
 import { useDeviceProfile } from '~/composables/useDeviceProfile'
 
@@ -11,7 +11,7 @@ const keyOptions = [1, 2, 3, 4, 5].map(i => ({ name: `public_key_${i}`, label: `
 
 const OPTION_TOGGLES = [
   { name: 'opt_force_arm', flag: OPTIONS.forceArm, label: 'Force ARM OK', description: 'Allow arming without safety checks. Test option, never for real flights.' },
-  { name: 'opt_no_save_basic_id', flag: OPTIONS.noSaveBasicId, label: "Don't save BasicID to NVS", description: 'Keep the Basic ID in RAM only; identity must be re-applied on every boot.' },
+  { name: 'opt_no_save_basic_id', flag: OPTIONS.noSaveBasicId, label: 'Don\'t save BasicID to NVS', description: 'Keep the Basic ID in RAM only; identity must be re-applied on every boot.' },
   { name: 'opt_print_mavlink_rid', flag: OPTIONS.printMavlinkRid, label: 'Print MAVLink RID messages', description: 'Log the outgoing MAVLink Remote ID messages to the console.' },
   { name: 'opt_demo_mode', flag: OPTIONS.demoMode, label: 'Demo mode (simulated GPS patrol)', description: 'Transmit a simulated GPS position for bench testing.' },
   { name: 'opt_kalman', flag: OPTIONS.kalman, label: 'Kalman filter (GPS smoothing)', description: 'Fuse GPS and barometer for a smoother position estimate.' },

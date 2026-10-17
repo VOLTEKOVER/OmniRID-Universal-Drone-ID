@@ -62,7 +62,7 @@ const headerActions = [{ label: 'Wiki', to: '/docs/guide#protocols' }]
 <template>
   <DeviceConfigPage
     group="device"
-    description="Serial & Protocol — Configure the UART connection between the ESP32 and your flight controller (Pixhawk, ArduPilot, iNAV, Betaflight, etc.). MAVLink is used by ArduPilot/PX4, MSP by Betaflight/iNAV, NMEA for generic GPS modules. Set the baud rate to match your FC's serial port speed — 57600 or 115200 are common."
+    description="Configure the UART link between the ESP32 and your flight controller — MAVLink for ArduPilot/PX4, MSP for Betaflight/INAV, or generic NMEA GPS."
     :sections="sections"
     :load="true"
     :validate-config="validate"

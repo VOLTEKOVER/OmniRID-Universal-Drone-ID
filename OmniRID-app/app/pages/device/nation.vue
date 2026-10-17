@@ -2,7 +2,7 @@
 import type { ConfigSection } from '~/components/device/ConfigPage.vue'
 import {
   DEFAULTS, normalizeRegion, hasFlag, setFlag, TX_MODES, REGIONS,
-  validateConfig as validateDeviceConfig, detectChip,
+  validateConfig as validateDeviceConfig, detectChip
 } from '~/config/device'
 import type { DeviceConfig, Issue, RegionCode } from '~/config/device'
 import { useDeviceProfile } from '~/composables/useDeviceProfile'
@@ -18,7 +18,7 @@ const MODE_TOGGLES = [
   { name: 'tx_wifi_bcn', flag: TX_MODES.wifiBeacon, label: 'WiFi Beacon', description: 'Broadcast the Remote ID over a WiFi Beacon as defined by ASTM F3411-22a.' },
   { name: 'tx_wifi_nan', flag: TX_MODES.wifiNan, label: 'WiFi NAN', description: 'Neighbor Awareness Networking, used by GB 42590 and Singapore B-RID.' },
   { name: 'tx_ble4', flag: TX_MODES.ble4, label: 'BLE 4.0', description: 'Classic Bluetooth Low Energy advertising channel.' },
-  { name: 'tx_ble5', flag: TX_MODES.ble5, label: 'BLE 5.0 Long Range', description: 'Requires BLE 4.0 active and an ESP32-S3 (experimental).' },
+  { name: 'tx_ble5', flag: TX_MODES.ble5, label: 'BLE 5.0 Long Range', description: 'Requires BLE 4.0 active and an ESP32-S3 (experimental).' }
 ] as const
 
 const rateKeys = ['wifi_bcn_rate_hz', 'wifi_nan_rate_hz', 'ble4_rate_hz', 'ble5_rate_hz'] as (keyof typeof DEFAULTS)[]
@@ -56,7 +56,7 @@ const mapPayload = (state: Record<string, unknown>): Record<string, unknown> => 
     ble4_power_dbm: num('ble4_power_dbm'),
     ble4_rate_hz: num('ble4_rate_hz'),
     ble5_power_dbm: num('ble5_power_dbm'),
-    ble5_rate_hz: num('ble5_rate_hz'),
+    ble5_rate_hz: num('ble5_rate_hz')
   }
 }
 

@@ -9,18 +9,10 @@ export type AppSettings = {
   expertMode: boolean
   reopenLastTab: boolean
   disableInternet: boolean
-  optOutStatistics: boolean
-  cliAutocomplete: 'off' | 'basic' | 'advanced'
-  autoDevtools: boolean
-  notifyLongOperations: boolean
   enableDarkTheme: boolean
   colorTheme: string
   uiScale: number
   language: string
-  showAllSerial: boolean
-  cliOnly: boolean
-  devSettingsForPreview: boolean
-  showWarnings: boolean
 }
 
 export const defaults: AppSettings = {
@@ -28,18 +20,10 @@ export const defaults: AppSettings = {
   expertMode: false,
   reopenLastTab: false,
   disableInternet: false,
-  optOutStatistics: false,
-  cliAutocomplete: 'advanced',
-  autoDevtools: false,
-  notifyLongOperations: false,
-  enableDarkTheme: false,
+  enableDarkTheme: true,
   colorTheme: 'blue',
   uiScale: 100,
-  language: 'en',
-  showAllSerial: false,
-  cliOnly: false,
-  devSettingsForPreview: false,
-  showWarnings: true
+  language: 'en'
 }
 
 const _useAppSettings = () => {

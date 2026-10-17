@@ -7,13 +7,13 @@ export interface Issue {
   message: string
 }
 
-export type RegionCode =
-  | 'auto' | 'EUR' | 'FAA' | 'JPN' | 'SGP' | 'KOR' | 'CHN' | 'CAN' | 'AUS' | 'BRA' | 'NZL'
+export type RegionCode
+  = | 'auto' | 'EUR' | 'FAA' | 'JPN' | 'SGP' | 'KOR' | 'CHN' | 'CAN' | 'AUS' | 'BRA' | 'NZL'
 
 type Idx = 0 | 1 | 2 | 3 | 4
-type LightingKeys = { [K in Idx as `lighting_pin_${K}`]: number } &
-  { [K in Idx as `lighting_pattern_${K}`]: number } &
-  { [K in Idx as `lighting_phase_${K}`]: number }
+type LightingKeys = { [K in Idx as `lighting_pin_${K}`]: number }
+  & { [K in Idx as `lighting_pattern_${K}`]: number }
+  & { [K in Idx as `lighting_phase_${K}`]: number }
 
 export type DeviceConfig = LightingKeys & {
   region: RegionCode
@@ -82,7 +82,7 @@ export const OPTIONS = {
   ed25519Auth: 32,
   mavlinkArmGate: 64,
   mavlinkOpLoc: 128,
-  identityGate: 256,
+  identityGate: 256
 } as const
 
 export const TX_MODES = { wifiBeacon: 1, wifiNan: 2, ble4: 4, ble5: 8 } as const
@@ -96,20 +96,20 @@ export const PROTOCOLS = [
   { value: 1, label: 'MAVLink' },
   { value: 2, label: 'MSP' },
   { value: 3, label: 'NMEA' },
-  { value: 4, label: 'None (no FC)' },
+  { value: 4, label: 'None (no FC)' }
 ] as const
 
 export const ID_TYPES = [
   { value: 1, label: 'Serial Number (ANSI/CTA-2063)' },
   { value: 2, label: 'CAA Registration' },
   { value: 3, label: 'UTM UUID' },
-  { value: 4, label: 'Session ID' },
+  { value: 4, label: 'Session ID' }
 ] as const
 
 export const UA_TYPES = [
   'None', 'Aeroplane', 'Helicopter / Multirotor', 'Gyroplane', 'Hybrid Lift', 'Ornithopter',
   'Glider', 'Kite', 'Free Balloon', 'Captive Balloon', 'Airship', 'Free Fall', 'Rocket',
-  'Tethered Aircraft', 'Ground Obstacle', 'Other',
+  'Tethered Aircraft', 'Ground Obstacle', 'Other'
 ].map((label, value) => ({ value, label }))
 
 export const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600] as const
@@ -117,11 +117,11 @@ export const CAN_BITRATES = [125000, 250000, 500000, 1000000] as const
 export const LOCK_LEVELS = [
   { value: 0, label: '0 - Normal' },
   { value: 1, label: '1 - Locked (signed commands only)' },
-  { value: 2, label: '2 - eFuse permanent (IRREVERSIBLE)' },
+  { value: 2, label: '2 - eFuse permanent (IRREVERSIBLE)' }
 ] as const
 
 export const LIGHT_PATTERNS = [
-  'Off', 'Solid', 'Slow blink', 'Fast blink', 'Fade in/out', 'Strobe', 'Police', 'Rainbow',
+  'Off', 'Solid', 'Slow blink', 'Fast blink', 'Fade in/out', 'Strobe', 'Police', 'Rainbow'
 ].map((label, value) => ({ value, label }))
 
 export const LIMITS = {
@@ -140,7 +140,7 @@ export const LIMITS = {
   brightness: [0, 255],
   startDelayMs: [0, 30000],
   lightPhase: [0, 3600],
-  gpioGeneric: [-1, 48],
+  gpioGeneric: [-1, 48]
 } as const
 
 export const DEFAULTS: DeviceConfig = {
@@ -162,7 +162,7 @@ export const DEFAULTS: DeviceConfig = {
   public_key_1: '', public_key_2: '', public_key_3: '', public_key_4: '', public_key_5: '',
   lighting_pin_0: -1, lighting_pin_1: -1, lighting_pin_2: -1, lighting_pin_3: -1, lighting_pin_4: -1,
   lighting_pattern_0: 0, lighting_pattern_1: 0, lighting_pattern_2: 0, lighting_pattern_3: 0, lighting_pattern_4: 0,
-  lighting_phase_0: 0, lighting_phase_1: 0, lighting_phase_2: 0, lighting_phase_3: 0, lighting_phase_4: 0,
+  lighting_phase_0: 0, lighting_phase_1: 0, lighting_phase_2: 0, lighting_phase_3: 0, lighting_phase_4: 0
 }
 
 export type RequiredConfigItem = 'uas_id' | 'ua_type' | 'op_id' | 'tx'
@@ -180,7 +180,7 @@ const COMMON: RequiredConfigItem[] = ['uas_id', 'ua_type', 'tx']
 const RUNTIME: RuntimeCheck[] = ['gps', 'broadcast']
 const region = (label: string, extra: Partial<RegionInfo> = {}): RegionInfo => ({
   label, standard: 'ASTM F3411-22a', encoderReady: true,
-  requiredConfig: COMMON, requiredRuntime: RUNTIME, ...extra,
+  requiredConfig: COMMON, requiredRuntime: RUNTIME, ...extra
 })
 
 export const REGIONS: Record<Exclude<RegionCode, 'auto'>, RegionInfo> = {
@@ -193,7 +193,7 @@ export const REGIONS: Record<Exclude<RegionCode, 'auto'>, RegionInfo> = {
   CAN: region('Canada (Transport Canada)'),
   AUS: region('Australia (CASA)'),
   BRA: region('Brazil (ANAC RBAC 100)'),
-  NZL: region('New Zealand (CAA NZ)'),
+  NZL: region('New Zealand (CAA NZ)')
 }
 
 export const resolveRegion = (r: RegionCode): Exclude<RegionCode, 'auto'> => (r === 'auto' ? 'EUR' : r)
@@ -207,9 +207,9 @@ export function normalizeRegion(v: unknown): RegionCode {
 
 export type ChipId = 'esp32' | 'esp32s3' | 'esp32c6'
 export type Level = 'ok' | 'test' | 'no'
-export type Feature =
-  | 'wifiBeacon' | 'wifiNan' | 'ble4' | 'ble5LongRange' | 'usbCdc'
-  | 'mavlinkUsb' | 'dronecan' | 'ws2812' | 'gpioLighting'
+export type Feature
+  = | 'wifiBeacon' | 'wifiNan' | 'ble4' | 'ble5LongRange' | 'usbCdc'
+    | 'mavlinkUsb' | 'dronecan' | 'ws2812' | 'gpioLighting'
 
 export interface ChipInfo {
   label: string
@@ -224,7 +224,7 @@ export interface ChipInfo {
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i)
 const baseFeatures: Record<Feature, Level> = {
   wifiBeacon: 'ok', wifiNan: 'test', ble4: 'ok', ble5LongRange: 'no', usbCdc: 'ok',
-  mavlinkUsb: 'ok', dronecan: 'ok', ws2812: 'ok', gpioLighting: 'ok',
+  mavlinkUsb: 'ok', dronecan: 'ok', ws2812: 'ok', gpioLighting: 'ok'
 }
 
 export const CHIPS: Record<ChipId, ChipInfo> = {
@@ -234,19 +234,19 @@ export const CHIPS: Record<ChipId, ChipInfo> = {
     reasons: {
       ble5LongRange: 'BLE 5.0 Long Range requires an ESP32-S3',
       usbCdc: 'This chip has no USB CDC',
-      mavlinkUsb: 'MAVLink over USB requires ESP32-S3 or C6',
-    },
+      mavlinkUsb: 'MAVLink over USB requires ESP32-S3 or C6'
+    }
   },
   esp32s3: {
     label: 'ESP32-S3', defaultRxPin: 18, maxGpio: 48, inputOnly: [], reserved: [],
     features: { ...baseFeatures, ble5LongRange: 'test' },
-    reasons: { ble5LongRange: 'BLE 5.0 Long Range is experimental (Beta)' },
+    reasons: { ble5LongRange: 'BLE 5.0 Long Range is experimental (Beta)' }
   },
   esp32c6: {
     label: 'ESP32-C6', defaultRxPin: 7, maxGpio: 30, inputOnly: [], reserved: [],
     features: { ...baseFeatures, ble5LongRange: 'no' },
-    reasons: { ble5LongRange: 'BLE 5.0 Long Range is not implemented yet on the C6' },
-  },
+    reasons: { ble5LongRange: 'BLE 5.0 Long Range is not implemented yet on the C6' }
+  }
 }
 
 export function detectChip(s?: string): ChipId | undefined {
@@ -290,12 +290,12 @@ export function validatePublicKey(v: string): string | null {
 }
 
 const KEYS = [1, 2, 3, 4, 5] as const
-const publicKeys = (c: DeviceConfig) => KEYS.map((i) => c[`public_key_${i}` as const])
+const publicKeys = (c: DeviceConfig) => KEYS.map(i => c[`public_key_${i}` as const])
 
-type PinKey =
-  | 'led_r_gpio' | 'led_g_gpio' | 'led_b_gpio' | 'ws2812_gpio' | 'tx_pin' | 'rx_pin'
-  | 'dronecan_rx_gpio' | 'dronecan_tx_gpio' | 'ota_trigger_gpio' | `lighting_pin_${Idx}`
-const PIN_ROLES: { key: PinKey; label: string; page: PageId; output: boolean }[] = [
+type PinKey
+  = | 'led_r_gpio' | 'led_g_gpio' | 'led_b_gpio' | 'ws2812_gpio' | 'tx_pin' | 'rx_pin'
+    | 'dronecan_rx_gpio' | 'dronecan_tx_gpio' | 'ota_trigger_gpio' | `lighting_pin_${Idx}`
+const PIN_ROLES: { key: PinKey, label: string, page: PageId, output: boolean }[] = [
   { key: 'rx_pin', label: 'UART RX', page: 'hardware', output: false },
   { key: 'tx_pin', label: 'UART TX', page: 'hardware', output: true },
   { key: 'dronecan_rx_gpio', label: 'DroneCAN RX', page: 'hardware', output: false },
@@ -305,9 +305,9 @@ const PIN_ROLES: { key: PinKey; label: string; page: PageId; output: boolean }[]
   { key: 'led_b_gpio', label: 'Blue LED', page: 'hardware', output: true },
   { key: 'ws2812_gpio', label: 'WS2812 data', page: 'hardware', output: true },
   { key: 'ota_trigger_gpio', label: 'OTA trigger', page: 'hardware', output: false },
-  ...([0, 1, 2, 3, 4] as Idx[]).map((i) => ({
-    key: `lighting_pin_${i}` as PinKey, label: `Light ${i + 1}`, page: 'hardware' as PageId, output: true,
-  })),
+  ...([0, 1, 2, 3, 4] as Idx[]).map(i => ({
+    key: `lighting_pin_${i}` as PinKey, label: `Light ${i + 1}`, page: 'hardware' as PageId, output: true
+  }))
 ]
 
 export interface ValidationContext {
@@ -369,7 +369,7 @@ export function validateConfig(c: DeviceConfig, ctx: ValidationContext = {}): Is
 
   const modeFeature: [boolean, Feature, string][] = [
     [bcn, 'wifiBeacon', 'WiFi Beacon'], [nan, 'wifiNan', 'WiFi NAN'],
-    [ble4, 'ble4', 'BLE 4.0'], [ble5, 'ble5LongRange', 'BLE 5.0 LR'],
+    [ble4, 'ble4', 'BLE 4.0'], [ble5, 'ble5LongRange', 'BLE 5.0 LR']
   ]
   for (const [on, f, name] of modeFeature) {
     if (!on || !chip) continue
@@ -384,7 +384,7 @@ export function validateConfig(c: DeviceConfig, ctx: ValidationContext = {}): Is
   if (!inRange(c.ble4_power_dbm, LIMITS.blePowerDbm)) err('ble4_power_dbm', 'nation', 'BLE power must be -27..18 dBm.')
   if (!inRange(c.ble5_power_dbm, LIMITS.blePowerDbm)) err('ble5_power_dbm', 'nation', 'BLE power must be -27..18 dBm.')
   const rates: [keyof DeviceConfig, boolean][] = [
-    ['wifi_bcn_rate_hz', bcn], ['wifi_nan_rate_hz', nan], ['ble4_rate_hz', ble4], ['ble5_rate_hz', ble5],
+    ['wifi_bcn_rate_hz', bcn], ['wifi_nan_rate_hz', nan], ['ble4_rate_hz', ble4], ['ble5_rate_hz', ble5]
   ]
   for (const [k, active] of rates) {
     const v = c[k] as number
@@ -411,7 +411,10 @@ export function validateConfig(c: DeviceConfig, ctx: ValidationContext = {}): Is
   const used = new Map<number, string[]>()
   for (const r of PIN_ROLES) {
     const pin = c[r.key]
-    if (!Number.isInteger(pin) || !inRange(pin, gpioRange)) { err(r.key, r.page, `${r.label}: GPIO must be -1..${gpioRange[1]}.`); continue }
+    if (!Number.isInteger(pin) || !inRange(pin, gpioRange)) {
+      err(r.key, r.page, `${r.label}: GPIO must be -1..${gpioRange[1]}.`)
+      continue
+    }
     if (pin < 0) continue
     if (chip && CHIPS[chip].reserved.includes(pin)) err(r.key, r.page, `${r.label}: GPIO${pin} is reserved for flash.`)
     if (chip && r.output && CHIPS[chip].inputOnly.includes(pin)) err(r.key, r.page, `${r.label}: GPIO${pin} is input-only on ${CHIPS[chip].label}.`)
@@ -436,7 +439,7 @@ export function validateConfig(c: DeviceConfig, ctx: ValidationContext = {}): Is
     const m = validatePublicKey(c[`public_key_${i}` as const])
     if (m) err(`public_key_${i}`, 'system', m)
   })
-  if (c.lock_level >= 1 && !publicKeys(c).some((k) => k.trim()))
+  if (c.lock_level >= 1 && !publicKeys(c).some(k => k.trim()))
     err('lock_level', 'system', `Lock level ${c.lock_level} requires at least one public key, otherwise the device becomes unreachable.`)
   if (![0, 1, 2].includes(c.lock_level)) err('lock_level', 'system', 'Invalid lock level.')
   if (hasFlag(c.options, OPTIONS.demoMode)) warn('options', 'system', 'Demo mode active: transmits a simulated GPS position.')
@@ -447,8 +450,8 @@ export function validateConfig(c: DeviceConfig, ctx: ValidationContext = {}): Is
 
 export type PageStatus = 'invalid' | 'warning' | 'valid'
 export function pageStatus(issues: Issue[], page: PageId): PageStatus {
-  const mine = issues.filter((i) => i.page === page)
-  return mine.some((i) => i.severity === 'error') ? 'invalid' : mine.length ? 'warning' : 'valid'
+  const mine = issues.filter(i => i.page === page)
+  return mine.some(i => i.severity === 'error') ? 'invalid' : mine.length ? 'warning' : 'valid'
 }
 
 export function normalizeConfig(c: DeviceConfig): DeviceConfig {
@@ -467,22 +470,22 @@ export function dangerConfirmReasons(c: DeviceConfig): string[] {
   return r
 }
 
-export interface RuntimeState { fcConnected?: boolean; gpsFix?: boolean; txTotal?: number }
+export interface RuntimeState { fcConnected?: boolean, gpsFix?: boolean, txTotal?: number }
 export function regionChecklist(c: DeviceConfig, rt: RuntimeState = {}) {
   const reg = REGIONS[resolveRegion(c.region)]
   const cfg: Record<RequiredConfigItem, boolean> = {
     uas_id: c.uas_id.trim().length > 0,
     ua_type: c.ua_type !== 0,
     op_id: c.operator_id.trim().length > 0,
-    tx: c.tx_modes !== 0,
+    tx: c.tx_modes !== 0
   }
   const run: Record<RuntimeCheck, boolean> = { gps: !!rt.gpsFix, broadcast: (rt.txTotal ?? 0) > 0 }
   return {
     standard: reg.standard,
     items: [
-      ...(Object.keys(cfg) as RequiredConfigItem[]).map((k) => ({ id: k, ok: cfg[k], required: reg.requiredConfig.includes(k) })),
-      ...(Object.keys(run) as RuntimeCheck[]).map((k) => ({ id: k, ok: run[k], required: reg.requiredRuntime.includes(k) })),
-    ],
+      ...(Object.keys(cfg) as RequiredConfigItem[]).map(k => ({ id: k, ok: cfg[k], required: reg.requiredConfig.includes(k) })),
+      ...(Object.keys(run) as RuntimeCheck[]).map(k => ({ id: k, ok: run[k], required: reg.requiredRuntime.includes(k) }))
+    ]
   }
 }
 

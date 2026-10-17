@@ -4,32 +4,46 @@ const props = defineProps<{
   title?: string
   description?: string
   heading?: 'sm' | 'md' | 'lg'
+  icon?: string
+  iconClass?: string
+  framed?: boolean
 }>()
 
 const slots = useSlots()
 
 const headingClass = {
-  sm: 'text-base font-bold text-highlighted',
-  md: 'text-lg font-bold text-highlighted',
-  lg: 'text-2xl font-bold text-highlighted'
-}[props.heading ?? 'lg']
+  sm: 'text-base',
+  md: 'text-lg',
+  lg: 'text-xl'
+}[props.heading ?? 'md']
 </script>
 
 <template>
-  <section class="rounded-2xl border border-default bg-default p-5 sm:p-6">
-    <div
-      v-if="title || caption"
-      class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
-    >
-      <div class="min-w-0">
-        <p v-if="caption" class="text-[10px] uppercase tracking-[0.22em] text-muted">{{ caption }}</p>
-        <h2 v-if="title" :class="headingClass" class="mt-1">{{ title }}</h2>
-        <p v-if="description" class="mt-2 text-sm text-muted">{{ description }}</p>
+  <section class="min-w-0">
+    <div v-if="title || caption || slots.actions" class="mb-4">
+      <div class="flex items-center gap-3">
+        <div v-if="icon" class="flex size-7 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary" :class="iconClass">
+          <UIcon :name="icon" class="size-4" />
+        </div>
+        <div v-else-if="caption" class="label-data shrink-0">
+          {{ caption }}
+        </div>
+        <h2 v-if="title" class="text-display shrink-0 text-highlighted" :class="headingClass">
+          {{ title }}
+        </h2>
+        <div class="h-px flex-1 bg-accented" aria-hidden="true" />
+        <div v-if="slots.actions" class="shrink-0">
+          <slot name="actions" />
+        </div>
       </div>
-      <div v-if="slots.actions" class="shrink-0">
-        <slot name="actions" />
-      </div>
+      <p v-if="description" class="mt-2 max-w-3xl text-sm leading-6 text-muted">
+        {{ description }}
+      </p>
     </div>
-    <slot />
+
+    <div v-if="framed" class="rounded-lg border border-default bg-elevated/40 p-4 sm:p-5">
+      <slot />
+    </div>
+    <slot v-else />
   </section>
 </template>

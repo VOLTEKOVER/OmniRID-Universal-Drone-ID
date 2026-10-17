@@ -5,6 +5,8 @@ import { useAppSettings } from '~/composables/useAppSettings'
 
 const ESP_IP_KEY = 'omnirid:esp-ip'
 
+export type EspTransport = 'wifi' | 'usb' | 'none'
+
 type ProxyOptions = {
   method?: string
   body?: unknown
@@ -77,7 +79,19 @@ const _useEspConnection = () => {
   const lastError = ref<string | null>(null)
   const deviceInfo = ref<Record<string, unknown> | null>(null)
 
-  const isSimulated = computed(() => settings.value.virtualConnection === 'wifi')
+  const isSimulated = computed(() => settings.value.virtualConnection === 'wifi' || settings.value.virtualConnection === 'usb')
+
+  const transport = computed<EspTransport>(() => {
+    if (!isEspConnected.value) return 'none'
+    return settings.value.virtualConnection === 'usb' ? 'usb' : 'wifi'
+  })
+  const isWifiTransport = computed(() => transport.value === 'wifi')
+  const isUsbTransport = computed(() => transport.value === 'usb')
+
+  const canTelemetry = computed(() => transport.value !== 'none')
+  const canConfig = computed(() => isWifiTransport.value)
+  const canOta = computed(() => isWifiTransport.value)
+  const canFlashUsb = computed(() => isUsbTransport.value)
 
   const proxyFetch = async <T = unknown>(path: string, options: ProxyOptions = {}): Promise<T> => {
     if (isSimulated.value) {
@@ -148,7 +162,7 @@ const _useEspConnection = () => {
     refresh()
   })
 
-  return { espIp, isEspConnected, isChecking, lastError, deviceInfo, isSimulated, proxyFetch, refresh, connect }
+  return { espIp, isEspConnected, isChecking, lastError, deviceInfo, isSimulated, transport, isWifiTransport, isUsbTransport, canTelemetry, canConfig, canOta, canFlashUsb, proxyFetch, refresh, connect }
 }
 
 export const useEspConnection = createSharedComposable(_useEspConnection)

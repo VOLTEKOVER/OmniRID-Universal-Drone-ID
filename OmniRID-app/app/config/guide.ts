@@ -1,18 +1,18 @@
-export type GuideFlow =
-  | { kind: 'guard'; entry: string; noData: string; checks: { label: string; ok: string }[]; fallback: string; caption: string }
-  | { kind: 'linear'; nodes: { label: string; sub?: string }[]; failure?: { to: string; note: string }; caption: string }
-  | { kind: 'pack'; messages: { id: string; label: string; lines: string }[]; transports: { name: string; lines: string; note?: string }[]; caption: string }
+export type GuideFlow
+  = | { kind: 'guard', entry: string, noData: string, checks: { label: string, ok: string }[], fallback: string, caption: string }
+    | { kind: 'linear', nodes: { label: string, sub?: string }[], failure?: { to: string, note: string }, caption: string }
+    | { kind: 'pack', messages: { id: string, label: string, lines: string }[], transports: { name: string, lines: string, note?: string }[], caption: string }
 
-export type GuideBlock =
-  | { type: 'h'; text: string }
-  | { type: 'p'; html: string }
-  | { type: 'callout'; tone: 'info' | 'warning'; title: string; html: string }
-  | { type: 'ul'; items: string[] }
-  | { type: 'ol'; items: string[] }
-  | { type: 'code'; code: string }
-  | { type: 'table'; caption?: string; cols: string[]; rows: string[][] }
-  | { type: 'tables'; caption?: string; groups: { title: string; rows: string[][] }[] }
-  | { type: 'flow'; flow: GuideFlow }
+export type GuideBlock
+  = | { type: 'h', text: string }
+    | { type: 'p', html: string }
+    | { type: 'callout', tone: 'info' | 'warning', title: string, html: string }
+    | { type: 'ul', items: string[] }
+    | { type: 'ol', items: string[] }
+    | { type: 'code', code: string }
+    | { type: 'table', caption?: string, cols: string[], rows: string[][] }
+    | { type: 'tables', caption?: string, groups: { title: string, rows: string[][] }[] }
+    | { type: 'flow', flow: GuideFlow }
 
 export interface GuideSection {
   id: string
@@ -29,7 +29,7 @@ function stripHtml(html: string): string {
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#39;|&apos;/g, '\'')
     .replace(/&quot;/g, '"')
     .replace(/\s+/g, ' ')
     .trim()

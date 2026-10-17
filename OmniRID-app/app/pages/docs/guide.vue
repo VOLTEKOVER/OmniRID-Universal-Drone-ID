@@ -30,7 +30,7 @@ function sectionPreview(section: GuideSection): string {
 const visibleItems = computed(() => {
   const terms = query.value.toLowerCase().split(/\s+/).filter(Boolean)
   return guideSections
-    .filter(section => {
+    .filter((section) => {
       if (!terms.length) return true
       const haystack = sectionIndex.find(entry => entry.id === section.id)?.haystack ?? ''
       return terms.every(term => haystack.includes(term))
@@ -94,7 +94,7 @@ function onBodyClick(event: MouseEvent) {
 <template>
   <UDashboardPanel id="guide" class="bg-default" :ui="{ root: 'pt-16' }">
     <template #body>
-      <div class="mx-auto w-full max-w-6xl space-y-6 pb-8">
+      <div class="mx-auto w-full max-w-[1400px] space-y-6 px-4 pb-16 sm:px-6 lg:px-10">
         <SectionTabs group="docs" class="mb-2" />
         <PageHero
           title="OmniRID technical guide"
@@ -103,18 +103,29 @@ function onBodyClick(event: MouseEvent) {
           :status="heroStatus"
         >
           <template #right>
-            <UButton to="/" color="neutral" variant="outline" icon="i-lucide-arrow-left" label="Back to home" />
+            <UButton
+              to="/"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-arrow-left"
+              label="Back to home"
+            />
           </template>
         </PageHero>
 
-        <div class="flex flex-col gap-3 rounded-2xl border border-default bg-elevated/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 rounded-lg border border-default bg-elevated/40 p-3 sm:flex-row sm:items-center sm:justify-between">
           <USearchInput
             v-model="query"
             placeholder="Search sections..."
             class="w-full sm:max-w-sm"
           />
           <div class="flex items-center justify-between gap-2 sm:justify-end">
-            <UBadge color="neutral" variant="soft" size="sm" :label="`${visibleItems.length} sections`" />
+            <UBadge
+              color="neutral"
+              variant="soft"
+              size="sm"
+              :label="`${visibleItems.length} sections`"
+            />
             <UButtonGroup size="sm">
               <UButton
                 color="neutral"
@@ -136,7 +147,7 @@ function onBodyClick(event: MouseEvent) {
           </div>
         </div>
 
-        <div class="guide-body" @click="onBodyClick">
+        <div data-guide-body @click="onBodyClick">
           <UAccordion
             :items="visibleItems"
             :model-value="openSections"
@@ -145,7 +156,7 @@ function onBodyClick(event: MouseEvent) {
             :unmount-on-hide="false"
             class="space-y-2"
             :ui="{
-              item: 'overflow-hidden rounded-2xl border border-default bg-elevated/50 transition-colors duration-200 hover:border-primary/25',
+              item: 'overflow-hidden rounded-lg border border-default bg-elevated/40 transition-colors duration-200 hover:border-primary/25',
               header: 'group transition-colors',
               trigger: 'w-full gap-3 px-4 py-3.5 sm:px-5',
               content: '',
@@ -155,7 +166,7 @@ function onBodyClick(event: MouseEvent) {
           >
             <template #leading="{ item, open: itemOpen }">
               <span
-                class="flex size-8 shrink-0 items-center justify-center rounded-xl ring-1 transition-colors duration-200"
+                class="flex size-8 shrink-0 items-center justify-center rounded-sm ring-1 transition-colors duration-200"
                 :class="itemOpen ? 'bg-primary/15 text-primary ring-primary/30' : 'bg-default text-muted ring-default hover:bg-elevated'"
               >
                 <UIcon :name="item.icon" class="size-4" />
@@ -168,7 +179,7 @@ function onBodyClick(event: MouseEvent) {
                   variant="soft"
                   size="sm"
                   class="shrink-0 justify-center font-mono"
-                  :ui="{ base: 'size-6 rounded-lg' }"
+                  :ui="{ base: 'size-6 rounded-sm' }"
                 >
                   {{ item.number }}
                 </UBadge>
@@ -178,7 +189,7 @@ function onBodyClick(event: MouseEvent) {
                 </span>
               </span>
             </template>
-            <template #trailing="{ item, open: itemOpen }">
+            <template #trailing="{ open: itemOpen }">
               <span
                 class="flex size-7 shrink-0 items-center justify-center rounded-full transition-colors duration-200"
                 :class="itemOpen ? 'bg-primary/10 text-primary' : 'bg-default text-muted group-hover:bg-elevated group-hover:text-highlighted'"
@@ -203,7 +214,7 @@ function onBodyClick(event: MouseEvent) {
 </template>
 
 <style scoped>
-.guide-body :deep(code) {
+[data-guide-body] :deep(code) {
   border-radius: 0.375rem;
   padding: 0.125rem 0.35rem;
   font-size: 0.8em;
@@ -212,14 +223,14 @@ function onBodyClick(event: MouseEvent) {
   color: var(--ui-text);
 }
 
-.guide-body :deep(a) {
+[data-guide-body] :deep(a) {
   color: var(--ui-primary);
   font-weight: 500;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.guide-body :deep(pre code) {
+[data-guide-body] :deep(pre code) {
   background: transparent;
   padding: 0;
   font-weight: 400;

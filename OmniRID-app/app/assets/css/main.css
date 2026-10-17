@@ -1,92 +1,205 @@
 @import "tailwindcss" theme(static);
 @import "@nuxt/ui";
 
-@theme static {
-  --font-sans: 'Inter', 'Segoe UI', sans-serif;
-
-  --color-primary-50: #eef4ff;
-  --color-primary-100: #dfeafe;
-  --color-primary-200: #bfd6ff;
-  --color-primary-300: #9bbdff;
-  --color-primary-400: #6a9cff;
-  --color-primary-500: #1a56db;
-  --color-primary-600: #1147b8;
-  --color-primary-700: #0d3b9e;
-  --color-primary-800: #0c2f7d;
-  --color-primary-900: #102861;
-
-  --color-green-50: #EFFDF5;
-  --color-green-100: #D9FBE8;
-  --color-green-200: #B3F5D1;
-  --color-green-300: #75EDAE;
-  --color-green-400: #00DC82;
-  --color-green-500: #00C16A;
-  --color-green-600: #00A155;
-  --color-green-700: #007F45;
-  --color-green-800: #016538;
-  --color-green-900: #0A5331;
-  --color-green-950: #052E16;
-
-  --color-surface: #ffffff;
-  --color-surface-alt: #f7f8fa;
-  --color-surface-hover: #eef0f4;
-  --color-text: #1a1a2e;
-  --color-text-secondary: #5a5a7a;
-  --color-text-muted: #8a90a5;
-  --color-border: #e2e4e9;
-  --color-border-light: #eef0f4;
-
-  --radius-card: 12px;
-  --radius-panel: 16px;
-  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.08);
+/* ── Self-hosted variable fonts ─────────────────────────────────────────── */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/inter.woff2') format('woff2');
 }
 
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 700;
+  src: url('/fonts/space-grotesk.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('/fonts/jetbrains-mono.woff2') format('woff2');
+}
+
+/* ── Design tokens ───────────────────────────────────────────────────────── */
+@theme static {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Signal blue */
+  --color-primary-50: #ecf4ff;
+  --color-primary-100: #d9e8ff;
+  --color-primary-200: #b7d3ff;
+  --color-primary-300: #8ab7ff;
+  --color-primary-400: #5c99fb;
+  --color-primary-500: #2e90fa;
+  --color-primary-600: #1c6fd6;
+  --color-primary-700: #1857a8;
+  --color-primary-800: #17457f;
+  --color-primary-900: #163a68;
+  --color-primary-950: #0f2444;
+
+  /* Nominal green */
+  --color-green-50: #effdf5;
+  --color-green-100: #d9fbe8;
+  --color-green-200: #b3f5d1;
+  --color-green-300: #75edae;
+  --color-green-400: #2bd576;
+  --color-green-500: #16b862;
+  --color-green-600: #0d9750;
+  --color-green-700: #0c7742;
+  --color-green-800: #0d5e37;
+  --color-green-900: #0c4d30;
+  --color-green-950: #032b18;
+
+  /* Technical radii — small, instrument-like */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 14px;
+}
+
+/* ── Light theme: daylight cockpit ───────────────────────────────────────── */
 :root {
   --ui-bg: #ffffff;
+  --ui-bg-muted: #f2f5f9;
   --ui-bg-elevated: #ffffff;
-  --ui-bg-muted: #f7f8fa;
-  --ui-border: #e2e4e9;
-  --ui-border-muted: #eef0f4;
-  --ui-text: #1a1a2e;
-  --ui-text-muted: #5a5a7a;
-  --ui-text-dimmed: #8a90a5;
-  --ui-primary: #1a56db;
+  --ui-bg-accented: #eef2f7;
+  --ui-bg-inverted: #0c141d;
+
+  --ui-text: #0f1922;
+  --ui-text-muted: #56626f;
+  --ui-text-dimmed: #8b96a4;
+  --ui-text-highlighted: #060b11;
+  --ui-text-inverted: #ffffff;
+
+  --ui-border: #dce3ea;
+  --ui-border-muted: #e9eef3;
+  --ui-border-accented: #c8d2dc;
+
+  --ui-primary: #1c6fd6;
+  --ui-radius: 0.375rem;
+
+  --app-grid: rgba(15, 25, 34, 0.05);
+  --app-glow: rgba(46, 144, 250, 0.10);
 }
 
+/* ── Dark theme: night flight deck ───────────────────────────────────────── */
+.dark {
+  --ui-bg: #06090d;
+  --ui-bg-muted: #0a0e14;
+  --ui-bg-elevated: #0d1219;
+  --ui-bg-accented: #131b25;
+  --ui-bg-inverted: #eef3f8;
+
+  --ui-text: #c7d3e0;
+  --ui-text-muted: #8b98a7;
+  --ui-text-dimmed: #5a6a7b;
+  --ui-text-highlighted: #f1f6fb;
+  --ui-text-inverted: #06090d;
+
+  --ui-border: #1a242f;
+  --ui-border-muted: #131b24;
+  --ui-border-accented: #26333f;
+
+  --ui-primary: #4d9dff;
+  --ui-radius: 0.375rem;
+
+  --app-grid: rgba(140, 170, 200, 0.045);
+  --app-glow: rgba(46, 144, 250, 0.14);
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  background: var(--ui-bg-muted);
+  background-color: var(--ui-bg);
   color: var(--ui-text);
   -webkit-font-smoothing: antialiased;
-  transition: background 0.2s ease, color 0.2s ease;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: rgba(26, 86, 219, 0.18);
+  background: color-mix(in srgb, var(--ui-primary) 28%, transparent);
 }
 
-button,
-a {
-  transition: all 0.2s ease;
+:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
 }
 
 hr {
   border-color: var(--ui-border);
 }
 
-.dark {
-  --ui-bg: #0d0d0d;
-  --ui-bg-elevated: #141414;
-  --ui-bg-muted: #141414;
-  --ui-border: #2a2a2a;
-  --ui-border-muted: #23262f;
-  --ui-text: #e8e8ee;
-  --ui-text-muted: #a7a9b6;
-  --ui-text-dimmed: #6f7487;
-  --ui-primary: #7a9fdb;
+/* Thin technical scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-border-accented) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--ui-border-accented);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ui-primary) 45%, var(--ui-border-accented));
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
+@utility app-grid {
+  background-image:
+    linear-gradient(to right, var(--app-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--app-grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@utility app-hairline {
+  border-color: var(--ui-border);
+}
+
+@utility text-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+@utility label-data {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-muted);
 }

@@ -5,7 +5,6 @@ import { useIntervalFn } from '@vueuse/core'
 type Sample = { recordedAt: string } & Record<string, string>
 
 const { isEspConnected, proxyFetch } = useEspConnection()
-const { add: addNotification } = useNotifications()
 
 const samples = ref<Sample[]>([])
 const isRecording = ref(false)
@@ -100,27 +99,51 @@ onBeforeUnmount(stop)
 <template>
   <div class="space-y-3">
     <div class="flex flex-wrap items-center gap-2">
-      <UButton color="primary" :icon="isRecording ? 'i-lucide-square' : 'i-lucide-play'" :label="isRecording ? 'Stop recording' : 'Start recording'" :disabled="!isEspConnected" @click="isRecording ? stop() : start()" />
-      <UButton color="neutral" variant="soft" icon="i-lucide-download" label="Download CSV" :disabled="!samples.length" @click="downloadCsv" />
-      <UButton color="neutral" variant="ghost" icon="i-lucide-trash" label="Clear" :disabled="!samples.length" @click="clear" />
+      <UButton
+        color="primary"
+        :icon="isRecording ? 'i-lucide-square' : 'i-lucide-play'"
+        :label="isRecording ? 'Stop recording' : 'Start recording'"
+        :disabled="!isEspConnected"
+        @click="isRecording ? stop() : start()"
+      />
+      <UButton
+        color="neutral"
+        variant="soft"
+        icon="i-lucide-download"
+        label="Download CSV"
+        :disabled="!samples.length"
+        @click="downloadCsv"
+      />
+      <UButton
+        color="neutral"
+        variant="ghost"
+        icon="i-lucide-trash"
+        label="Clear"
+        :disabled="!samples.length"
+        @click="clear"
+      />
       <p class="ml-auto text-xs text-muted">
-        {{ samples.length }} sample{{ samples.length === 1 ? '' : 's' }}<template v-if="lastPollAt"> · last poll {{ lastPollAt }}</template>
+        {{ samples.length }} sample{{ samples.length === 1 ? '' : 's' }}<template v-if="lastPollAt">
+          · last poll {{ lastPollAt }}
+        </template>
       </p>
     </div>
 
-    <div v-if="!isEspConnected" class="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+    <div v-if="!isEspConnected" class="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
       <UIcon name="i-lucide-wifi-off" class="size-4 shrink-0" />
       <span>ESP not connected — recording is disabled until the device is reachable.</span>
     </div>
 
-    <p v-if="lastError" class="flex items-center gap-2 rounded-xl border border-error/30 bg-error/5 px-3 py-2 text-sm text-error">
+    <p v-if="lastError" class="flex items-center gap-2 rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-sm text-error">
       <UIcon name="i-lucide-circle-alert" class="size-4 shrink-0" />
       <span>Status request failed: {{ lastError }}</span>
     </p>
 
-    <div class="overflow-hidden rounded-xl border border-default bg-elevated/60">
+    <div class="overflow-hidden rounded-lg border border-default bg-elevated/40">
       <div class="flex items-center justify-between gap-2 border-b border-default px-3 py-2">
-        <p class="text-xs uppercase tracking-[0.18em] text-muted">Latest sample</p>
+        <p class="text-xs uppercase tracking-[0.18em] text-muted">
+          Latest sample
+        </p>
         <span v-if="isRecording" class="flex items-center gap-1.5 text-xs text-error">
           <span class="size-2 animate-pulse rounded-full bg-error" />Recording
         </span>
@@ -129,12 +152,22 @@ onBeforeUnmount(stop)
       <dl v-if="lastSample" class="grid grid-cols-2 gap-x-6 gap-y-1 p-3 text-xs sm:grid-cols-3 lg:grid-cols-4">
         <template v-for="[key, value] in Object.entries(lastSample)" :key="key">
           <div class="flex justify-between gap-2 border-b border-default/60 py-1">
-            <dt class="text-muted">{{ key }}</dt>
-            <dd class="truncate font-mono text-highlighted" :title="value">{{ value }}</dd>
+            <dt class="text-muted">
+              {{ key }}
+            </dt>
+            <dd class="truncate font-mono text-highlighted" :title="value">
+              {{ value }}
+            </dd>
           </div>
         </template>
       </dl>
-      <UEmpty v-else icon="i-lucide-table" title="No samples yet" description="Start recording to capture telemetry from /api/status." class="p-6" />
+      <UEmpty
+        v-else
+        icon="i-lucide-table"
+        title="No samples yet"
+        description="Start recording to capture telemetry from /api/status."
+        class="p-6"
+      />
     </div>
   </div>
 </template>

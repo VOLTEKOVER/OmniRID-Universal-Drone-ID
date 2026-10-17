@@ -53,4 +53,3 @@ export const protocolCards = [
   { title: 'MSP', text: 'Supports Betaflight and INAV telemetry using MSP_RAW_GPS and MSP_ATTITUDE over the FC serial stream.', badge: 'Primary' },
   { title: 'NMEA', text: 'Parses GGA, RMC and VTG sentences from GNSS modules for low-complexity hardware integration.', badge: 'Fallback' }
 ]
-

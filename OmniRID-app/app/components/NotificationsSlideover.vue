@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatTimeAgo } from '@vueuse/core'
-import type { SystemNotification, SystemNotificationType } from '~/composables/useNotifications'
+import type { SystemNotificationType } from '~/composables/useNotifications'
 
 const { isNotificationsSlideoverOpen } = useDashboard()
 const { notifications, unreadCount, markAllRead, clear } = useNotifications()
@@ -29,8 +29,24 @@ const notificationColor = (type: SystemNotificationType) => ({
           {{ unreadCount ? `${unreadCount} unread` : 'All caught up' }}
         </p>
         <div class="flex gap-1">
-          <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-check-check" label="Mark all read" :disabled="!unreadCount" @click="markAllRead" />
-          <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-trash" label="Clear" :disabled="!notifications.length" @click="clear" />
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-check-check"
+            label="Mark all read"
+            :disabled="!unreadCount"
+            @click="markAllRead"
+          />
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-trash"
+            label="Clear"
+            :disabled="!notifications.length"
+            @click="clear"
+          />
         </div>
       </div>
 

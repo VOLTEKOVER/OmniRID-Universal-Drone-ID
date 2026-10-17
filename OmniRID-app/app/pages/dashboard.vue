@@ -5,7 +5,7 @@ import { PROTOCOLS } from '~/config/device'
 import { useTelemetry } from '~/composables/useTelemetry'
 
 const route = useRoute()
-const { isEspConnected } = useEspConnection()
+const { isEspConnected, isUsbTransport } = useEspConnection()
 const { status, lastUpdate, lastError } = useTelemetry()
 
 const page = computed(() => pageForRoute(route.path))
@@ -52,7 +52,7 @@ const fmt = (value: unknown, digits = 1) => {
 
 const stats = computed(() => [
   {
-    label: 'GPS status',
+    label: 'GPS',
     value: fixLabel.value,
     sub: `${Number(status.value.satellites ?? 0)} satellites`,
     icon: 'i-lucide-satellite',
@@ -115,7 +115,7 @@ const hasTakeoff = computed(() => {
 <template>
   <UDashboardPanel id="monitor-dashboard" class="bg-default" :ui="{ root: 'pt-16' }">
     <template #body>
-      <div class="mx-auto w-full max-w-7xl space-y-6 pb-8">
+      <div class="mx-auto w-full max-w-[1400px] space-y-6 px-4 pb-16 sm:px-6 lg:px-10">
         <PageHero
           :title="heroTitle"
           icon="i-lucide-chart-column"
@@ -124,57 +124,55 @@ const hasTakeoff = computed(() => {
           size="sm"
         >
           <template #right>
-            <div class="flex items-center gap-3 rounded-2xl border border-default bg-elevated/60 px-4 py-3">
+            <div class="flex items-center gap-3 rounded-lg border border-default bg-elevated/40 px-4 py-3">
               <span
-                class="size-2.5 rounded-full"
+                class="size-2.5 shrink-0 rounded-full"
                 :class="isLive ? 'animate-pulse bg-success' : isEspConnected ? 'bg-warning' : 'bg-error'"
               />
               <div class="min-w-0">
-                <p class="text-sm font-semibold text-highlighted">
-                  {{ isLive ? 'Live' : isEspConnected ? 'Connected' : 'Offline' }}
+                <p class="text-display text-sm text-highlighted">
+                  {{ isLive ? 'Live' : isEspConnected ? `Connected · ${isUsbTransport ? 'USB' : 'WiFi'}` : 'Offline' }}
                 </p>
-                <p class="truncate text-xs text-muted">
-                  {{ ageSeconds !== null ? `updated ${ageSeconds}s ago` : isEspConnected ? 'waiting for first update' : 'no ESP connection' }}
+                <p class="truncate font-mono text-[11px] text-muted">
+                  {{ ageSeconds !== null ? `updated ${ageSeconds}s ago` : isEspConnected ? 'awaiting first update' : 'no ESP connection' }}
                 </p>
               </div>
-              <UIcon :name="isEspConnected ? 'i-lucide-wifi' : 'i-lucide-wifi-off'" class="size-4 text-muted" />
+              <UIcon :name="isEspConnected ? (isUsbTransport ? 'i-lucide-usb' : 'i-lucide-wifi') : 'i-lucide-wifi-off'" class="size-4 shrink-0 text-muted" />
             </div>
           </template>
         </PageHero>
 
-        <div v-if="!isEspConnected" class="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+        <div v-if="!isEspConnected" class="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
           <UIcon name="i-lucide-wifi-off" class="size-4 shrink-0" />
           <span>ESP not connected — check the connection settings or enable the simulated connection to preview the dashboard.</span>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-default bg-accented sm:grid-cols-3 xl:grid-cols-6">
           <div
             v-for="stat in stats"
             :key="stat.label"
-            class="flex items-start gap-3 rounded-2xl border border-default bg-default p-4"
+            class="min-w-0 bg-default p-4"
           >
-            <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
-              <UIcon :name="stat.icon" class="size-4" :class="stat.tone" />
-            </div>
-            <div class="min-w-0">
-              <p class="text-[10px] uppercase tracking-[0.18em] text-muted">
+            <div class="flex items-center gap-2">
+              <UIcon :name="stat.icon" class="size-3.5 shrink-0" :class="stat.tone" />
+              <dt class="label-data truncate">
                 {{ stat.label }}
-              </p>
-              <p class="truncate font-mono text-sm font-semibold text-highlighted" :title="stat.value">
-                {{ stat.value }}
-              </p>
-              <p class="truncate text-xs text-muted" :title="stat.sub">
-                {{ stat.sub }}
-              </p>
+              </dt>
             </div>
+            <dd class="mt-2 truncate font-mono text-base font-semibold text-highlighted" :title="stat.value">
+              {{ stat.value }}
+            </dd>
+            <p class="mt-0.5 truncate text-xs text-muted" :title="stat.sub">
+              {{ stat.sub }}
+            </p>
           </div>
-        </div>
+        </dl>
 
-        <section class="rounded-2xl border border-default bg-default overflow-hidden">
+        <section class="overflow-hidden rounded-lg border border-default bg-default">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-default px-5 py-4">
             <div>
-              <h2 class="text-lg font-bold text-highlighted">
-                Position — OpenStreetMap
+              <h2 class="text-display text-lg text-highlighted">
+                Position
               </h2>
               <p class="mt-1 text-sm text-muted">
                 Live GPS position, take-off point and recent flight path.
@@ -188,7 +186,7 @@ const hasTakeoff = computed(() => {
                 variant="soft"
                 label="Take-off"
               />
-              <span v-if="isLive" class="flex items-center gap-1.5 text-xs text-success">
+              <span v-if="isLive" class="flex items-center gap-1.5 font-mono text-xs text-success">
                 <span class="size-1.5 animate-pulse rounded-full bg-success" />tracking
               </span>
             </div>
@@ -206,22 +204,14 @@ const hasTakeoff = computed(() => {
           </ClientOnly>
         </section>
 
-        <p v-if="lastError" class="flex items-center gap-2 rounded-xl border border-error/30 bg-error/5 px-3 py-2 text-sm text-error">
+        <p v-if="lastError" class="flex items-center gap-2 rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-sm text-error">
           <UIcon name="i-lucide-triangle-alert" class="size-4 shrink-0" />
           <span>Status request failed: {{ lastError }}</span>
         </p>
 
-        <section class="rounded-2xl border border-default bg-default p-5">
-          <div class="mb-4">
-            <h2 class="text-lg font-bold text-highlighted">
-              Transmission log
-            </h2>
-            <p class="mt-1 text-sm text-muted">
-              Runtime counters from /api/status.
-            </p>
-          </div>
-          <dl class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-            <div v-for="counter in counters" :key="counter.label" class="flex items-center justify-between gap-2 border-b border-default/60 py-1.5">
+        <ContentSection title="Transmission log" description="Runtime counters reported by the device.">
+          <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-default bg-accented sm:grid-cols-4">
+            <div v-for="counter in counters" :key="counter.label" class="flex items-center justify-between gap-2 bg-default px-4 py-2.5">
               <dt class="text-xs text-muted">
                 {{ counter.label }}
               </dt>
@@ -230,7 +220,7 @@ const hasTakeoff = computed(() => {
               </dd>
             </div>
           </dl>
-        </section>
+        </ContentSection>
       </div>
     </template>
   </UDashboardPanel>

@@ -19,4 +19,6 @@ const sections = computed<ConfigSection[]>(() => [{
 }])
 </script>
 
-<template><DeviceConfigPage group="compliance" description="Select a region and review the mandatory Remote ID readiness checks." :sections="sections" /></template>
+<template>
+  <DeviceConfigPage group="compliance" description="Select a region and review the mandatory Remote ID readiness checks." :sections="sections" />
+</template>

@@ -19,4 +19,6 @@ const sections: ConfigSection[] = [{
 }]
 </script>
 
-<template><DeviceConfigPage group="compliance" description="Protect the configuration panel, OTA updates and transmitted identity data." :sections="sections" /></template>
+<template>
+  <DeviceConfigPage group="compliance" description="Protect the configuration panel, OTA updates and transmitted identity data." :sections="sections" />
+</template>

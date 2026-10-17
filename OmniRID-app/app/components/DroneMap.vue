@@ -184,7 +184,7 @@ const syncPath = () => {
     const points = [...history]
     if (!pathLine) {
       pathLine = link.polyline(points, {
-        color: '#38bdf8', weight: 3, opacity: 0.85, lineJoin: 'round'
+        color: '#4d9dff', weight: 3, opacity: 0.85, lineJoin: 'round'
       }).addTo(map)
     } else {
       pathLine.setLatLngs(points)
@@ -268,7 +268,7 @@ watch(() => props.status, applyStatus, { deep: true })
 </script>
 
 <template>
-  <div class="relative w-full overflow-hidden rounded-2xl bg-elevated" :class="heightClass" data-drone-map>
+  <div class="relative w-full overflow-hidden rounded-lg bg-elevated" :class="heightClass" data-drone-map>
     <div ref="mapEl" class="h-full w-full" />
     <div
       v-if="loading && !loadFailed"
@@ -305,7 +305,7 @@ watch(() => props.status, applyStatus, { deep: true })
       type="button"
       aria-label="Re-center on drone"
       title="Re-center on drone"
-      class="pointer-events-auto absolute bottom-7 right-3 z-[1001] flex size-9 items-center justify-center rounded-xl border border-default bg-default/90 text-highlighted shadow-lg transition hover:bg-elevated"
+      class="pointer-events-auto absolute bottom-7 right-3 z-[1001] flex size-9 items-center justify-center rounded-md border border-default bg-default/90 text-highlighted shadow-md transition hover:bg-elevated"
       @click="recenter"
     >
       <UIcon name="i-lucide-locate-fixed" class="size-4" />
@@ -318,21 +318,26 @@ watch(() => props.status, applyStatus, { deep: true })
   width: 100%;
   height: 100%;
   font: inherit;
-  background: #0b1020;
+  background: #06090d;
 }
 
 [data-drone-map] .leaflet-popup-content-wrapper {
-  border-radius: 0.75rem;
-  background: #1a2030;
+  border-radius: 0.375rem;
+  border: 1px solid #1a242f;
+  background: #0d1219;
   color: #e8ecf6;
 }
 
 [data-drone-map] .leaflet-popup-tip {
-  background: #1a2030;
+  background: #0d1219;
+}
+
+[data-drone-map] .leaflet-popup-content {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
 [data-drone-map] .leaflet-control-attribution {
-  background: rgb(11 16 32 / 75%);
+  background: rgb(6 9 13 / 75%);
   color: #9aa3b5;
   font-size: 10px;
 }
@@ -351,9 +356,9 @@ watch(() => props.status, applyStatus, { deep: true })
   width: 22px;
   height: 22px;
   border-radius: 9999px;
-  background: radial-gradient(circle at 35% 35%, #bae6fd, #0284c7 55%, #0369a1);
-  border: 2px solid #e0f2fe;
-  box-shadow: 0 0 0 4px rgb(2 132 199 / 35%), 0 2px 8px rgb(0 0 0 / 55%);
+  background: radial-gradient(circle at 35% 35%, #bcd8ff, #4d9dff 55%, #1c6fd6);
+  border: 2px solid #dbe9ff;
+  box-shadow: 0 0 0 4px rgb(77 157 255 / 35%), 0 2px 8px rgb(0 0 0 / 55%);
   transition: transform 0.45s ease;
 }
 
@@ -367,7 +372,7 @@ watch(() => props.status, applyStatus, { deep: true })
   height: 0;
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
-  border-bottom: 9px solid #e0f2fe;
+  border-bottom: 9px solid #dbe9ff;
 }
 
 .cd-map-home {

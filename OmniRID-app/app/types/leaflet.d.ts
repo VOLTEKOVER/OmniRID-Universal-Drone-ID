@@ -1,7 +1,7 @@
-export interface LeafletLatLng { lat: number; lng: number }
+export interface LeafletLatLng { lat: number, lng: number }
 export type LeafletLatLngExpression = LeafletLatLng | [number, number]
-export interface LeafletLatLngBounds { }
-export interface LeafletIcon { }
+export type LeafletLatLngBounds = object
+export type LeafletIcon = object
 
 export interface LeafletLayer {
   addTo(map: LeafletMap): LeafletLayer

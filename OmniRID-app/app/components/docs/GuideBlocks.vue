@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import type { GuideBlock, GuideSection } from '~/config/guide'
+import type { GuideSection } from '~/config/guide'
 import GuideCodeBlock from '~/components/docs/GuideCodeBlock.vue'
 import GuideDataTable from '~/components/docs/GuideDataTable.vue'
 import GuideFlow from '~/components/docs/GuideFlow.vue'
 
-const props = defineProps<{ section: GuideSection }>()
+defineProps<{ section: GuideSection }>()
 </script>
 
 <template>
   <div class="space-y-4">
     <!-- Section intro -->
-    <p v-if="section.intro" class="text-sm leading-6 text-muted">{{ section.intro }}</p>
+    <p v-if="section.intro" class="text-sm leading-6 text-muted">
+      {{ section.intro }}
+    </p>
 
     <template v-for="(block, i) in section.blocks" :key="i">
       <!-- Sub-heading -->
@@ -31,7 +33,7 @@ const props = defineProps<{ section: GuideSection }>()
         :color="block.tone === 'warning' ? 'warning' : 'info'"
         variant="soft"
         :icon="block.tone === 'warning' ? 'i-lucide-triangle-alert' : 'i-lucide-lightbulb'"
-        class="rounded-xl"
+        class="rounded-lg"
       >
         <template #description>
           <span class="text-sm leading-6" v-html="block.html" />
@@ -56,7 +58,7 @@ const props = defineProps<{ section: GuideSection }>()
           <span class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary ring-1 ring-primary/20">
             {{ j + 1 }}
           </span>
-          <span v-html="item" class="min-w-0" />
+          <span class="min-w-0" v-html="item" />
         </li>
       </ol>
 

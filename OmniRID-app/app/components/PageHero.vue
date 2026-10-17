@@ -5,6 +5,7 @@ const props = defineProps<{
   title: string
   description?: string
   icon?: string
+  eyebrow?: string
   badges?: { label: string, color?: PageBadgeColor }[]
   status?: { label: string, color?: PageBadgeColor }
   size?: 'sm' | 'md' | 'lg'
@@ -12,47 +13,70 @@ const props = defineProps<{
 
 const slots = useSlots()
 
-const titleClass = {
-  sm: 'text-2xl font-black tracking-tight text-highlighted sm:text-3xl',
-  md: 'text-3xl font-black tracking-tight text-highlighted sm:text-4xl',
-  lg: 'text-3xl font-black tracking-tight text-highlighted sm:text-5xl'
-}[props.size ?? 'md']
+const sizeKey = computed(() => props.size ?? 'md')
 
-const descriptionClass = {
-  sm: 'mt-2 max-w-3xl text-sm leading-6 text-muted sm:text-base',
-  md: 'mt-2 max-w-3xl text-base leading-6 text-muted sm:text-lg',
-  lg: 'mt-2 max-w-xl text-base leading-6 text-muted sm:text-lg'
-}[props.size ?? 'md']
+const titleClass = computed(() => ({
+  sm: 'text-2xl sm:text-3xl',
+  md: 'text-3xl sm:text-4xl',
+  lg: 'text-4xl sm:text-5xl lg:text-6xl'
+}[sizeKey.value]))
+
+const descriptionClass = computed(() => ({
+  sm: 'text-sm leading-6 sm:text-[0.95rem]',
+  md: 'text-base leading-7 sm:text-lg',
+  lg: 'text-base leading-7 sm:text-lg'
+}[sizeKey.value]))
 </script>
 
 <template>
-  <section class="rounded-2xl border border-default bg-gradient-to-br from-primary/5 via-default to-elevated/50 p-5 sm:p-8">
-    <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-      <div class="max-w-2xl space-y-4">
-        <div v-if="badges?.length" class="flex flex-wrap items-center gap-2">
-          <UBadge v-for="badge in badges" :key="badge.label" :color="badge.color ?? 'neutral'" variant="soft" :label="badge.label" />
+  <section class="relative isolate -mx-4 overflow-hidden border-b border-default px-4 py-7 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10 lg:py-9">
+    <div aria-hidden="true" class="app-grid pointer-events-none absolute inset-0 -z-10 opacity-70" />
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute -top-24 left-0 -z-10 h-56 w-[36rem] max-w-full [background:radial-gradient(50%_100%_at_0%_0%,var(--app-glow),transparent_70%)]"
+    />
+
+    <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
+      <div class="min-w-0 space-y-3">
+        <div
+          v-if="eyebrow || badges?.length"
+          class="flex flex-wrap items-center gap-x-3 gap-y-1.5"
+        >
+          <span v-if="eyebrow" class="label-data">{{ eyebrow }}</span>
+          <span v-if="eyebrow && badges?.length" aria-hidden="true" class="h-3 w-px bg-accented" />
+          <UBadge
+            v-for="badge in badges"
+            :key="badge.label"
+            :color="badge.color ?? 'neutral'"
+            variant="soft"
+            size="sm"
+            :label="badge.label"
+          />
         </div>
 
-        <div class="flex items-start gap-4">
-          <div v-if="icon" class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
-            <UIcon :name="icon" class="size-6" />
-          </div>
-
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
-              <h1 :class="titleClass">{{ title }}</h1>
-              <UBadge v-if="status" :color="status.color ?? 'neutral'" variant="soft" :label="status.label" />
-            </div>
-            <p v-if="description" :class="descriptionClass">{{ description }}</p>
-          </div>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <UIcon v-if="icon" :name="icon" class="size-6 shrink-0 text-primary sm:size-7" />
+          <h1 class="text-display text-highlighted" :class="titleClass">
+            {{ title }}
+          </h1>
+          <UBadge
+            v-if="status"
+            :color="status.color ?? 'neutral'"
+            variant="soft"
+            :label="status.label"
+          />
         </div>
 
-        <div v-if="slots.actions" class="flex flex-wrap gap-3">
+        <p v-if="description" class="max-w-2xl text-muted" :class="descriptionClass">
+          {{ description }}
+        </p>
+
+        <div v-if="slots.actions" class="flex flex-wrap gap-2 pt-1">
           <slot name="actions" />
         </div>
       </div>
 
-      <div v-if="slots.right" class="w-full max-w-md shrink-0">
+      <div v-if="slots.right" class="w-full shrink-0 lg:w-auto lg:max-w-md">
         <slot name="right" />
       </div>
     </div>

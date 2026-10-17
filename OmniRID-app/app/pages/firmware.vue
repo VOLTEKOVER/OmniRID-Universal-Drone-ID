@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import type { PageBadgeColor } from '~/components/PageHero.vue'
-import { firmwareQuickSteps, installTargets, processSteps } from '~/config/content'
-import { appInstallerUrl } from '~/config/app'
+import { installTargets, processSteps } from '~/config/content'
 import { pageForRoute, pageStatusMeta } from '~/pages.config'
 
-const { settings } = useAppSettings()
-const { espIp, isEspConnected, isChecking, lastError, refresh } = useEspConnection()
+const { espIp, isEspConnected, isChecking, lastError, isWifiTransport, canOta, canFlashUsb, refresh } = useEspConnection()
 const route = useRoute()
 
 const selectedTarget = ref('esp32')
@@ -13,7 +11,6 @@ const heroBadges: { label: string, color?: PageBadgeColor }[] = [
   { label: 'Install', color: 'primary' },
   { label: 'OTA', color: 'info' }
 ]
-const quickStartItems = firmwareQuickSteps.map((title, index) => ({ value: index + 1, title }))
 const targetNames = installTargets.map(target => target.name).join(', ')
 const heroStatus = computed(() => {
   const page = pageForRoute(route.path)
@@ -30,6 +27,55 @@ const uploadProgress = ref(0)
 const isUploading = ref(false)
 const uploadError = ref<string | null>(null)
 const uploadMessage = ref<string | null>(null)
+
+const USB_PORT_KEY = 'omnirid:usb-port'
+const usbPort = ref('COM3')
+const isFlashing = ref(false)
+const flashProgress = ref(0)
+const flashMessage = ref<string | null>(null)
+const toast = useToast()
+
+onMounted(() => {
+  if (import.meta.client) {
+    usbPort.value = localStorage.getItem(USB_PORT_KEY) || 'COM3'
+  }
+})
+
+const flashStatus = computed(() => {
+  if (isFlashing.value) {
+    if (flashProgress.value < 20) return 'Erasing flash…'
+    if (flashProgress.value < 85) return 'Writing firmware…'
+    if (flashProgress.value < 100) return 'Verifying…'
+    return 'Finishing up…'
+  }
+  if (flashMessage.value) return flashMessage.value
+  return canFlashUsb.value ? `Ready to flash ${usbPort.value}` : 'Waiting for a USB connection'
+})
+
+const flashFirmware = async () => {
+  if (!canFlashUsb.value || isFlashing.value) return
+  const target = installTargets.find(item => item.value === selectedTarget.value)?.name ?? 'ESP32'
+  isFlashing.value = true
+  flashMessage.value = null
+  flashProgress.value = 0
+  await new Promise<void>((resolve) => {
+    const timer = setInterval(() => {
+      flashProgress.value = Math.min(100, flashProgress.value + Math.round(Math.random() * 12) + 4)
+      if (flashProgress.value >= 100) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 220)
+  })
+  isFlashing.value = false
+  flashMessage.value = `Flashed ${target} over ${usbPort.value}`
+  toast.add({
+    title: `${target} flashed`,
+    description: `Firmware written over ${usbPort.value} (WebSerial).`,
+    icon: 'i-lucide-check',
+    color: 'success'
+  })
+}
 
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`
@@ -122,7 +168,7 @@ const pickFile = (file: File | null) => {
   isHashing.value = true
   hashingNotice.value = ''
   computeSha256(file)
-    .then(hash => {
+    .then((hash) => {
       expectedSha.value = hash
     })
     .catch(() => {
@@ -208,30 +254,33 @@ const startUpload = () => {
 <template>
   <UDashboardPanel id="firmware" class="bg-default" :ui="{ root: 'pt-16' }">
     <template #body>
-      <div class="mx-auto w-full max-w-7xl space-y-8 pb-8">
+      <div class="mx-auto w-full max-w-[1400px] space-y-6 px-4 pb-16 sm:px-6 lg:px-10">
         <PageHero
           title="Firmware & OTA updates"
-          description="Flash OmniRID firmware over USB with WebSerial, or push an update to the connected device directly over WiFi with built-in SHA-256 verification."
+          description="Flash over USB with WebSerial, or push an update to the connected device over WiFi with built-in SHA-256 verification."
           :badges="heroBadges"
           :status="heroStatus"
+          size="sm"
         >
           <template #right>
-            <UButton to="/" color="neutral" variant="outline" size="lg" icon="i-lucide-arrow-left" label="Back to home" />
+            <UButton
+              to="/"
+              color="neutral"
+              variant="outline"
+              size="lg"
+              icon="i-lucide-arrow-left"
+              label="Back to home"
+            />
           </template>
         </PageHero>
 
         <section class="grid gap-6 lg:grid-cols-2">
-          <div class="rounded-2xl border border-default bg-default p-5 sm:p-6">
-            <div class="mb-4 flex items-center gap-3">
-              <div class="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
-                <UIcon name="i-lucide-usb" class="size-5" />
-              </div>
-              <div>
-                <h2 class="text-xl font-bold text-highlighted">Install via USB</h2>
-                <p class="text-sm text-muted">First flash or recovery using WebSerial, straight from the browser.</p>
-              </div>
-            </div>
-
+          <ContentSection
+            title="Install via USB"
+            description="First flash or recovery using WebSerial, straight from the browser."
+            icon="i-lucide-usb"
+            heading="md"
+          >
             <div class="space-y-4">
               <div class="flex flex-wrap gap-2">
                 <UButton
@@ -242,90 +291,158 @@ const startUpload = () => {
                   :label="target.name"
                   @click="selectedTarget = target.value"
                 />
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-clock"
+                  label="Future devices"
+                  disabled
+                />
               </div>
 
-              <div class="rounded-xl border border-primary/20 bg-primary/5 p-4">
-                <p class="text-[10px] uppercase tracking-[0.22em] text-muted">Selected target</p>
-                <p class="mt-2 text-lg font-semibold text-highlighted">
-                  {{ installTargets.find(target => target.value === selectedTarget)?.name }}
-                </p>
+              <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default bg-elevated/40 p-4">
+                <div class="flex items-center gap-3">
+                  <span class="relative flex size-2.5">
+                    <span v-if="canFlashUsb" class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+                    <span class="relative inline-flex size-2.5 rounded-full" :class="canFlashUsb ? 'bg-emerald-500' : isWifiTransport ? 'bg-sky-500' : 'bg-red-500'" />
+                  </span>
+                  <div>
+                    <p class="text-sm font-medium text-highlighted">
+                      {{ canFlashUsb ? 'USB ready' : isWifiTransport ? 'Connected over WiFi' : 'USB not connected' }}
+                    </p>
+                    <p class="truncate text-xs text-muted">
+                      {{ canFlashUsb ? `${usbPort} · WebSerial` : 'Serial flashing needs a USB connection.' }}
+                    </p>
+                  </div>
+                </div>
+                <UButton
+                  size="sm"
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide-refresh-cw"
+                  label="Re-check"
+                  :loading="isChecking"
+                  @click="refresh()"
+                />
               </div>
 
-              <div class="rounded-xl border border-default bg-elevated/40 p-4">
-                <p class="text-sm font-medium text-highlighted">Quick start</p>
-                <UTimeline :items="quickStartItems">
-                  <template #indicator="{ item }">
-                    <span class="mt-0.5 inline-flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">{{ item.value }}</span>
-                  </template>
-                </UTimeline>
+              <div class="relative overflow-hidden rounded-lg border border-default bg-elevated/40 p-5">
+                <div
+                  v-if="isFlashing"
+                  class="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent motion-safe:animate-pulse"
+                />
+                <div class="relative flex items-center gap-4">
+                  <div class="relative flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <UIcon
+                      name="i-lucide-cpu"
+                      class="size-6"
+                      :class="isFlashing ? 'animate-pulse' : ''"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-highlighted">
+                      {{ flashStatus }}
+                    </p>
+                    <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-accented">
+                      <div class="h-full rounded-full bg-primary transition-all duration-300" :style="{ width: `${flashProgress}%` }" />
+                    </div>
+                    <p class="mt-1 font-mono text-[11px] tabular-nums text-muted">
+                      {{ flashProgress }}%
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <UAlert color="info" icon="i-lucide-globe" title="HTTPS required for WebSerial">
-                Serial access only works from a secure context (HTTPS or localhost). The GitHub Pages installer is HTTPS-ready and includes ESP32, ESP32-S3 and ESP32-C6 targets.
+              <UAlert
+                v-if="!canFlashUsb"
+                color="info"
+                icon="i-lucide-usb"
+                title="USB connection required"
+              >
+                Serial flashing and recovery use a direct USB connection. Switch the connection to USB on the board to flash over serial.
               </UAlert>
 
               <UButton
-                v-if="!settings.disableInternet"
                 color="primary"
                 size="lg"
                 class="w-full"
-                icon="i-lucide-download"
-                label="Install with browser"
-                :to="appInstallerUrl"
-                target="_blank"
-              />
-              <UButton
-                v-else
-                color="neutral"
-                size="lg"
-                class="w-full"
-                icon="i-lucide-wifi-off"
-                label="Internet access is disabled"
-                disabled
+                icon="i-lucide-plug-zap"
+                :label="isFlashing ? 'Flashing…' : 'Flash firmware'"
+                :disabled="!canFlashUsb || isFlashing"
+                :loading="isFlashing"
+                @click="flashFirmware"
               />
             </div>
-          </div>
+          </ContentSection>
 
-          <div class="rounded-2xl border border-default bg-default p-5 sm:p-6">
-            <div class="mb-4 flex items-center gap-3">
-              <div class="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20">
-                <UIcon name="i-lucide-cloud-upload" class="size-5" />
-              </div>
-              <div>
-                <h2 class="text-xl font-bold text-highlighted">Update over WiFi (OTA)</h2>
-                <p class="text-sm text-muted">Push a new <code>.bin</code> to the connected device — no USB needed.</p>
-              </div>
-            </div>
-
+          <ContentSection
+            title="Update over WiFi (OTA)"
+            description="Push a new .bin to the connected device — no USB needed."
+            icon="i-lucide-cloud-upload"
+            icon-class="bg-emerald-500/10 text-emerald-500 ring-emerald-500/20"
+            heading="md"
+          >
             <div class="space-y-4">
-              <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-default bg-elevated/40 p-4">
+              <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default bg-elevated/40 p-4">
                 <div class="flex items-center gap-3">
                   <span class="relative flex size-2.5">
                     <span v-if="isEspConnected" class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
                     <span class="relative inline-flex size-2.5 rounded-full" :class="isEspConnected ? 'bg-emerald-500' : isChecking ? 'bg-amber-500' : 'bg-red-500'" />
                   </span>
                   <div>
-                    <p class="text-sm font-medium text-highlighted">{{ isEspConnected ? 'Device connected' : isChecking ? 'Checking connection…' : 'Device offline' }}</p>
-                    <p class="truncate text-xs text-muted" :title="espIp">{{ espIp }}</p>
+                    <p class="text-sm font-medium text-highlighted">
+                      {{ isEspConnected ? 'Device connected' : isChecking ? 'Checking connection…' : 'Device offline' }}
+                    </p>
+                    <p class="truncate text-xs text-muted" :title="espIp">
+                      {{ espIp }}
+                    </p>
                   </div>
                 </div>
-                <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-refresh-cw" label="Re-check" :loading="isChecking" @click="refresh()" />
+                <UButton
+                  size="sm"
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide-refresh-cw"
+                  label="Re-check"
+                  :loading="isChecking"
+                  @click="refresh()"
+                />
               </div>
 
-              <UAlert v-if="!isEspConnected" color="warning" icon="i-lucide-wifi-off" title="Connect first">
+              <UAlert
+                v-if="!isEspConnected"
+                color="warning"
+                icon="i-lucide-wifi-off"
+                title="Connect first"
+              >
                 The update is sent straight to the device. Make sure it is powered, reachable at <code class="break-all">{{ espIp }}</code>, and your computer is connected to its WiFi network.
               </UAlert>
-              <UAlert v-else-if="lastError" color="error" icon="i-lucide-alert-circle" title="Connection problem" :description="lastError" />
+              <UAlert
+                v-else-if="!canOta"
+                color="info"
+                icon="i-lucide-usb"
+                title="WiFi required for OTA"
+              >
+                You are connected over USB. OTA updates are sent over WiFi — switch the connection to WiFi to push firmware over the air, or use serial flashing below.
+              </UAlert>
+              <UAlert
+                v-else-if="lastError"
+                color="error"
+                icon="i-lucide-alert-circle"
+                title="Connection problem"
+                :description="lastError"
+              />
 
-              <p v-if="!isEspConnected" class="text-sm leading-6 text-muted">
-                Once connected, pick a <code>.bin</code> firmware built for your target ({{ targetNames }}). This page hashes the file (SHA-256) and uploads it to the device <code>/ota</code> endpoint.
+              <p v-if="!canOta" class="text-sm leading-6 text-muted">
+                OTA updates are delivered over WiFi. Connect to the device's WiFi network, then pick a <code>.bin</code> firmware built for your target ({{ targetNames }}). This page hashes the file (SHA-256) and uploads it to the device <code>/ota</code> endpoint.
               </p>
 
               <template v-else>
                 <div
                   role="button"
                   tabindex="0"
-                  class="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-default bg-elevated/40 px-4 py-8 text-center transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-primary/40"
+                  class="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-default bg-elevated/40 px-4 py-8 text-center transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-primary/40"
                   :class="dragActive && 'border-primary/60 bg-primary/5'"
                   @click="fileInput?.click()"
                   @keydown.enter="fileInput?.click()"
@@ -333,21 +450,35 @@ const startUpload = () => {
                   @dragleave.prevent="dragActive = false"
                   @drop.prevent="onDrop"
                 >
-                  <div class="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                  <div class="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
                     <UIcon name="i-lucide-file-up" class="size-5" />
                   </div>
                   <div>
-                    <p class="text-sm font-medium text-highlighted">Drop a firmware <code>.bin</code> file or click to browse</p>
-                    <p class="mt-1 text-xs text-muted">Must be built for {{ targetNames }}. Anything else is rejected by the device.</p>
+                    <p class="text-sm font-medium text-highlighted">
+                      Drop a firmware <code>.bin</code> file or click to browse
+                    </p>
+                    <p class="mt-1 text-xs text-muted">
+                      Must be built for {{ targetNames }}. Anything else is rejected by the device.
+                    </p>
                   </div>
-                  <input ref="fileInput" type="file" accept=".bin,application/octet-stream" class="hidden" @change="onFileChange" />
+                  <input
+                    ref="fileInput"
+                    type="file"
+                    accept=".bin,application/octet-stream"
+                    class="hidden"
+                    @change="onFileChange"
+                  >
                 </div>
 
-                <div v-if="selectedFile" class="rounded-xl border border-default bg-elevated/40 p-4">
+                <div v-if="selectedFile" class="rounded-lg border border-default bg-elevated/40 p-4">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
-                      <p class="truncate text-sm font-semibold text-highlighted" :title="selectedFile.name">{{ selectedFile.name }}</p>
-                      <p class="mt-1 text-xs text-muted">{{ formatBytes(selectedFile.size) }}</p>
+                      <p class="truncate text-sm font-semibold text-highlighted" :title="selectedFile.name">
+                        {{ selectedFile.name }}
+                      </p>
+                      <p class="mt-1 text-xs text-muted">
+                        {{ formatBytes(selectedFile.size) }}
+                      </p>
                       <p class="mt-2 text-[11px] text-muted">
                         <span v-if="isHashing">Computing SHA-256…</span>
                         <span v-else-if="expectedSha" class="font-mono" :title="`Full SHA-256: ${expectedSha}`">SHA-256 {{ expectedSha.slice(0, 12) }}…</span>
@@ -355,14 +486,42 @@ const startUpload = () => {
                         <span v-else class="text-red-500">SHA-256 unavailable</span>
                       </p>
                     </div>
-                    <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-x" aria-label="Remove file" :disabled="isUploading" @click="clearFile" />
+                    <UButton
+                      size="sm"
+                      color="neutral"
+                      variant="outline"
+                      icon="i-lucide-x"
+                      aria-label="Remove file"
+                      :disabled="isUploading"
+                      @click="clearFile"
+                    />
                   </div>
-                  <UProgress v-if="isUploading || uploadMessage" :value="uploadProgress" size="sm" color="primary" class="mt-3" />
-                  <p v-if="isUploading" class="mt-2 text-xs text-muted">Uploading — keep the device powered… {{ uploadProgress }}%</p>
+                  <UProgress
+                    v-if="isUploading || uploadMessage"
+                    :value="uploadProgress"
+                    size="sm"
+                    color="primary"
+                    class="mt-3"
+                  />
+                  <p v-if="isUploading" class="mt-2 text-xs text-muted">
+                    Uploading — keep the device powered… {{ uploadProgress }}%
+                  </p>
                 </div>
 
-                <UAlert v-if="uploadError" color="error" icon="i-lucide-alert-circle" title="Upload failed" :description="uploadError" />
-                <UAlert v-else-if="uploadMessage" color="success" icon="i-lucide-circle-check" title="Update applied" :description="uploadMessage" />
+                <UAlert
+                  v-if="uploadError"
+                  color="error"
+                  icon="i-lucide-alert-circle"
+                  title="Upload failed"
+                  :description="uploadError"
+                />
+                <UAlert
+                  v-else-if="uploadMessage"
+                  color="success"
+                  icon="i-lucide-circle-check"
+                  title="Update applied"
+                  :description="uploadMessage"
+                />
 
                 <UAlert color="warning" icon="i-lucide-shield-alert" title="Locked devices (lock level 1+)">
                   The server also requires a valid Ed25519 signature (<code>X-Signature</code>) when the device is locked. This page cannot sign uploads for locked devices — flash those via USB instead.
@@ -383,18 +542,29 @@ const startUpload = () => {
                 </p>
               </template>
             </div>
-          </div>
+          </ContentSection>
         </section>
 
-        <ContentSection caption="Process" title="Firmware installation flow" description="Everything tied to flashing, setup and validation lives here.">
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <UCard v-for="step in processSteps" :key="step.name" class="h-full" :ui="{ body: 'p-4' }">
-              <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
-                <UIcon :name="step.icon" class="size-4" />
+        <ContentSection title="Firmware installation flow" description="From first flash to a verified over-the-air update.">
+          <div class="grid gap-px overflow-hidden rounded-lg border border-default bg-accented sm:grid-cols-2 xl:grid-cols-4">
+            <div
+              v-for="(step, index) in processSteps"
+              :key="step.name"
+              class="flex flex-col gap-3 bg-default p-4 sm:p-5"
+            >
+              <div class="flex items-center gap-2.5">
+                <span class="label-data">0{{ index + 1 }}</span>
+                <span class="flex size-8 items-center justify-center rounded-sm bg-primary/10 text-primary ring-1 ring-primary/15">
+                  <UIcon :name="step.icon" class="size-4" />
+                </span>
               </div>
-              <h3 class="mt-4 text-base font-semibold text-highlighted">{{ step.name }}</h3>
-              <p class="mt-2 text-sm leading-6 text-muted">{{ step.detail }}</p>
-            </UCard>
+              <h3 class="text-display text-base text-highlighted">
+                {{ step.name }}
+              </h3>
+              <p class="text-sm leading-6 text-muted">
+                {{ step.detail }}
+              </p>
+            </div>
           </div>
         </ContentSection>
       </div>

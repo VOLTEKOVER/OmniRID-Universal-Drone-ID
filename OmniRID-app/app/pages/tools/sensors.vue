@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ConfigSection } from '~/components/device/ConfigPage.vue'
+
 const sections: ConfigSection[] = [{
   title: 'Live sensor readings',
   description: 'Values refresh from the connected device while telemetry is available.',
@@ -18,4 +19,11 @@ const sections: ConfigSection[] = [{
 }]
 </script>
 
-<template><DeviceConfigPage group="tools" readonly description="Inspect GPS, transmission, system and flight telemetry values." :sections="sections" /></template>
+<template>
+  <DeviceConfigPage
+    group="tools"
+    readonly
+    description="Inspect GPS, transmission, system and flight telemetry values."
+    :sections="sections"
+  />
+</template>

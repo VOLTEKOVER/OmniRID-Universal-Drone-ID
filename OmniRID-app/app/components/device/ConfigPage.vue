@@ -63,8 +63,8 @@ const heroId = computed(() => heroTitle.value.toLowerCase().replaceAll(' ', '-')
 const pageId = computed<PageId | undefined>(() => {
   const segment = route.path.split('/')[2]
   const map: Record<string, PageId | undefined> = {
-    nation: 'nation', inputs: 'inputs', identity: 'identity',
-    'flight-controller': 'fc', hardware: 'hardware', system: 'system', sensors: 'hardware'
+    'nation': 'nation', 'inputs': 'inputs', 'identity': 'identity',
+    'flight-controller': 'fc', 'hardware': 'hardware', 'system': 'system', 'sensors': 'hardware'
   }
   return segment ? map[segment] : undefined
 })
@@ -115,6 +115,9 @@ const initialValue = (field: ConfigField): string | number | boolean => {
   return field.value ?? (field.type === 'toggle' ? false : '')
 }
 
+// Heterogeneous form-state bag: fields hold strings, numbers and booleans and
+// feed component v-models expecting different concrete types, so `any` is intended.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const state = reactive<Record<string, any>>(
   Object.fromEntries(fieldsFor(props.sections).map(field => [field.name, initialValue(field)]))
 )
@@ -126,19 +129,19 @@ watch(() => props.sections, (sections) => {
     if (!(field.name in state)) state[field.name] = initialValue(field)
   }
   for (const key of Object.keys(state)) {
-    if (!names.has(key)) delete state[key]
+    if (!names.has(key)) Reflect.deleteProperty(state, key)
   }
 }, { deep: true })
 
-watch(() => state.protocol, value => {
+watch(() => state.protocol, (value) => {
   if (typeof value === 'string') protocol.value = value as typeof protocol.value
 })
 
-watch(() => state.region, value => {
+watch(() => state.region, (value) => {
   if (typeof value === 'string') region.value = value as typeof region.value
 })
 
-watch(() => state.target, value => {
+watch(() => state.target, (value) => {
   if (typeof value === 'string') target.value = value as typeof target.value
 })
 
@@ -147,7 +150,7 @@ const isSaving = ref(false)
 
 const validateField = (field: ConfigField) => {
   if (props.readonly || field.disabled) {
-    delete errors[field.name]
+    Reflect.deleteProperty(errors, field.name)
     return true
   }
 
@@ -184,7 +187,7 @@ const validateField = (field: ConfigField) => {
   }
 
   if (message) errors[field.name] = message
-  else delete errors[field.name]
+  else Reflect.deleteProperty(errors, field.name)
   return !message
 }
 
@@ -213,7 +216,7 @@ const validateCompatibility = () => {
   return valid
 }
 
-const { isEspConnected, lastError, proxyFetch } = useEspConnection()
+const { isEspConnected, canConfig, lastError, proxyFetch } = useEspConnection()
 
 const isDisabled = (field: ConfigField) => props.readonly || field.disabled
 
@@ -243,15 +246,17 @@ const validateSchema = () => {
   issues.value = pageId.value ? all.filter(issue => issue.page === pageId.value) : all
   for (const issue of issues.value) {
     if (issue.severity === 'error') errors[issue.field] = issue.message
-    else if (errors[issue.field]) delete errors[issue.field]
+    else if (errors[issue.field]) Reflect.deleteProperty(errors, issue.field)
   }
 }
 
-const setValue = (key: string, value: unknown) => { state[key] = value }
+const setValue = (key: string, value: unknown) => {
+  state[key] = value
+}
 
 onMounted(async () => {
   if (!props.load) return
-  if (isEspConnected.value) {
+  if (canConfig.value) {
     try {
       const cfg = await proxyFetch<Record<string, unknown>>('api/config', { timeout: 4500 })
       if (props.applyLoaded) props.applyLoaded(cfg, setValue)
@@ -334,7 +339,7 @@ onBeforeUnmount(() => {
 })
 
 const save = async () => {
-  if (!isEspConnected.value) return
+  if (!canConfig.value) return
   if (isSaving.value) return
   const compatible = validateCompatibility()
   validateSchema()
@@ -359,7 +364,7 @@ const save = async () => {
       color: 'success'
     })
     addNotification('info', `${heroTitle.value} saved`, 'Configuration sent to the ESP.')
-  } catch (error) {
+  } catch {
     toast.add({
       title: 'ESP unreachable',
       description: !isEspConnected.value
@@ -380,9 +385,15 @@ const save = async () => {
 <template>
   <UDashboardPanel :id="heroId" class="bg-default" :ui="{ root: 'pt-16' }">
     <template #body>
-      <div class="mx-auto w-full max-w-5xl space-y-6 pb-8">
+      <div class="mx-auto w-full max-w-[1400px] space-y-6 px-4 pb-16 sm:px-6 lg:px-10">
         <SectionTabs v-if="group" :group="group" class="mb-2" />
-        <PageHero :title="heroTitle" :icon="heroIcon" :description="description" :status="heroStatus" size="sm">
+        <PageHero
+          :title="heroTitle"
+          :icon="heroIcon"
+          :description="description"
+          :status="heroStatus"
+          size="sm"
+        >
           <template v-if="props.headerActions?.length" #actions>
             <UButton
               v-for="action in props.headerActions"
@@ -448,9 +459,10 @@ const save = async () => {
                     class="w-full"
                     @blur="validateField(field)"
                   />
-                  <UInputNumber
+                  <UInput
                     v-else-if="field.type === 'number' && field.stepper"
                     v-model="state[field.name]"
+                    type="number"
                     :step="field.step ?? 1"
                     :disabled="isDisabled(field)"
                     class="w-full"
@@ -472,44 +484,55 @@ const save = async () => {
           </ContentSection>
 
           <div
-            v-if="savable && !isEspConnected"
-            class="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning"
+            v-if="savable && !canConfig"
+            class="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning"
           >
-            <UIcon name="i-lucide-wifi-off" class="size-4 shrink-0" />
-            <span>ESP not connected — actions are disabled until the device is reachable.</span>
+            <UIcon :name="isEspConnected ? 'i-lucide-usb' : 'i-lucide-wifi-off'" class="size-4 shrink-0" />
+            <span v-if="isEspConnected">Configuration is only available over WiFi — you are connected via USB.</span>
+            <span v-else>ESP not connected — actions are disabled until the device is reachable.</span>
           </div>
 
           <div class="space-y-3">
             <UAlert
-              v-for="(danger, index) in dangerItems"
+              v-for="(entry, index) in dangerItems"
               :key="index"
               color="error"
               variant="soft"
               icon="i-lucide-triangle-alert"
               class="rounded-lg"
             >
-              <template #title>{{ danger.title }}</template>
+              <template #title>
+                {{ entry.title }}
+              </template>
               <template #description>
-                <span class="text-[13px] leading-5">{{ danger.description }}</span>
+                <span class="text-[13px] leading-5">{{ entry.description }}</span>
                 <NuxtLink
-                  v-if="danger.link"
-                  :to="danger.link.to"
+                  v-if="entry.link"
+                  :to="entry.link.to"
                   class="mt-1 inline-flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
                 >
-                  {{ danger.link.label }}
+                  {{ entry.link.label }}
                   <UIcon name="i-lucide-arrow-up-right" class="size-3.5" />
                 </NuxtLink>
               </template>
             </UAlert>
           </div>
 
-          <UAlert v-if="issues.length" color="warning" icon="i-lucide-circle-alert" variant="soft" class="rounded-lg">
+          <UAlert
+            v-if="issues.length"
+            color="warning"
+            icon="i-lucide-circle-alert"
+            variant="soft"
+            class="rounded-lg"
+          >
             <template #title>
               Configuration issues ({{ issues.length }})
             </template>
             <template #description>
               <ul class="list-inside list-disc space-y-1">
-                <li v-for="(issue, index) in issues" :key="index" class="text-[13px] leading-5">{{ issue.message }}</li>
+                <li v-for="(issue, index) in issues" :key="index" class="text-[13px] leading-5">
+                  {{ issue.message }}
+                </li>
               </ul>
             </template>
           </UAlert>
@@ -522,7 +545,7 @@ const save = async () => {
                 variant="soft"
                 icon="i-lucide-rotate-ccw"
                 label="Restart device"
-                :disabled="!isEspConnected"
+                :disabled="!canConfig"
                 @click="restartDevice"
               />
               <UButton
@@ -531,7 +554,7 @@ const save = async () => {
                 variant="soft"
                 icon="i-lucide-alert-triangle"
                 label="Factory reset"
-                :disabled="!isEspConnected"
+                :disabled="!canConfig"
                 @click="isFactoryResetOpen = true"
               />
             </template>
@@ -557,9 +580,16 @@ const save = async () => {
               icon="i-lucide-save"
               label="Save configuration"
               :loading="isSaving"
-              :disabled="!isEspConnected"
+              :disabled="!canConfig"
             />
-            <input ref="fileInput" type="file" accept="application/json,.json" class="hidden" aria-label="Import configuration file" @change="importConfig" />
+            <input
+              ref="fileInput"
+              type="file"
+              accept="application/json,.json"
+              class="hidden"
+              aria-label="Import configuration file"
+              @change="importConfig"
+            >
           </div>
         </form>
 
@@ -571,8 +601,20 @@ const save = async () => {
           </template>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="neutral" variant="ghost" size="sm" label="Cancel" @click="isFactoryResetOpen = false" />
-              <UButton color="error" size="sm" icon="i-lucide-alert-triangle" label="Reset device" @click="performFactoryReset" />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                label="Cancel"
+                @click="isFactoryResetOpen = false"
+              />
+              <UButton
+                color="error"
+                size="sm"
+                icon="i-lucide-alert-triangle"
+                label="Reset device"
+                @click="performFactoryReset"
+              />
             </div>
           </template>
         </UModal>

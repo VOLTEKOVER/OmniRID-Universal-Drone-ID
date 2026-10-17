@@ -36,11 +36,11 @@ const push = (level: LogLevel, text: string) => {
 }
 
 const levelCharMap: Record<string, LogLevel> = {
-  D: 'debug', d: 'debug', '0': 'debug',
-  I: 'info', i: 'info', '1': 'info', '2': 'info',
-  W: 'warning', w: 'warning', '3': 'warning',
-  E: 'error', e: 'error', '4': 'error', '5': 'error',
-  '6': 'error'
+  D: 'debug', d: 'debug', 0: 'debug',
+  I: 'info', i: 'info', 1: 'info', 2: 'info',
+  W: 'warning', w: 'warning', 3: 'warning',
+  E: 'error', e: 'error', 4: 'error', 5: 'error',
+  6: 'error'
 }
 
 const firmwareLevel = (level?: string): LogLevel => levelCharMap[level ?? ''] ?? 'info'
@@ -183,7 +183,7 @@ const ghostUi = {
 
 <template>
   <div class="space-y-3">
-    <div class="overflow-hidden rounded-2xl border border-neutral-700/70 bg-neutral-950 shadow-sm">
+    <div class="overflow-hidden rounded-lg border border-neutral-700/70 bg-neutral-950 shadow-sm">
       <div class="flex items-center justify-between gap-2 border-b border-neutral-800 bg-neutral-900 px-2 py-2 sm:px-3">
         <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
           <span class="relative flex size-2">
@@ -193,13 +193,42 @@ const ghostUi = {
           <span class="hidden sm:inline">Live log</span>
         </p>
         <div class="flex gap-1">
-          <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-chevrons-down" class="hover:!bg-neutral-800" :ui="ghostUi" :aria-label="autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'" @click="autoScroll = !autoScroll">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-chevrons-down"
+            class="hover:!bg-neutral-800"
+            :ui="ghostUi"
+            :aria-label="autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'"
+            @click="autoScroll = !autoScroll"
+          >
             <span class="hidden lg:inline">{{ autoScroll ? 'Auto-scroll on' : 'Auto-scroll off' }}</span>
           </UButton>
-          <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-copy" :disabled="!lines.length" class="hover:!bg-neutral-800" :ui="ghostUi" aria-label="Copy output" @click="copyOutput">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-copy"
+            :disabled="!lines.length"
+            class="hover:!bg-neutral-800"
+            :ui="ghostUi"
+            aria-label="Copy output"
+            @click="copyOutput"
+          >
             <span class="hidden md:inline">Copy</span>
           </UButton>
-          <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-trash" :disabled="!lines.length" class="hover:!bg-neutral-800" :ui="ghostUi" aria-label="Clear output" @click="clearOutput">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-trash"
+            :disabled="!lines.length"
+            class="hover:!bg-neutral-800"
+            :ui="ghostUi"
+            aria-label="Clear output"
+            @click="clearOutput"
+          >
             <span class="hidden md:inline">Clear</span>
           </UButton>
         </div>
@@ -220,7 +249,7 @@ const ghostUi = {
       </div>
     </div>
 
-    <div class="space-y-2 overflow-hidden rounded-2xl border border-neutral-700/70 bg-neutral-950 p-3 shadow-sm">
+    <div class="space-y-2 overflow-hidden rounded-lg border border-neutral-700/70 bg-neutral-950 p-3 shadow-sm">
       <div class="flex gap-2">
         <span class="flex items-center pl-1 font-mono text-sm font-semibold text-sky-400">$</span>
         <UInput
@@ -234,7 +263,15 @@ const ghostUi = {
           @keydown.enter.prevent="send"
           @keydown="onKeydown"
         />
-        <UButton type="button" color="primary" icon="i-lucide-send" label="Send" :loading="isSending" :disabled="!command.trim()" @click="send" />
+        <UButton
+          type="button"
+          color="primary"
+          icon="i-lucide-send"
+          label="Send"
+          :loading="isSending"
+          :disabled="!command.trim()"
+          @click="send"
+        />
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <UInput
@@ -245,7 +282,9 @@ const ghostUi = {
           aria-label="Command signature"
           :ui="termInputUi"
         />
-        <p class="text-xs text-neutral-500">Use ↑ / ↓ to recall commands.</p>
+        <p class="text-xs text-neutral-500">
+          Use ↑ / ↓ to recall commands.
+        </p>
       </div>
     </div>
 
