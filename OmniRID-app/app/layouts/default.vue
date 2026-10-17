@@ -3,6 +3,8 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui/runtime/components/CommandPalette.vue'
 import { appRepoUrl, espDefaultIp } from '~/config/app'
 import { sectionSearchText, guideSections } from '~/config/guide'
+import { appSettingEntries, contentKeywords, loadAutoSearchIndex, referenceEntries, searchSummary, toCommandItems } from '~/config/search'
+import type { AutoSearchIndex, SearchAction } from '~/config/search'
 import { pageDescriptions, pageForRoute, pageGroups, pageStatusMeta } from '~/pages.config'
 import type { PageStatus } from '~/pages.config'
 import { DEFAULTS, normalizeConfig, pageStatus, regionChecklist, validateConfig } from '~/config/device'
@@ -13,7 +15,10 @@ const router = useRouter()
 const colorMode = useColorMode()
 const { isNotificationsSlideoverOpen, isSettingsOpen } = useDashboard()
 const nuxtApp = useNuxtApp()
-const openSearch = () => nuxtApp.hooks.callHook('dashboard:search:toggle')
+const openSearch = () => {
+  ensureAutoIndex()
+  nuxtApp.hooks.callHook('dashboard:search:toggle')
+}
 const { settings } = useAppSettings()
 const { espIp, isEspConnected, isChecking, lastError, isSimulated, isWifiTransport, isUsbTransport, connect, refresh, proxyFetch } = useEspConnection()
 const { status: telemetryStatus } = useTelemetry()
@@ -264,22 +269,61 @@ const navItems = computed<NavigationMenuItem[]>(() => {
   return items.filter(Boolean) as NavigationMenuItem[]
 })
 
+// Search: the term drives the "everything" groups below; when the field is
+// empty only the usual navigation is shown. Cross-field token matching and an
+// expanded result limit let it search the whole site word by word.
+const searchTerm = ref('')
+const searchFuse = {
+  fuseOptions: {
+    threshold: 0.25,
+    keys: ['label', 'description', 'keywords', 'suffix']
+  },
+  resultLimit: 24
+}
+
+const runSearchAction = (action: SearchAction) => {
+  if (action === 'open-settings') isSettingsOpen.value = true
+}
+
+// The automatic index (settings, actions, reference data) is derived from the
+// page/component sources and loaded the first time the palette is used, so the
+// extra data never slows down the initial page load.
+const autoIndex = shallowRef<AutoSearchIndex | null>(null)
+let autoIndexRequested = false
+const ensureAutoIndex = () => {
+  if (autoIndexRequested) return
+  autoIndexRequested = true
+  loadAutoSearchIndex()
+    .then((index) => { autoIndex.value = index })
+    .catch(() => { autoIndexRequested = false })
+}
+
+const pageSearchKeywords = (to: string) =>
+  [autoIndex.value?.pageKeywords[to], contentKeywords[to]].filter(Boolean).join(' ')
+
 const groups = computed(() => {
+  const searching = searchTerm.value.trim().length > 0
+  const auto = autoIndex.value
+
   const quickAccess = { id: 'links', label: 'Quick access', items: primaryLinks.value }
   const sections = pageGroups.flatMap((group) => {
     let items: CommandPaletteItem[]
     if (group.id === 'docs') {
-      items = guideSections.map(section => ({
-        label: `${section.number}. ${section.title}`,
-        icon: section.icon,
-        to: '/docs/guide',
-        value: section.id,
-        description: sectionSearchText(section),
-        onSelect: () => {
-          open.value = false
-          router.push(`/docs/guide#${section.id}`)
+      items = guideSections.map((section) => {
+        const fullText = sectionSearchText(section)
+        return {
+          label: `${section.number}. ${section.title}`,
+          icon: section.icon,
+          to: '/docs/guide',
+          value: section.id,
+          description: searchSummary(fullText),
+          keywords: `guide documentation ${section.title} ${fullText}`,
+          onSelect: () => {
+            open.value = false
+            router.push(`/docs/guide#${section.id}`)
+          }
         }
-      }))
+      })
     } else {
       items = group.items
         .filter(page => page.status !== 'wip' || settings.value.expertMode)
@@ -288,12 +332,28 @@ const groups = computed(() => {
           icon: page.icon,
           to: page.to,
           description: pageDescriptions[page.id] ?? page.label,
+          keywords: searching ? pageSearchKeywords(page.to) : undefined,
           onSelect: () => { open.value = false }
         }))
     }
     return items.length > 0 ? [{ id: group.id, label: group.title, items }] : []
   })
-  return [quickAccess, ...sections] as CommandPaletteGroup<CommandPaletteItem>[]
+
+  const dynamic: CommandPaletteGroup<CommandPaletteItem>[] = searching && auto
+    ? [
+        { id: 'features', label: 'Features & settings', items: toCommandItems(appSettingEntries(), runSearchAction) },
+        { id: 'fields', label: 'Settings & fields', items: toCommandItems(auto.fields) },
+        { id: 'actions', label: 'Commands & actions', items: toCommandItems(auto.actions) },
+        { id: 'reference', label: 'Reference', items: toCommandItems(referenceEntries()) }
+      ]
+    : []
+
+  return [quickAccess, ...dynamic, ...sections] as CommandPaletteGroup<CommandPaletteItem>[]
+})
+
+// Start loading the index as soon as the user types or opens the palette.
+watch(searchTerm, (term) => {
+  if (term.trim()) ensureAutoIndex()
 })
 </script>
 
@@ -374,7 +434,7 @@ const groups = computed(() => {
             >
               <span class="hidden sm:inline">Checklist</span>
               <template #trailing>
-                <span class="relative flex size-8 items-center justify-center">
+                <span class="flex items-center gap-1.5">
                   <svg viewBox="0 0 36 36" class="size-8 -rotate-90" aria-hidden="true">
                     <circle
                       cx="18"
@@ -395,7 +455,7 @@ const groups = computed(() => {
                       :stroke-dasharray="`${checklistProgress * 0.942} 100`"
                     />
                   </svg>
-                  <span class="absolute text-[11px] font-bold leading-none tabular-nums">{{ isEspConnected ? `${checklistProgress}%` : '—' }}</span>
+                  <span class="text-[11px] font-bold leading-none tabular-nums">{{ isEspConnected ? `${checklistProgress}%` : '—' }}</span>
                 </span>
               </template>
             </UButton>
@@ -787,8 +847,8 @@ const groups = computed(() => {
           <div v-if="collapsed" class="mt-auto">
             <UPopover :content="{ sideOffset: 8 }">
               <UButton
-                color="warning"
-                variant="soft"
+                color="error"
+                variant="solid"
                 square
                 icon="i-lucide-triangle-alert"
                 aria-label="Important disclaimer"
@@ -808,14 +868,15 @@ const groups = computed(() => {
 
           <div v-else class="mt-auto">
             <UAlert
-              color="warning"
-              variant="soft"
+              color="error"
+              variant="solid"
               icon="i-lucide-triangle-alert"
+              :ui="{ icon: 'text-white' }"
               class="rounded-lg"
             >
               <template #description>
                 <div class="max-h-[30vh] overflow-y-auto pr-1">
-                  <p class="text-[11px] leading-4 text-muted">
+                  <p class="text-[11px] leading-4 text-white">
                     {{ disclaimerText }}
                   </p>
                 </div>
@@ -826,7 +887,12 @@ const groups = computed(() => {
       </template>
     </UDashboardSidebar>
 
-    <UDashboardSearch :groups="groups" />
+    <UDashboardSearch
+      v-model:search-term="searchTerm"
+      preserve-group-order
+      :groups="groups"
+      :fuse="searchFuse"
+    />
     <slot />
     <NotificationsSlideover />
   </UDashboardGroup>
