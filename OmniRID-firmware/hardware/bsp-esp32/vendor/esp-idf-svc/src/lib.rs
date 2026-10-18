@@ -26,8 +26,15 @@ extern crate std;
 #[macro_use]
 extern crate alloc;
 
+#[cfg(all(
+    not(any(esp32s2, esp32p4)),
+    esp_idf_bt_enabled,
+    esp_idf_bt_nimble_enabled,
+    feature = "alloc",
+))]
+pub mod ble;
 // PATCH (bsp-esp32 vendored copy): the upstream `bt` module (Bluedroid) is
-// disabled here on purpose.  esp-idf-svc 0.52.1's `bt`/`bt::ble::gatt::client`
+// disabled here on purpose.  esp-idf-svc's `bt`/`bt::ble::gatt::client`
 // unconditionally references BLE-5.0-only APIs (`esp_ble_gattc_enh_open`,
 // `esp_ble_conn_params_t`, `ESP_BLE_PHY_*_PREF_MASK`) that do not exist on the
 // classic ESP32 (no BLE 5.0), and controller config symbols gated behind
@@ -35,7 +42,10 @@ extern crate alloc;
 // cannot be compiled when Bluetooth/Bluedroid is enabled.  The bsp-esp32
 // firmware uses only the raw `sys` bindings (Bluedroid advertising in
 // `ble.rs`) and never this high-level API, so the module is excluded on all
-// chips.
+// chips.  (Carried over from the esp-idf-svc 0.52.1 vendor for issue #43's
+// bump to 0.53.0; `src/bt.rs` and `src/bt/` are deleted for the same reason.
+// The nimble-gated `ble` module stays: it is cfg'd out whenever Bluedroid
+// is the configured host stack.)
 #[cfg(all(
     false,
     not(any(esp32s2, esp32p4)),
@@ -59,13 +69,18 @@ pub mod espnow;
     esp_idf_comp_esp_event_enabled,
 ))]
 #[cfg(any(
+    // On-chip EMAC (ESP32); RMII PHYs such as lan87xx are used only with EMAC
     all(esp32, esp_idf_eth_use_esp32_emac),
     any(
         esp_idf_eth_spi_ethernet_dm9051,
         esp_idf_eth_spi_ethernet_w5500,
-        esp_idf_eth_spi_ethernet_ksz8851snl
+        esp_idf_eth_spi_ethernet_ksz8851snl,
+        // ESP-IDF 6.0+ ships SPI Ethernet PHYs as managed components
+        esp_idf_comp_espressif__dm9051_enabled,
+        esp_idf_comp_espressif__w5500_enabled,
+        esp_idf_comp_espressif__ksz8851snl_enabled,
     ),
-    esp_idf_eth_use_openeth
+    esp_idf_eth_use_openeth,
 ))]
 pub mod eth;
 #[cfg(all(feature = "alloc", esp_idf_comp_esp_event_enabled))]
@@ -86,7 +101,7 @@ pub mod log;
 pub mod mdns;
 #[cfg(all(
     feature = "alloc",
-    esp_idf_comp_mqtt_enabled,
+    any(esp_idf_comp_mqtt_enabled, esp_idf_comp_espressif__mqtt_enabled),
     esp_idf_comp_esp_event_enabled
 ))]
 pub mod mqtt;

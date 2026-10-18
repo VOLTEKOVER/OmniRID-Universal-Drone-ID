@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 
 #[allow(unused)]
-use ::log::{debug, info};
+use ::log::{debug, info, warn};
 
 use crate::eventloop::{EspEventDeserializer, EspEventSource, EspSystemEventLoop};
 use crate::hal::delay;
@@ -488,22 +488,28 @@ impl<'d> ThreadDriver<'d, Host> {
         }
 
         #[allow(clippy::type_complexity)]
-        let mut callback: Box<Box<dyn FnMut(Option<ActiveScanResult>) + Send + 'static>> =
+        let callback: Box<Box<dyn FnMut(Option<ActiveScanResult>) + Send + 'static>> =
             Box::new(Box::new(callback));
 
-        ot_esp!(unsafe {
+        // Store callback where on_active_scan_result can get to it
+        inner.scan_cb = Some(callback);
+
+        match ot_esp!(unsafe {
             otLinkActiveScan(
                 esp_openthread_get_instance(),
                 0xffff_ffffu32, // All channels
                 200,            // ms scan per channel
                 Some(Self::on_active_scan_result),
-                callback.as_mut() as *mut _ as *mut c_void,
+                &mut *inner as *mut ThreadDriverInner as *mut c_void,
             )
-        })?;
-
-        inner.scan_cb = Some(callback);
-
-        Ok(())
+        }) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                // Clean up inner if we fail to start the scan
+                inner.scan_cb = None;
+                Err(err)
+            }
+        }
     }
 
     /// Check if an active scan is in progress
@@ -528,22 +534,28 @@ impl<'d> ThreadDriver<'d, Host> {
         }
 
         #[allow(clippy::type_complexity)]
-        let mut callback: Box<Box<dyn FnMut(Option<EnergyScanResult>) + Send + 'static>> =
+        let callback: Box<Box<dyn FnMut(Option<EnergyScanResult>) + Send + 'static>> =
             Box::new(Box::new(callback));
 
-        ot_esp!(unsafe {
+        // Store callback where on_energy_scan_result can get to it
+        inner.energy_cb = Some(callback);
+
+        match ot_esp!(unsafe {
             otLinkEnergyScan(
                 esp_openthread_get_instance(),
                 0xffff_ffffu32, // All channels
                 200,            // ms scan per channel
                 Some(Self::on_energy_scan_result),
-                callback.as_mut() as *mut _ as *mut c_void,
+                &mut *inner as *mut ThreadDriverInner as *mut c_void,
             )
-        })?;
-
-        inner.energy_cb = Some(callback);
-
-        Ok(())
+        }) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                // Clean up inner if we fail to start the scan
+                inner.energy_cb = None;
+                Err(err)
+            }
+        }
     }
 
     /// Check if an energy scan is in progress
@@ -595,7 +607,7 @@ impl<'d> ThreadDriver<'d, Host> {
     /// HOWEVER: care should be taken NOT to call `core::mem::forget()` on the service,
     /// as that would immediately lead to an UB (crash).
     /// Also note that forgetting the service might happen with `Rc` and `Arc`
-    /// when circular references are introduced: https://github.com/rust-lang/rust/issues/24456
+    /// when circular references are introduced: <https://github.com/rust-lang/rust/issues/24456>
     ///
     /// The reason is that the closure is actually sent to a hidden ESP IDF thread.
     /// This means that if the service is forgotten, Rust is free to e.g. unwind the stack
@@ -632,23 +644,22 @@ impl<'d> ThreadDriver<'d, Host> {
                 Box::new(Box::new(callback));
 
             #[allow(clippy::type_complexity)]
-            let mut callback: Box<Box<dyn FnMut(Ipv6Incoming) + Send + 'static>> =
+            let callback: Box<Box<dyn FnMut(Ipv6Incoming) + Send + 'static>> =
                 unsafe { core::mem::transmute(callback) };
 
-            let callback_ptr = callback.as_mut() as *mut _ as *mut c_void;
-
+            // Stick the callback where Self::on_address/Self::on_packet can get to it
             inner.ipv6_cb = Some(callback);
 
             unsafe {
                 otIp6SetAddressCallback(
                     esp_openthread_get_instance(),
                     Some(Self::on_address),
-                    callback_ptr,
+                    &mut *inner as *mut ThreadDriverInner as *mut c_void,
                 );
                 otIp6SetReceiveCallback(
                     esp_openthread_get_instance(),
                     Some(Self::on_packet),
-                    callback_ptr,
+                    &mut *inner as *mut ThreadDriverInner as *mut c_void,
                 );
                 otIp6SetReceiveFilterEnabled(esp_openthread_get_instance(), true);
 
@@ -2013,6 +2024,13 @@ pub enum ThreadEvent {
         esp_idf_version_at_least_5_4_0
     ))]
     DatasetChanged,
+
+    /// An event ID not recognised by this version of the library was received.
+    ///
+    /// This variant is produced instead of panicking when an unknown event ID
+    /// arrives, allowing applications to remain forward-compatible with
+    /// ESP-IDF versions that introduce new Thread events.
+    Other(i32),
 }
 
 unsafe impl EspEventSource for ThreadEvent {
@@ -2111,7 +2129,10 @@ impl EspEventDeserializer for ThreadEvent {
                 esp_idf_version_at_least_5_4_0
             ))]
             esp_openthread_event_t_OPENTHREAD_EVENT_DATASET_CHANGED => ThreadEvent::DatasetChanged,
-            _ => panic!("unknown event ID: {event_id}"),
+            _ => {
+                warn!("ThreadEvent: unknown event ID {event_id}, ignoring");
+                ThreadEvent::Other(event_id as i32)
+            }
         }
     }
 }

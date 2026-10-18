@@ -64,9 +64,13 @@ app = { path = "../../firmware/app" }
 # `app_main`, so esp-idf-sys must not generate a second one.  (Without this,
 # defaults enable `binstart` transitively through esp-idf-hal/esp-idf-svc and
 # the link fails with "multiple definition of `app_main`".)
-esp-idf-sys = { version = "0.37", default-features = false, features = ["std"], optional = true }
-esp-idf-svc = { version = "0.52", default-features = false, features = ["std"], optional = true }
-esp-idf-hal = { version = "0.46", default-features = false, features = ["std"], optional = true }
+# Issue #43: esp-idf-sys 0.38 adds basic ESP-IDF 6.0 compatibility (0.38.1
+# additionally fixes the Mbed TLS header set); esp-idf-svc/esp-idf-hal move
+# to 0.53/0.47 accordingly (0.53 requires esp-idf-sys ^0.38 + hal ^0.47), and
+# vendor/esp-idf-svc was re-vendored from 0.53.0 with the same `bt` patch.
+esp-idf-sys = { version = "0.38", default-features = false, features = ["std"], optional = true }
+esp-idf-svc = { version = "0.53", default-features = false, features = ["std"], optional = true }
+esp-idf-hal = { version = "0.47", default-features = false, features = ["std"], optional = true }
 embedded-svc = { version = "0.29", optional = true }
 spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"], optional = true }
 log = { version = "0.4", optional = true }
