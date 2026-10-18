@@ -2,7 +2,7 @@
 //! of `default_config()` from `esp_remote_id.c`.
 //!
 //! This is the full BSP-side configuration. The hub-facing subset (`Config`
-//! in `rid-interface`) is derived from it; the transport/pin/lighting fields
+//! in `rid-interface`) is derived from it; the transport/pin fields
 //! live only here.
 
 use rid_interface::{
@@ -12,8 +12,6 @@ use rid_interface::{
 
 /// `auth_private_key[512]` from the C header.
 pub const AUTH_KEY_MAX_LEN: usize = 512;
-/// Number of external lighting outputs.
-pub const NUM_LIGHTING_PINS: usize = 5;
 
 /// Full BSP configuration, mirror of `rid_config_t`.
 #[derive(Clone, PartialEq, Debug)]
@@ -63,15 +61,6 @@ pub struct BspConfig {
     pub led_r_gpio: i8,
     pub led_g_gpio: i8,
     pub led_b_gpio: i8,
-
-    /// WS2812 addressable RGB LED.
-    pub ws2812_gpio: i8,
-    pub ws2812_brightness: u8,
-
-    /// External GPIO lighting outputs.
-    pub lighting_pins: [i8; NUM_LIGHTING_PINS],
-    pub lighting_patterns: [u8; NUM_LIGHTING_PINS],
-    pub lighting_phase_offsets: [i16; NUM_LIGHTING_PINS],
 
     /// DroneCAN.
     pub dronecan_rx_gpio: i8,
@@ -144,13 +133,6 @@ impl Default for BspConfig {
             led_g_gpio: -1,
             led_b_gpio: -1,
 
-            ws2812_gpio: -1,
-            ws2812_brightness: 16,
-
-            lighting_pins: [-1; NUM_LIGHTING_PINS],
-            lighting_patterns: [0; NUM_LIGHTING_PINS],
-            lighting_phase_offsets: [0; NUM_LIGHTING_PINS],
-
             dronecan_rx_gpio: -1,
             dronecan_tx_gpio: -1,
             dronecan_bitrate: 1000000,
@@ -213,8 +195,6 @@ mod tests {
         assert_eq!(cstr(&c.wifi_ssid), "ESP-RID");
         assert_eq!(c.webserver_en, 1);
         assert_eq!(c.bcast_powerup, 1);
-        assert_eq!(c.ws2812_brightness, 16);
-        assert_eq!(c.lighting_pins, [-1; 5]);
         assert_eq!(c.dronecan_bitrate, 1000000);
         assert_eq!(c.start_delay_ms, 10000);
         for p in &c.public_keys {

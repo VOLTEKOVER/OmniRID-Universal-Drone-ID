@@ -7,7 +7,6 @@ import {
   CAN_BITRATES,
   CHIPS,
   ID_TYPES,
-  LIGHT_PATTERNS,
   LOCK_LEVELS,
   OPTIONS,
   PROTOCOLS,
@@ -326,16 +325,6 @@ export function referenceEntries(): SearchEntry[] {
       suffix: 'Lock level',
       description: 'Firmware lock and signed-command mode',
       keywords: `lock level efuse signed commands ${level.label}`
-    })
-  }
-  for (const pattern of LIGHT_PATTERNS) {
-    out.push({
-      label: pattern.label,
-      to: '/device/hardware',
-      icon: 'i-lucide-lightbulb',
-      suffix: 'Light pattern',
-      description: 'Status and lighting LED pattern',
-      keywords: `led light pattern ws2812 ${pattern.label}`
     })
   }
   for (const code of Object.keys(REGIONS) as (keyof typeof REGIONS)[]) {

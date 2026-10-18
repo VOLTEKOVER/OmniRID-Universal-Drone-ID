@@ -1,4 +1,4 @@
-//! Build capabilities for the adaptive web UI (`/api/capabilities`, Fase 5).
+//! Build capabilities for the external OmniRID PWA (`/api/capabilities`, Fase 5).
 //! Everything is compile-time: the protocols/inputs, regions, standards and
 //! encoder support, transports and options this firmware build understands.
 //! Pure and host-testable.

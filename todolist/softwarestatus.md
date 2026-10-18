@@ -5,8 +5,8 @@
 > The C firmware audit and fix campaign findings (A–P, §9 of `dataflow.md`)
 > remain as historical reference for the port.
 
-Last updated: 2026-09-16
-Tests: 319 passing | Clippy: clean | Edition: 2024
+Last updated: 2026-10-18
+Tests: 302 passing | Clippy: clean | Edition: 2024
 
 > Session fixes (2026-08-28): [#18] MSP framing off-by-one → MSP v1 standard;
 > [#24] operator-location gate (MAVLink op location ignored by other protocols);
@@ -31,6 +31,37 @@ Tests: 319 passing | Clippy: clean | Edition: 2024
 > branch (default is now just `universal`) and fixed the eval-weird weekly
 > auto-update workflow names.
 
+> Session fixes (2026-10-18): closed `dataflow.md` §10 #11 — `/api/command`
+> (restart/reset) now shares the `SigRate` failure rate limiter with
+> `/api/config` and `/api/reset` (`rid-app::web_config::handle_command`
+> takes `rate`/`now_ms`, returns `CommandOutcome::RateLimited` → HTTP 429);
+> implemented CLI command history (`rid-app::cli::CommandHistory`, last 10
+> cmds, up/down recall) and Kalman covariance export
+> (`rid_core::kalman::KalmanCovariance`, `Scheduler::kalman_covariance`).
+>
+> Architecture change (2026-10-18): **firmware is now headless** — the
+> embedded web UI (`rid-app/webui/` + `rid-app/src/webui.rs`, ported from the
+> old C `webui/`) has been deleted. `bsp-esp32::web` serves only the JSON
+> API (`/api/config`, `/api/status`, `/api/capabilities`, `/api/reset`,
+> `/api/logs`, `/api/command`, `/ota`) with permissive CORS + OPTIONS
+> preflight, so the external OmniRID PWA (`OmniRID-app/`, GitHub Pages) is
+> the single configuration surface: it connects to the device AP over WiFi
+> and drives every setting through `/api/*`. The firmware keeps only the
+> signed-action gate, persistence (NVS) and telemetry; no HTML/UI payload
+> in flash anymore (see `dataflow.md` §10 #15 and `processes.md` §6.9).
+>
+> Architecture change (2026-10-18): **dynamic lights removed** — the WS2812
+> strip (`rid-app/src/led_ws2812.rs`, RMT) and the 5-channel GPIO lighting
+> system (`rid-app/src/lighting.rs`, 6 patterns + phase offsets) are deleted
+> from firmware and app. The PWM RGB status LED (`led_status`, 7 states) is
+> the only light source left: config fields `ws2812_gpio`,
+> `ws2812_brightness`, `lighting_pins/patterns/phase_offsets` are gone from
+> `BspConfig`/NVS/JSON, the `TickOutcome.ws2812_green`/`lighting_armed`
+> flags from `rid-core`, and the RMT driver + `led::set_gpio` from the BSP.
+> App side: `LIGHT_PATTERNS`, the Hardware-page sections and the chip
+> feature flags `ws2812`/`gpioLighting` were dropped too (only
+> `led_r/g/b_gpio` remain). See `dataflow.md` §10 #16.
+
 ---
 
 ## Workspace Structure
@@ -39,8 +70,8 @@ Tests: 319 passing | Clippy: clean | Edition: 2024
 OmniRID/
 ├── firmware/          # Core (no_std, agnostic)
 │   ├── rid-interface/   # Trait contracts (0 tests, pure types)
-│   ├── rid-core/        # Hub, scheduler, kalman, auth, security (60 tests)
-│   ├── rid-app/         # CLI, web, NVS, OTA, LED logic (122 tests)
+│   ├── rid-core/        # Hub, scheduler, kalman, auth, security (62 tests)
+│   ├── rid-app/         # CLI, web, NVS, OTA, LED status (103 tests)
 │   ├── app/             # Controller assembly + /api/capabilities (12 tests)
 │   └── bsp-sim/         # Host simulator (binary demo, 0 tests)
 ├── inputs/            # Protocol parsers
@@ -84,8 +115,8 @@ OmniRID/
 - [ ] **ESP-NOW mesh relay** — multi-hop range extension (~4d)
 - [ ] **LoRa SX1262 backup** — 10+ km emergency link (~6d)
 - [ ] **SD Card + geofence logging** — flight log recovery (~4d)
-- [ ] **CLI command history** — circular buffer last 10 cmds
-- [ ] **Kalman covariance export** — diagnostic API
+- [x] **CLI command history** — circular buffer last 10 cmds (`rid-app::cli::CommandHistory`)
+- [x] **Kalman covariance export** — diagnostic API (`rid_core::kalman::KalmanCovariance`, `Scheduler::kalman_covariance`)
 - [x] **Stats tracking** — ticks, GPS updates/discards, parse errors, signatures, TX fails, OTA count (`rid_interface::Stats`, serialized in `/api/status`)
 
 ### 🔵 CI/CD & Auto-Update
@@ -106,7 +137,7 @@ OmniRID/
 
 ### Firmware Core (Fase 0–5)
 - rid-core: hub (region dispatch, standard selection), scheduler (tick, GPS staleness, Kalman), auth (Ed25519), security (base64/hex/SHA-256/Ed25519), protocol_detect (auto-detect), readiness (per-region gate), patrol (demo GPS)
-- rid-app: CLI (config set/get), JSON API, web_config (signed commands, rate limit), NVS (save/load/reset_preserve_keys), OTA (timeout, signature, SHA-256 streaming), BLE 4.x legacy adv, LED status (7-state RGB), WS2812 (HSV/GRB), lighting (5-ch patterns), webui (embedded assets)
+- rid-app: CLI (config set/get), JSON API, web_config (signed commands, rate limit), NVS (save/load/reset_preserve_keys), OTA (timeout, signature, SHA-256 streaming), BLE 4.x legacy adv, LED status (7-state RGB) — embedded web UI **removed 2026-10-18** (headless firmware, config handled by the external OmniRID PWA); WS2812 + 5-ch GPIO lighting **removed 2026-10-18** (RGB status LED is the only light source)
 - app: Controller (assemble BSP + input + output), /api/capabilities, derive_ids_from_mac
 
 ### Input Protocols
@@ -121,7 +152,7 @@ OmniRID/
 - opendroneid-sys: vendored Intel C lib with Rust FFI, auto-update weekly
 
 ### Hardware (bsp-esp32)
-- WiFi beacon/NAN injection, BLE 4.x/5.0 LR (C6 emerge come no-op per binding driver BT), NVS, USB CDC, LED (LEDC/RMT), web server, OTA
+- WiFi beacon/NAN injection, BLE 4.x/5.0 LR (C6 emerge come no-op per binding driver BT), NVS, USB CDC, LED (LEDC/RMT), headless JSON API (CORS-enabled, no embedded UI), OTA
 - Capability matrix per chip (esp32/s3/c6)
 - Dual-core pinning: Core 0 (WiFi TX) / Core 1 (Scheduler+BLE+UI)
 - Feature-gated: `#[cfg(feature = "hardware")]`
@@ -135,13 +166,13 @@ OmniRID/
 - Default branch: `universal` (branch `main` orfana eliminata)
 
 ### Documentation & Web App
-- guide.html, index.html, config(demo).html — all updated for Rust
-- OmniRID-app: PWA (Alpine + Tabler Icons + Inter), installed offline, BLE/Serial/PCAP capture in browser
+- guide.html, index.html — all updated for Rust
+- OmniRID-app: Nuxt 4 PWA on GitHub Pages — the **only** configuration surface (firmware web UI removed 2026-10-18)
 
 ### Audit Fixes (session 2026-08-28)
 - [#18] MSP framing corrected: replaced the replicated C off-by-one quirk with standard MSP v1 framing (`buf[3]=size, buf[4]=type, payload=buf[5..]`). Unblocks §10.1 / dataflow section-2 "blocked by §10.1" rows.
 - [#24] Operator-location gate: non-MAVLink protocols ignore MAVLink operator location unless explicitly selected (`non_mavlink_protocol_ignores_mavlink_operator_location`).
-- [#25] NVS persistence: full config now persisted (protocol, uart_port, tx_pin, rx_pin, ws2812_*, lighting_*, dronecan_*, mavlink_usb_enable, ota_trigger_gpio, auth_private_key, start_delay_ms) via get_blob/set_blob + auth lifecycle. Closes dataflow §5/§10.7/§10.8 and processes §6.12 gaps.
+- [#25] NVS persistence: full config now persisted (protocol, uart_port, tx_pin, rx_pin, dronecan_*, mavlink_usb_enable, ota_trigger_gpio, auth_private_key, start_delay_ms) via get_blob/set_blob + auth lifecycle. Closes dataflow §5/§10.7/§10.8 and processes §6.12 gaps. (`ws2812_*`/`lighting_*` later removed with the dynamic lights, 2026-10-18.)
 - [#26] xTaskCreatePinnedToCore return-checked; task module hardware-gated.
 
 ### CI Fixes (session 2026-09-16)
@@ -177,8 +208,8 @@ OmniRID/
 | `cli.c` (pure) | `rid-app::cli` | ✅ |
 | `nvs_storage.c` | `rid-app::nvs` + `bsp-esp32::nvs` | ✅ |
 | `led_status.c` | `rid-app::led_status` | ✅ |
-| `led_ws2812.c` | `rid-app::led_ws2812` | ✅ |
-| `rid_lighting.c` | `rid-app::lighting` | ✅ |
+| `led_ws2812.c` | — | ❌ removed 2026-10-18 (dynamic lights dropped) |
+| `rid_lighting.c` | — | ❌ removed 2026-10-18 (dynamic lights dropped) |
 | `rid_ota.c` (validation) | `rid-app::ota` + `bsp-esp32::ota` | ✅ |
 | `ble_tx.c` (framing) | `rid-app::ble4` + `bsp-esp32::ble` | ✅ |
 | ESP-IDF HW (WiFi/BLE/NVS/LED/USB) | `hardware/bsp-esp32` | ✅ |
@@ -210,7 +241,7 @@ OmniRID/
 
 ## Port Sources
 
-- **peinser/esp-remoteid** — Ed25519, OTA, DroneCAN, MAVLink, flash encryption, WS2812, GPIO lighting. Most ported; missing flash encryption.
+- **peinser/esp-remoteid** — Ed25519, OTA, DroneCAN, MAVLink, flash encryption, WS2812, GPIO lighting. Most ported; missing flash encryption. (WS2812/GPIO lighting deliberately not kept — dynamic lights dropped from our firmware 2026-10-18.)
 - **colonelpanichacks/Sky-Spy** — WiFi promiscuous + BLE RID receiver, dual-core pinning, mesh mapper.
 - **JimZGChow/wifi-rid-to-mesh** — RID→LoRa Meshtastic bridge, French RID format.
 - **PeterJBurke/esp32-c3-remote-id** — Arduino RID with timing analysis.

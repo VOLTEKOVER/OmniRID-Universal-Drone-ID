@@ -1,10 +1,14 @@
-# OmniRID — Web UI, Desktop App & Documentation Status
+# OmniRID — Web App & Documentation Status
 
-> Embedded web UI served by `bsp-esp32` from flash (`include_str!`).
-> Browser app: Nuxt 4 + Vue 3 + Nuxt UI, developed in `OmniRID-app/`.
-> Firmware and protocol architecture: Rust workspace in `OmniRID/`.
+> **The embedded web UI was removed on 2026-10-18**: the firmware is headless
+> and serves only a CORS-enabled JSON API. All configuration lives in the
+> external PWA.
+> Browser app: Nuxt 4 + Vue 3 + Nuxt UI, developed in `OmniRID-app/`,
+> published on GitHub Pages — the single configuration surface for the device.
+> Firmware: Rust workspace in `OmniRID-firmware/` (headless JSON API at
+> `http://192.168.4.1/api/*`).
 > Documentation: `README.md` + `docs/index.html` + `docs/guide.html`.
-> Last updated: 2026-09-18 (notifications system, console/logging/presets tools, shortcuts, mobile pass).
+> Last updated: 2026-10-18 (headless firmware — embedded web UI deleted).
 >
 > The old Electron/React desktop application and the temporary Alpine PWA are no
 > longer the active web-app architecture. The current browser app is a Nuxt
@@ -12,62 +16,42 @@
 
 ---
 
-## Part 1 — Web UI (Embedded)
+## Part 1 — Device API (Headless)
 
-### 🗂️ Tab Structure (15 tabs)
+Since 2026-10-18 the firmware no longer embeds or serves any UI
+(`rid-app/webui/` and `rid-app/src/webui.rs` were deleted, `git rm` in
+`bsp-esp32::web`). The device exposes a pure JSON REST API on its AP
+(`http://192.168.4.1`), consumed by the OmniRID PWA from another origin:
 
-| Group | Tab | ID | Description |
-|-------|-----|----|-------------|
-| Monitor | Dashboard | `dashboard` | Live telemetry: GPS, protocol, TX status, battery, RSSI |
-| Config | Identity | `identity` | UAS ID, ID/UA type, operator ID/self-ID, location, second BasicID |
-| Config | Transmission | `transmission` | WiFi BCN/NAN, BLE4/5 toggles, channel, power, rates |
-| Config | Access Point | `ap` | WiFi SSID/password, web server toggle |
-| Config | Flight Controller | `fc` | Protocol, baud, SysID, broadcast on power |
-| Config | Hardware | `hardware` | LED GPIO, WS2812, UART, TX/RX pins, DroneCAN, lighting, OTA GPIO, USB, startup delay |
-| Compliance | Compliance | `compliance` | Region selector, per-region requirement checklist |
-| Compliance | Security | `security` | Password, timeout, lock level, 5 public keys, 9 option flags |
-| Advanced | System | `system` | Save, Factory Reset, Restart |
-| Advanced | Firmware | `firmware` | OTA upload (.bin file) |
-| Tools | Console | `console` | Serial terminal, CLI commands, signed commands |
-| Tools | Presets | `presets` | Save/load/import/export config presets |
-| Tools | Logging | `logging` | Start/stop telemetry log, download CSV |
-| Tools | Sensors | `sensors` | Sensor readings (placeholder) |
-| Other | Help | `help` | Documentation links, version info |
+- All responses carry `Access-Control-Allow-Origin: *`.
+- Every route has an `OPTIONS` preflight handler (allowed headers:
+  `Content-Type`, `X-Signature`, `X-Expected-SHA256`).
+- Configuration fields are unchanged (see `dataflow.md` §5); they are now
+  edited exclusively through the PWA (`app/components/device/ConfigPage.vue`)
+  and persisted via `POST /api/config` → NVS.
 
-### 🔘 All Buttons
-
-**Header Actions:** ☰ Menu, 💾 Save All, 📥 Export, 📤 Import, 🔄 Reconnect, ☀/☾ Dark
-**System:** 🔄 Restart, ↻ Factory Reset
-**Console:** 📋 Copy, 📋 All, 🗑 Clear, ⬇ Auto-scroll, ⚡ CLI dialog, Send
-**Firmware:** Choose .bin, Upload
-**Presets:** 💾 Save, 📥 Export All, 📤 Import
-**Logging:** ▶ Start, ⏹ Stop, 📥 Download, 🗑 Clear
-**Compliance:** 🔄 Update
-**Security:** 👁 Show/Hide password, Save Security
-
-### 📊 Form Fields (50+)
+### 📊 Configurable fields (owned by the PWA UI)
 
 **Identity:** uas_id, id_type, ua_type, op_id, self_id_text, op_lat, op_lon, op_alt, uas_id2, id_type2, ua_type2
 **Transmission:** tx_wifi_bcn, tx_wifi_nan, tx_ble4, tx_ble5, wifi_ch, wifi_pwr (2-20), wifi_bcn, wifi_nan, bt4_rate, bt4_pwr, bt5_rate, bt5_pwr
 **AP:** wifi_ssid, wifi_pass, websrv_en
 **FC:** protocol (AUTO/MAVLink/MSP/NMEA), baud, mav_sysid, bcast_pwr
-**Hardware:** led_r/g/b_gpio, ws2812_gpio, ws2812_brightness, uart_port, tx/rx_pin, dronecan_rx/tx_gpio, dronecan_bitrate, lighting_pin/pattern/phase 0-4, ota_trigger_gpio, mavlink_usb_enable, start_delay_ms
+**Hardware:** led_r/g/b_gpio (RGB status LED — the only light source), uart_port, tx/rx_pin, dronecan_rx/tx_gpio, dronecan_bitrate, ota_trigger_gpio, mavlink_usb_enable, start_delay_ms
 **Security:** lock_lvl, sec-password, sec-timeout, pubkey1-5, opt_arm/nosave/print/demo/kalman/auth/mavlink_arm/mavlink_op_loc/identity_gate
 
 ### 🔌 API Endpoints
 
 | Endpoint | Method | Content |
 |----------|--------|---------|
-| `/` `/config.html` | GET | HTML page |
-| `/style.css` | GET | CSS |
-| `/app.js` | GET | JavaScript |
 | `/api/config` | GET/POST | Config JSON |
 | `/api/status` | GET | Runtime status |
 | `/api/capabilities` | GET | Build descriptor |
 | `/api/command` | POST | Signed commands |
-| `/api/reset` | GET/POST | Factory reset |
+| `/api/reset` | POST | Factory reset |
 | `/api/logs` | GET | Log entries |
 | `/ota` | POST | Firmware upload |
+
+All routes answer `OPTIONS` preflight with `204` + CORS headers.
 
 ### ✅ Regole app da rispettare (da fare)
 
@@ -127,7 +111,6 @@
 - [ ] Compliance region auto-detect from GPS — richiede GPS lato firmware.
 - [ ] Config diff view before save — richiede confronto con `/api/config`
 	caricato; oggi la pagina non legge ancora lo stato del device (integrazione API incrementale).
-- [ ] Lighting pattern preview — visualizzazione pattern in UI non ancora fatta.
 
 ---
 
@@ -262,7 +245,7 @@ device commands still have to be connected to the Rust firmware endpoints.
 | Old C Reference | New Rust Reference |
 |---|---|
 | `main.c` | `firmware/app/src/main.rs` |
-| `web_config.c` / `web_server.c` | `firmware/rid-app/src/web_config.rs` + `bsp-esp32/src/web.rs` |
+| `web_config.c` / `web_server.c` | `firmware/rid-app/src/web_config.rs` + `bsp-esp32/src/web.rs` (headless API; the C web_server UI portion was dropped, not ported) |
 | `rid_security.c` | `firmware/rid-core/src/security.rs` |
 | `rid_ota.c` | `firmware/rid-app/src/ota.rs` + `bsp-esp32/src/ota.rs` |
 | `rid_auth.c` | `firmware/rid-core/src/auth.rs` |
@@ -280,8 +263,8 @@ device commands still have to be connected to the Rust firmware endpoints.
 | `cli.c` | `firmware/rid-app/src/cli.rs` |
 | `nvs_storage.c` | `firmware/rid-app/src/nvs.rs` + `bsp-esp32/src/nvs.rs` |
 | `led_status.c` | `firmware/rid-app/src/led_status.rs` |
-| `led_ws2812.c` | `firmware/rid-app/src/led_ws2812.rs` |
-| `rid_lighting.c` | `firmware/rid-app/src/lighting.rs` |
+| `led_ws2812.c` | ❌ removed 2026-10-18 (dynamic lights dropped) |
+| `rid_lighting.c` | ❌ removed 2026-10-18 (dynamic lights dropped) |
 | `ble_tx.c` | `firmware/rid-app/src/ble4.rs` + `bsp-esp32/src/ble.rs` |
 | `wifi_tx.c` | `bsp-esp32/src/wifi.rs` |
 | `esp_remote_id.h` | `firmware/rid-interface/src/{types,input,region,odid}.rs` |

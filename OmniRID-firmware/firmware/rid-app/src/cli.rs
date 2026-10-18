@@ -4,6 +4,7 @@
 //! config, heap/uptime/MAC, log level set, restart/reset) stay in the BSP chip
 //! layer; every decision here is host-testable.
 
+use alloc::string::String;
 use alloc::vec::Vec;
 use rid_interface::{
     Protocol, MAX_STR_LEN, TRANSMIT_BLE4, TRANSMIT_BLE5, TRANSMIT_WIFI_BCN, TRANSMIT_WIFI_NAN,
@@ -273,9 +274,110 @@ fn parse_f64(s: &str) -> f64 {
     s.parse::<f64>().unwrap_or(0.0)
 }
 
+/// CLI command history: circular buffer of the last executed commands for
+/// up/down line recall (feature: "CLI command history — circular buffer last
+/// 10 cmds"). The BSP owns an instance and feeds it from `cli_task`; every
+/// decision here is pure and host-testable.
+pub const CMD_HISTORY_LEN: usize = 10;
+
+/// Fixed-capacity command history. Entries are stored as owned `String`s.
+/// `cursor == len` means "fresh input" (no history entry selected).
+#[derive(Clone, Debug, Default)]
+pub struct CommandHistory {
+    entries: [Option<String>; CMD_HISTORY_LEN],
+    head: usize,   // next write slot (ring)
+    count: usize,  // entries stored (<= CMD_HISTORY_LEN)
+    cursor: usize, // 0 = oldest .. count-1 = newest .. count = fresh input
+}
+
+impl CommandHistory {
+    /// Empty history.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Index of entry `i` (0 = oldest, `count-1` = newest).
+    fn entry_index(&self, i: usize) -> usize {
+        (self.head + CMD_HISTORY_LEN - self.count + i) % CMD_HISTORY_LEN
+    }
+
+    /// Appends a command. Empty commands and consecutive duplicates are ignored.
+    pub fn push(&mut self, cmd: &str) {
+        let trimmed = cmd.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+        let is_dup = if self.count > 0 {
+            let latest_idx = self.entry_index(self.count - 1);
+            self.entries[latest_idx].as_deref() == Some(trimmed)
+        } else {
+            false
+        };
+        if is_dup {
+            return;
+        }
+        self.entries[self.head] = Some(String::from(trimmed));
+        self.head = (self.head + 1) % CMD_HISTORY_LEN;
+        if self.count < CMD_HISTORY_LEN {
+            self.count += 1;
+        }
+        self.cursor = self.count;
+    }
+
+    /// Returns the currently selected entry, or `None` when at fresh input.
+    pub fn current(&self) -> Option<&str> {
+        if self.cursor >= self.count {
+            return None;
+        }
+        self.entries[self.entry_index(self.cursor)].as_deref()
+    }
+
+    /// Walks one step toward older commands ("up arrow"). Returns `None` while
+    /// clamped at the oldest entry.
+    pub fn prev(&mut self) -> Option<&str> {
+        if self.count == 0 || self.cursor == 0 {
+            return self.current();
+        }
+        self.cursor -= 1;
+        self.current()
+    }
+
+    /// Walks one step toward newer commands ("down arrow"). Returns `None` once
+    /// past the newest entry (cursor back at fresh input).
+    pub fn next_entry(&mut self) -> Option<&str> {
+        if self.count == 0 {
+            return None;
+        }
+        if self.cursor < self.count {
+            self.cursor += 1;
+        }
+        self.current()
+    }
+
+    /// Number of stored entries.
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    /// Clears the history.
+    pub fn clear(&mut self) {
+        for entry in &mut self.entries {
+            *entry = None;
+        }
+        self.head = 0;
+        self.count = 0;
+        self.cursor = 0;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::format;
     use alloc::string::ToString;
     use rid_interface::Region;
 
@@ -454,5 +556,76 @@ mod tests {
         assert_eq!(parse_i64_base0("abc"), 0);
         assert_eq!(parse_i64_base0(""), 0);
         assert_eq!(parse_i64_base0("-1") as u32, u32::MAX);
+    }
+
+    #[test]
+    fn command_history_push_and_recall() {
+        let mut h = CommandHistory::new();
+        assert!(h.is_empty());
+        assert_eq!(h.current(), None);
+
+        h.push("status");
+        h.push("config get uas_id");
+        h.push("transmit 10");
+
+        assert_eq!(h.len(), 3);
+        // Fresh input: nothing selected.
+        assert_eq!(h.current(), None);
+        // Up arrow: newest first.
+        assert_eq!(h.prev(), Some("transmit 10"));
+        assert_eq!(h.prev(), Some("config get uas_id"));
+        assert_eq!(h.prev(), Some("status"));
+        // Clamped at oldest.
+        assert_eq!(h.prev(), Some("status"));
+        // Down arrow back to newest.
+        assert_eq!(h.next_entry(), Some("config get uas_id"));
+        assert_eq!(h.next_entry(), Some("transmit 10"));
+        // Past newest: fresh input again.
+        assert_eq!(h.next_entry(), None);
+        assert_eq!(h.current(), None);
+    }
+
+    #[test]
+    fn command_history_ignores_empty_and_duplicates() {
+        let mut h = CommandHistory::new();
+        h.push("");
+        h.push("   ");
+        h.push("status");
+        h.push("status"); // consecutive duplicate -> ignored
+        h.push("reboot");
+        h.push("status"); // not consecutive -> kept
+        assert_eq!(h.len(), 3);
+        assert_eq!(h.prev(), Some("status"));
+        assert_eq!(h.prev(), Some("reboot"));
+        assert_eq!(h.prev(), Some("status"));
+    }
+
+    #[test]
+    fn command_history_ring_wraps() {
+        let mut h = CommandHistory::new();
+        for i in 0..12u32 {
+            h.push(&format!("cmd{i}"));
+        }
+        // Only the last 10 survive.
+        assert_eq!(h.len(), CMD_HISTORY_LEN);
+        // Walk all 10 entries from newest to oldest: cmd11 .. cmd2.
+        let mut seen: Vec<String> = Vec::new();
+        for _ in 0..10 {
+            seen.push(h.prev().expect("entry").to_string());
+        }
+        assert_eq!(seen[0], "cmd11");
+        assert_eq!(seen[9], "cmd2");
+    }
+
+    #[test]
+    fn command_history_clear() {
+        let mut h = CommandHistory::new();
+        h.push("a");
+        h.push("b");
+        h.clear();
+        assert!(h.is_empty());
+        assert_eq!(h.current(), None);
+        assert_eq!(h.prev(), None);
+        assert_eq!(h.next_entry(), None);
     }
 }

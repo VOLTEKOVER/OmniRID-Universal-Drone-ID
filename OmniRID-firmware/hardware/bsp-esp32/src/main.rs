@@ -15,10 +15,14 @@ mod imp {
     use bsp_esp32::SharedState;
 
     /// Splash screen port of `print_splash()` from `main.c`.
+    ///
+    /// The firmware is headless: configuration is done from the OmniRID PWA,
+    /// which connects to this AP and drives the JSON API at 192.168.4.1.
     fn print_splash(mac: &[u8; 6]) {
         log::info!("  OmniRID -- Open DroneID Transmitter");
         log::info!("  WiFi AP    | ESP-RID");
-        log::info!("  Config URL | http://192.168.4.1");
+        log::info!("  Config app | OmniRID PWA (connect to this AP, then open the app)");
+        log::info!("  API        | http://192.168.4.1/api/config");
         log::info!(
             "  MAC AP     | {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]

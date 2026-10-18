@@ -135,7 +135,7 @@
 <li>Wait for flash to complete</li>
 <li>Power from battery or USB</li>
 <li>Connect to WiFi <strong>ESP-RID</strong></li>
-<li>Configure at <strong>http://192.168.4.1</strong></li>
+<li>Open the OmniRID app (PWA) and connect to <strong>http://192.168.4.1</strong> (headless JSON API)</li>
 </ol>
 </div>
 <div class="fw-info">&#x26a0; Beta build &mdash; core verified in demo mode, FC hardware validation in progress &mdash; <a href="guide.html#guide-installation">Manual flashing &rarr;</a></div>
@@ -173,18 +173,16 @@
 <li><b>Automatic protocol detection</b> on boot &mdash; no manual switching needed</li>
 <li><b>Dual radio broadcast:</b> WiFi Beacon (802.11) + WiFi NAN + BLE 4.0 + BLE 5.0 Long Range Coded PHY (S3)</li>
 <li><b>Built-in demo mode</b> &mdash; GPS patrol simulation for testing without FC hardware</li>
-<li><b>Built-in WiFi Access Point</b> with web configuration at 192.168.4.1</li>
+<li><b>Built-in WiFi Access Point</b> with JSON configuration API at 192.168.4.1 (configure via the OmniRID app)</li>
 <li><b>Over-the-Air (OTA) updates</b> with client-side SHA-256 + Ed25519 signature verification</li>
 <li><b>Security hardening:</b> JSON parsing (serde), rate limiting (10 fails/60s), safe string handling, PSA Crypto init</li>
 <li><b>Shared security module:</b> <code>rid-core::security</code> for SHA-256 + Ed25519 verification</li>
 <li><b>Takeoff location capture:</b> first 3D GPS fix stored as operator reference position</li>
 <li><b>Security lock levels:</b> level 0 (open), level 1 (Ed25519 signed commands), level 2 (eFuse permanent)</li>
 <li><b>eFuse permanent lock:</b> one-time irreversible level 2 burn with "RID!" magic</li>
-<li><b>70+ configurable parameters</b> via web UI (identity, transmission, WiFi AP, serial, lighting, DroneCAN, security)</li>
+<li><b>70+ configurable parameters</b> via JSON API (identity, transmission, WiFi AP, serial, RGB status LED, DroneCAN, security)</li>
 <li><b>Browser-based flashing</b> via WebSerial &mdash; no toolchain needed</li>
 <li><b>3 ESP32 targets</b> via CI: ESP32, ESP32-S3, ESP32-C6</li>
-<li><b>WS2812 addressable RGB LED</b> &mdash; RMT-driven with configurable GPIO and brightness</li>
-<li><b>5 independent GPIO lighting outputs</b> &mdash; 6 patterns (OFF, SOLID, BLINK_SLOW, BLINK_FAST, ARMED, GPS_FLASH) with phase offset per channel</li>
 <li><b>DroneCAN (CAN Bus)</b> &mdash; TWAI driver, configurable RX/TX GPIOs, 1 Mbps default bitrate</li>
 <li><b>MAVLink USB transport</b> &mdash; bidirectional MAVLink over USB CDC (S3/C6)</li>
 <li><b>Configurable UART port, TX and RX pins</b> &mdash; select any GPIO for serial data</li>
@@ -217,12 +215,10 @@
 <tr><td>Demo mode</td><td>Built-in GPS patrol simulation (Rome Colosseum, 200m radius)</td></tr>
 <tr><td>UART</td><td>UART2 (GPIO16 RX default), baud 9600-921600, configurable TX/RX pins</td></tr>
 <tr><td>Protocols</td><td>MAVLink v1/v2 (ardupilotmega), MSP v1, NMEA 0183, DroneCAN</td></tr>
-<tr><td>Config</td><td>WiFi AP + REST API on port 80</td></tr>
+<tr><td>Config</td><td>WiFi AP + headless JSON API (CORS) on port 80</td></tr>
 <tr><td>Persistence</td><td>NVS flash memory (17 keys, 70+ params)</td></tr>
 <tr><td>Security</td><td>3 lock levels (0=open, 1=Ed25519 signed, 2=eFuse permanent), OTA SHA-256 + Ed25519, cJSON, rate limiting</td></tr>
 <tr><td>Power</td><td>5V via USB or FC BEC (~150 mA)</td></tr>
-<tr><td>WS2812 LED</td><td>Addressable RGB, configurable GPIO + brightness 0-100%</td></tr>
-<tr><td>GPIO Lighting</td><td>5 outputs, 6 patterns (OFF/SOLID/BLINK_SLOW/BLINK_FAST/ARMED/GPS_FLASH), per-channel phase offset</td></tr>
 <tr><td>DroneCAN</td><td>CAN bus, configurable RX/TX GPIO, 1 Mbps default bitrate</td></tr>
 <tr><td>MAVLink USB</td><td>Bidirectional MAVLink over USB CDC (ESP32-S3/C6)</td></tr>
 <tr><td>Startup delay</td><td>Configurable up to 30 000 ms</td></tr>
@@ -235,7 +231,7 @@
 flowchart LR
   GPS["GNSS/GPS Module<br/>UART / NMEA"]
   FC["Flight Controller<br/>MAVLink / MSP<br/>Parses GPS data<br/>UART TX → ESP32<br/>57600 / 115200 baud"]
-  ESP["OmniRID<br/>ESP32 / S3 / C6<br/>UART2 RX (GPIO16)<br/>Packs ODID messages<br/>Web UI @ 192.168.4.1<br/>OTA updates supported"]
+  ESP["OmniRID<br/>ESP32 / S3 / C6<br/>UART2 RX (GPIO16)<br/>Packs ODID messages<br/>JSON API @ 192.168.4.1<br/>OTA updates supported"]
   WiFi["WiFi Beacon<br/>802.11 b/g/n"]
   BLE["BLE<br/>4.0 / 5.0 LR"]
 
@@ -359,8 +355,6 @@ GPS TX &rarr; FC RX (unchanged)</pre>
 <tr><td>BLE 5.0 LR</td><td class="n">&#x2717;</td><td class="y">&#x2713;</td><td class="n">&#x2717;</td></tr>
 <tr><td>OTA Updates</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
 <tr><td>USB CDC</td><td class="n">&#x2717;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
-<tr><td>WS2812 LED</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
-<tr><td>GPIO Lighting</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
 <tr><td>DroneCAN</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
 <tr><td>MAVLink USB</td><td class="n">&#x2717;</td><td class="y">&#x2713;</td><td class="y">&#x2713;</td></tr>
 </table>

@@ -37,7 +37,7 @@ export const firmwareQuickSteps = [
 
 export const featureGroups = [
   ['Triple protocol input', 'Automatic protocol detection', 'Built-in demo mode', `Web config panel at ${dashboardUrl}`],
-  ['OTA updates', 'Security hardening', 'WS2812 LED support', 'DroneCAN + GPIO lighting'],
+  ['OTA updates', 'Security hardening', 'RGB status LED', 'DroneCAN support'],
   ['Telemetry dashboard', 'Flight-ready config', 'ESP32 target support', 'Manual guide included']
 ]
 

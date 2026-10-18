@@ -2,7 +2,7 @@
 
 > **Rust firmware architecture** — `OmniRID/` workspace.
 > Replaces legacy C firmware `ESP32_DRONE_REMOTE_ID_Firmware/` (deleted).
-> Same FreeRTOS task architecture (rid_task loop, CLI task, web server) but organized as Rust crates.
+> Same FreeRTOS task architecture (rid_task loop, CLI task, headless HTTP API) but organized as Rust crates.
 > The same logical processes and gate chains apply.
 
 Last updated: 2026-09-16 (audited against `OmniRID/firmware/` and `OmniRID/inputs/outputs/` Rust sources). Includes session 2026-09-16 (CI all green): pkcs8 pinned back to 0.10 (2nd time, dependabot PR #37), `OmniRID-Desktop/package-lock.json` committed, unused `noble`/`pcap` optional deps dropped, `node-abi` overridden to 4.35.0 (Electron 44 ABI), orphan `main` branch deleted (default = `universal`).
@@ -28,7 +28,7 @@ Companion files: `todolist/dataflow.md` (field-by-field chains), `todolist/softw
 | `wifi_tx.c` / `wifi.c` | `bsp-esp32` + `out-astm` | `bsp-esp32/src/wifi.rs`, `out-astm/src/wifi.rs` |
 | `ble_tx.c` | `bsp-esp32` + `rid-app` | `bsp-esp32/src/ble.rs`, `rid-app/src/ble4.rs` |
 | `rid_output.c/h` | `rid-core` + `out-astm` | `rid-core/src/hub.rs`, `out-astm/src/lib.rs` |
-| `web_config.c` | `rid-app` + `bsp-esp32` | `rid-app/src/web_config.rs`, `bsp-esp32/src/web.rs` |
+| `web_config.c` | `rid-app` + `bsp-esp32` | `rid-app/src/web_config.rs` (auth/rate-limit only), `bsp-esp32/src/web.rs` (headless JSON API; embedded UI removed 2026-10-18) |
 | `rid_ota.c` | `rid-app` + `bsp-esp32` | `rid-app/src/ota.rs`, `bsp-esp32/src/ota.rs` |
 | `cli.c` | `rid-app` | `src/cli.rs` |
 | `nvs_storage.c` | `rid-app` + `bsp-esp32` | `rid-app/src/nvs.rs`, `bsp-esp32/src/nvs.rs` |
@@ -36,8 +36,8 @@ Companion files: `todolist/dataflow.md` (field-by-field chains), `todolist/softw
 | `rid_security.c` | `rid-core` | `src/security.rs` |
 | `rid_kalman.c` | `rid-core` | `src/kalman.rs` |
 | `led_status.c` | `rid-app` | `src/led_status.rs` |
-| `led_ws2812.c` | `bsp-esp32` + `rid-app` | `bsp-esp32/src/led.rs`, `rid-app/src/led_ws2812.rs` |
-| `rid_lighting.c` | `rid-app` | `src/lighting.rs` |
+| `led_ws2812.c` | — | ❌ removed 2026-10-18 (dynamic lights dropped; PWM RGB status LED only) |
+| `rid_lighting.c` | — | ❌ removed 2026-10-18 (5-ch GPIO lighting dropped) |
 | `rid_mavlink_tx.c` | `proto-usb-mavlink` | `inputs/proto-usb-mavlink/src/tx.rs` |
 | `rid_mavlink_usb.c` | `proto-usb-mavlink` | `inputs/proto-usb-mavlink/src/lib.rs` |
 | `opendroneid.c` + `mav2odid.c` | `opendroneid-sys` | `external-libs/opendroneid-sys/src/lib.rs` (FFI bindings) |
@@ -78,13 +78,13 @@ Inside `esp_rid_init()` (`app/src/controller.rs`):
 | 14 | `ble_tx_set_power(9)` | `app/src/controller.rs` | |
 | 15 | if `options & (bit6|bit7)` or `mavlink_usb_enable` → `rid_mavlink_tx_init` + create task | `app/src/controller.rs` | |
 | 16 | if `options & AUTH_ED25519` → `rid_auth_init(auth_private_key)`; `g_state.auth_enabled = rid_auth_enabled()` | `rid-core/src/auth.rs` | key only parsed here, at boot |
-| 17 | `led_ws2812_init` | `bsp-esp32/src/led.rs` | RMT |
-| 18 | if any `lighting_pins[i] >= 0` → `rid_lighting_init` | `rid-app/src/lighting.rs` | runs once, not per pin |
+| 17 | — (removed 2026-10-18) `led_ws2812_init` | — | RMT no longer used |
+| 18 | — (removed 2026-10-18) `rid_lighting_init` | — | 5-ch GPIO lighting dropped |
 | 19 | if both dronecan pins set → `rid_dronecan_init` | `inputs/proto-dronecan/src/parser.rs` | TWAI install+start |
 | 20 | if `mavlink_usb_enable` → `rid_mavlink_usb_init` | `inputs/proto-usb-mavlink/src/lib.rs` | may fail if console owns the UART |
 | 21 | if `uas_id=="ESP32-RID-001"` or `operator_id=="OP-UNKNOWN"` → MAC-based IDs + NVS save | `app/src/controller.rs` | |
 | 22 | `led_status_reconfigure` | `rid-app/src/led_status.rs` | first LED init (LEDC) |
-| 23 | `web_config_init(webserver_en)` | `rid-app/src/web_config.rs` + `bsp-esp32/src/web.rs` | starts HTTP server, 10 handlers |
+| 23 | `web_config_init(webserver_en)` | `rid-app/src/web_config.rs` + `bsp-esp32/src/web.rs` | starts the headless JSON API httpd (CORS-enabled, no embedded UI) |
 | 24 | `cli_init()` → creates `cli_task` | `rid-app/src/cli.rs` | |
 | 25 | `rid_kalman_init(&g_kalman)` | `rid-core/src/kalman.rs` | |
 | 26 | **`esp_rid_start()`** (separate call from main) creates `rid_task` | `app/src/controller.rs` | |
@@ -99,7 +99,7 @@ Inside `esp_rid_init()` (`app/src/controller.rs`):
 | `rid_task` | `app/src/controller.rs` | 4096 | 5 | core 100 ms loop (§5), subscribed to WDT |
 | `cli_task` | `rid-app/src/cli.rs` | 4096 | 5 | reads UART0 stdin, executes commands (§6.11) |
 | `rid_mavlink_tx` | `inputs/proto-usb-mavlink/src/tx.rs` | 2048 | 3 | heartbeat 1 s + ODID_SYSTEM 6 s on UART1 + USB mirror (§6.16) — **only if** options bit6/bit7 or `mavlink_usb_enable` |
-| `httpd` (web) | `rid-app/src/web_config.rs` | IDF default (4096) | 5 | config UI + `/api/*`; one task per open socket |
+| `httpd` (web API) | `rid-app/src/web_config.rs` | IDF default (4096) | 5 | headless `/api/*` JSON (config from the external OmniRID PWA); one task per open socket |
 | `httpd` (OTA) | `rid-app/src/ota.rs` | IDF default | 5 | only in OTA (GPIO) mode: `/`, `/update`, `/factory_reset`, `/rollback` |
 | WiFi / BLE / sys_evt / esp_timer / ipc / idle | IDF | IDF | — | internal stacks |
 
@@ -114,7 +114,6 @@ Note: `xTaskCreate` / `esp_task_wdt_add` return values are **now checked** (erro
 | UART1 RX | `driver/uart` | RX FIFO → ring buffer (256 B) | parsers + detect: `uart_read_bytes(..., 0)` |
 | UART0 (console) | console driver | stdin ring | `cli_task` `fgets` |
 | TWAI/CAN | `driver/twai` | RX → queue (len 10) | `rid_dronecan_get` `twai_receive(0)` |
-| RMT | `driver/rmt` | WS2812 TX | `led_ws2812_set_rgb` |
 | LEDC | `driver/ledc` | PWM hardware | `led_status_tick` |
 | GPIO (OTA trigger) | `driver/gpio` | none (polled once at boot) | `rid_ota_check_and_run` |
 | USB Serial/JTAG | console | console RX | `rid_mavlink_usb_write` |
@@ -146,11 +145,9 @@ Period 100 ms (`vTaskDelay`), WDT reset. `g_running` toggled by `esp_rid_start/s
 | Q | **absolute 10 s timeout** on `last_update_ms` → `gps_valid=false` + WARN | timeout too short/long |
 | R | **only if `had_gps`** → `update_transmissions()` (§8); on success `led_status_tx_flash` | bcast_powerup is ineffective when no parser data (see §8) |
 | S | LED state (LOCKED>DEMO>GPS_OK>NO_GPS) + `led_status_tick` | |
-| T | WS2812 green (GPS) / amber (no GPS) | |
-| U | `rid_lighting_set_state(armed, gps_valid)` + `tick` | |
-| V | optional RID log line (`PRINT_RID_MAVLINK`) | |
-| W | status box every 100 loops, system box every 500 | |
-| X | `vTaskDelay(100 ms)` + `esp_task_wdt_reset()` | |
+| T | optional RID log line (`PRINT_RID_MAVLINK`) | |
+| U | status box every 100 loops, system box every 500 | |
+| V | `vTaskDelay(100 ms)` + `esp_task_wdt_reset()` | |
 
 ---
 
@@ -204,9 +201,11 @@ Period 100 ms (`vTaskDelay`), WDT reset. `g_running` toggled by `esp_rid_start/s
 - `ble_tx_transmit_lr`: full pack (≤254 B) via `build_uas()` on **instance 0** (1M, legacy-compatible) + **instance 1** (Coded PHY). Only if ext-adv enabled. ⚠️ C6: no-op in practice — see `caps.rs` vs `ble.rs` inconsistency (tracked in `softwarestatus.md` P0).
 - `ble_tx_set_power`: clamps to [-12..9] dBm, level = `(dbm+12)/3`.
 
-### 6.9 Web server — `rid-app/src/web_config.rs` + `bsp-esp32/src/web.rs`
-- Init: `log_init` installs a `vprintf` hook feeding a 64×240 B log ring; httpd on port 80 (max 16 handlers, LRU purge) + 10 handlers.
-- Endpoints: `/` (HTML from embedded files), `/style.css`, `/app.js` (cache 86400), `GET /api/config`, `POST /api/config` (JSON parse → validate ranges → `esp_rid_set_config` → NVS save), `GET /api/status`, `POST /api/reset` (factory reset + restart), `POST /ota` (SHA-256 streaming + `X-Expected-SHA256`; rejected at lock≥2; **no signature check**), `GET /api/logs`, `POST /api/command` (restart/reboot/reset/factory/status/…).
+### 6.9 Headless JSON API — `rid-app/src/web_config.rs` + `bsp-esp32/src/web.rs`
+- Init: `log_init` installs a `vprintf` hook feeding a 64×240 B log ring; httpd on port 80 (max 16 handlers, LRU purge).
+- **The embedded web UI was removed on 2026-10-18** (`rid-app/webui/` + `webui.rs` deleted): the firmware serves no HTML/CSS/JS. All configuration UI and logic live in the external OmniRID PWA (`OmniRID-app/`, hosted on GitHub Pages), which connects to the device AP and drives the JSON API directly.
+- Endpoints: `GET /api/config`, `POST /api/config` (JSON parse → validate ranges → `esp_rid_set_config` → NVS save), `GET /api/status`, `POST /api/reset` (factory reset + restart), `POST /ota` (SHA-256 streaming + `X-Expected-SHA256`; rejected at lock≥2; **no signature check**), `GET /api/logs`, `POST /api/command` (restart/reboot/reset/factory/status/…).
+- CORS: every response carries `Access-Control-Allow-Origin: *` and each route registers an `OPTIONS` preflight handler (allowed headers: `Content-Type`, `X-Signature`, `X-Expected-SHA256`) so the PWA on another origin can call the API from the browser.
 - Locking (`get_lock_level`): lock_level 2 is also **burned into eFuse** (`EFUSE_BLK3`, magic `RID!`) at config write time; ≥1 requires `X-Signature` (Ed25519 over SHA-256 body, verified against 5 public keys) for config POST, factory reset and privileged commands. Rate limit (10 fails/60 s) applies to config POST and factory reset **only** — `/api/command` requires the signature but has **no rate limit**.
 
 ### 6.10 OTA — `rid-app/src/ota.rs` + `bsp-esp32/src/ota.rs`
@@ -217,13 +216,13 @@ Period 100 ms (`vTaskDelay`), WDT reset. `g_running` toggled by `esp_rid_start/s
 
 ### 6.11 CLI — `rid-app/src/cli.rs`
 - Task: `fgets` on UART0 stdin, `parse_line`, dispatch. Commands: `help, status, config [set <field> <value>], restart, reboot, reset, factory, protocol, heap, log_level, patrol, transmit, mac, uptime, kalman`.
-- `config set` fields: uas_id, operator_id, self_id, wifi_ssid, wifi_password, ua_type, id_type, wifi_channel, mavlink_sysid, bcast_powerup, webserver, lock_level, baud_rate, wifi_power_dbm, wifi/wifi_nan/ble4/ble5 rates+power, operator_lat/lon/alt, start_delay_ms, **region**. **Cannot** set ws2812, lighting, dronecan, ota_trigger_gpio or auth key.
+- `config set` fields: uas_id, operator_id, self_id, wifi_ssid, wifi_password, ua_type, id_type, wifi_channel, mavlink_sysid, bcast_powerup, webserver, lock_level, baud_rate, wifi_power_dbm, wifi/wifi_nan/ble4/ble5 rates+power, operator_lat/lon/alt, start_delay_ms, **region**. **Cannot** set dronecan, ota_trigger_gpio or auth key (WS2812/lighting fields no longer exist — removed 2026-10-18).
 - `lock_level` via CLI has **no eFuse handling** and no signature requirement (unlike web).
 - All changes go through `esp_rid_set_config` (NVS save + live re-init of UART/AP/LED/BLE).
 
 ### 6.12 NVS — `rid-app/src/nvs.rs` + `bsp-esp32/src/nvs.rs`
 - Namespace `esp_rid`. Persisted: uas_id, op_id, self_id, uas_id_2, wifi_ssid, wifi_pass, ua_type, id_type, ua_type_2, id_type_2, wifi_ch, websrv_en, mav_sysid, bcast_pwr, tx_modes, **region**, options, lock_lvl, led_r/g/b, baud, wifi_pwr/bcn/nan, bt4_rate/pwr, bt5_rate/pwr, op_lat/lon/alt, pubkey1..5.
-- **FIXED [#25]** — `protocol`, `uart_port`, `tx_pin`, `rx_pin`, `ws2812_gpio`, `ws2812_brightness`, `lighting_*`, `dronecan_*`, `mavlink_usb_enable`, `ota_trigger_gpio`, `auth_private_key`, `start_delay_ms` are now persisted via get_blob/set_blob; no longer lost on reboot (see `softwarestatus.md`).
+- **FIXED [#25]** — `protocol`, `uart_port`, `tx_pin`, `rx_pin`, `dronecan_*`, `mavlink_usb_enable`, `ota_trigger_gpio`, `auth_private_key`, `start_delay_ms` are now persisted via get_blob/set_blob; no longer lost on reboot (see `softwarestatus.md`). (`ws2812_*`/`lighting_*` gone with the dynamic lights, 2026-10-18.)
 - `operator_lat/lon` stored as **float** in NVS although the fields are double → precision loss at ~1 cm.
 - `nvs_storage_reset_preserve_keys`: erase-all then re-write pubkey1..5.
 
@@ -237,10 +236,9 @@ Period 100 ms (`vTaskDelay`), WDT reset. `g_running` toggled by `esp_rid_start/s
 ### 6.14 Kalman — `rid-core/src/kalman.rs`
 - 3×1D filters; `RID_KALMAN_TIMEOUT_US = 3 s`; lat/lon in degrees with velocity in deg/s; speed/climb/heading derived from filter velocities (`rid_kalman_get`).
 
-### 6.15 LEDs — `rid-app/src/led_status.rs`, `bsp-esp32/src/led.rs`, `rid-app/src/lighting.rs`
+### 6.15 LEDs — `rid-app/src/led_status.rs`, `bsp-esp32/src/led.rs`
 - Status LED (LEDC, 5 kHz): states BOOT(blue pulse), NO_GPS(amber 1 Hz), GPS_OK(green solid), DEMO(purple pulse), LOCKED(red double), OTA(rainbow), ERROR(red 4 Hz); TX flash = white 80 ms override.
-- WS2812 (RMT): `set_rgb` scales by brightness, GRB order; green on GPS, amber otherwise.
-- Lighting (GPIO): 6 patterns (off/solid/blink-slow/blink-fast/blink-armed/flash-on-gps), per-channel phase offset; inputs `armed` + `gps_valid`.
+- This RGB status LED is the **only** light source: WS2812 (`led_ws2812.rs`, RMT) and the 5-ch GPIO lighting (`lighting.rs`) were removed 2026-10-18.
 
 ### 6.16 MAVLink TX / USB — `inputs/proto-usb-mavlink/src/tx.rs` + `inputs/proto-usb-mavlink/src/lib.rs`
 - Task loop 100 ms: HEARTBEAT (MAV_TYPE_ODID, state ACTIVE) every 1 s; ODID_SYSTEM every 6 s with operator location from parser if fresh, else 0/0/-1000. Writes to **the same UART1** used by the parser + mirrors to USB.
@@ -295,7 +293,7 @@ Debug: find which gate blocks — that is usually the answer.
 | MAVLink configured but no data | `sysid_filter` | set 0 = any sysid; freshness 5 s |
 | BLE4 nothing received | legacy 31 B rotation | `ble4_count` increments? power; ext-adv instance 2 |
 | BLE5 nothing received | ext adv only compiled on S3/C6 | target support; `ble5_count` |
-| Web UI unreachable | `webserver_en=0` or eFuse lock | boot log; AP SSID visible? |
+| Config unreachable from PWA | `webserver_en=0`, eFuse lock, or CORS/proxy path wrong | boot log; AP SSID visible? `curl http://192.168.4.1/api/capabilities` |
 | Config reverts after reboot | ~~§6.12 NVS gaps~~ → **FIXED #25** | all config fields now persisted via get_blob/set_blob |
 | Auth pages missing | `rid_auth_init` at boot only + key not persisted (**FIXED #25**) | key persisted in NVS; reboot not needed; check bitlen 256 |
 | OTA page loads but stalls | OTA idle counter | ~60 s stall timeout |
@@ -310,7 +308,7 @@ Debug: find which gate blocks — that is usually the answer.
 
 - AUTO-mode UART starvation / default-NMEA misclassification (urgent).
 - `g_config` / `g_state` races; `portMAX_DELAY` in `rid_task`; WDT add unchecked.
-- ~~NVS persistence gaps (protocol, pins, ws2812, lighting, dronecan, mavlink_usb, ota_gpio, auth key, start_delay_ms)~~ → **FIXED [#25]** — full config persisted via get_blob/set_blob.
+- ~~NVS persistence gaps (protocol, pins, dronecan, mavlink_usb, ota_gpio, auth key, start_delay_ms)~~ → **FIXED [#25]** — full config persisted via get_blob/set_blob. (ws2812/lighting fields removed 2026-10-18.)
 - ~~MSP framing off-by-one~~ → **FIXED [#18]** — standard MSP v1 framing.
 - **⚠ `rid_mavlink_usb` vs console** — Rust port uses the USB-Serial/JTAG peripheral (`bsp-esp32/src/usb.rs`), not UART0 as in C, so the original UART0 clash is gone architecturally; on C3/C6 the same USB peripheral may carry console output — **verify at runtime/CI** — **OPEN #22**.
 - ~~Web `/ota` has no signature check at lock=1~~ → **FIXED [#20]** — `ota.rs` requires `X-Signature` (Ed25519) at lock≥1, rejects at lock≥2.

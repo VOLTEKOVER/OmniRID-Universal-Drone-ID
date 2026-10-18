@@ -5,11 +5,11 @@
 //!
 //! The `Controller` keeps the full BSP config, derives the hub-facing
 //! `rid_interface::Config` and drives the scheduler. The hardware (parsers as
-//! `GpsSource`, radios as `Transmitter`, NVS, web server, LEDC/RMT) is
+//! `GpsSource`, radios as `Transmitter`, NVS, web server, LEDC) is
 //! injected by the BSP, so everything here is host-testable.
 //!
-//! Also provides the `/api/capabilities` build descriptor for the adaptive
-//! web UI (Fase 5) and the JSON payloads of the three API endpoints
+//! Also provides the `/api/capabilities` build descriptor for the external
+//! OmniRID PWA (Fase 5) and the JSON payloads of the three API endpoints
 //! (`/api/config`, `/api/status`, `/api/capabilities`).
 #![no_std]
 

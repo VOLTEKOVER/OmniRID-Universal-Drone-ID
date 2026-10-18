@@ -43,8 +43,6 @@ GND             ->   GND
 | UART TX (default) | GPIO17 | GPIO17 | GPIO17 |
 | UART RX (default) | GPIO18 | GPIO18 | GPIO18 |
 | Alt UART RX | 4, 26 | 4, 5 | 0, 1 |
-| RGB LED R/G/B | Configurable via web UI (default -1) | | |
-| WS2812 LED | Configurable via web UI (default -1) | | |
-| Lighting 1-5 | 5 independent outputs, any GPIO, 6 patterns, configurable phase | | |
-| DroneCAN RX/TX | Configurable via web UI (default -1) | | |
-| OTA Trigger | Configurable via web UI (default -1) | | |
+| RGB LED R/G/B | Configurable via app (default -1) | | |
+| DroneCAN RX/TX | Configurable via app (default -1) | | |
+| OTA Trigger | Configurable via app (default -1) | | |

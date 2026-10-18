@@ -1,8 +1,7 @@
-//! ESP-IDF LED status output: LEDC PWM for bi-colour RGB LEDs and
-//! external GPIO lighting pins.
+//! ESP-IDF LED status output: LEDC PWM for the RGB status LED.
 //!
-//! Port of `led_status.c` / `led_ws2812.c` hardware glue.  The pure-logic
-//! colour-mapping lives in `rid_app::led_status` / `rid_app::led_ws2812`.
+//! Port of the LED glue of `led_status.c`.  The pure-logic colour mapping
+//! lives in `rid_app::led_status`.
 
 use esp_idf_svc as _;
 use esp_idf_svc::sys::{self as sys};
@@ -80,16 +79,6 @@ pub fn set_rgb(r: u32, g: u32, b: u32) {
             sys::ledc_set_duty(sys::ledc_mode_t_LEDC_LOW_SPEED_MODE, LED_B.channel as _, b);
             sys::ledc_update_duty(sys::ledc_mode_t_LEDC_LOW_SPEED_MODE, LED_B.channel as _);
         }
-    }
-}
-
-/// Set a single external lighting GPIO on/off.
-pub fn set_gpio(pin: i8, on: bool) {
-    if pin < 0 {
-        return;
-    }
-    unsafe {
-        sys::gpio_set_level(pin as _, on as _);
     }
 }
 

@@ -378,7 +378,7 @@ esptool.py --chip esp32s3 --port COM3 --baud 921200 \\
           '<b>Wait 10-15 seconds</b> for the ESP32 to boot. The RGB LED (if configured) shows status: amber = no fix, green = fix OK, white flash on each transmission.',
           '<b>Scan for WiFi</b> on your phone or laptop. You should see a network named <b>ESP-RID</b> (or your custom SSID).',
           '<b>Connect to ESP-RID</b> (no password by default).',
-          '<b>Open a browser</b> and navigate to <code>http://192.168.4.1</code>. The configuration page should load.',
+          '<b>Open the OmniRID app</b> (this PWA) and connect it to the device: the firmware is headless and exposes only a JSON API at <code>http://192.168.4.1</code>, which the app drives.',
           '<b>Check the Status section</b> — in demo mode, you\u2019ll see simulated GPS patrol data. With an FC connected, it shows the detected protocol and live GPS data.',
           '<b>Verify Remote ID broadcast</b> — use a smartphone app like <i>Drone Scanner</i> (iOS/Android) or <i>OpenDroneID Viewer</i> (Android) to confirm that Remote ID messages are being received.'
         ]
@@ -444,11 +444,11 @@ esptool.py --chip esp32s3 --port COM3 --baud 921200 \\
     blocks: [
       {
         type: 'p',
-        html: 'Connecting to the web UI is described in <a href="#guide-webui">Web Interface Guide → Accessing the Web UI</a>. All settings can also be accessed via the REST API (see below).'
+        html: 'Connecting to the device is described in <a href="#guide-webui">Web Interface Guide → Accessing the App</a>. All settings are also available via the headless REST API (see below) — the firmware serves no page of its own.'
       },
       {
         type: 'h',
-        text: 'Parameter Reference (48 Parameters)'
+        text: 'Parameter Reference (43 Parameters)'
       },
       {
         type: 'table',
@@ -490,18 +490,13 @@ esptool.py --chip esp32s3 --port COM3 --baud 921200 \\
           ['34', 'LED Red GPIO', '<code>led_r_gpio</code>', 'int8', '-1 / GPIO', '-1', 'RGB LED red channel GPIO (-1 = disabled)'],
           ['35', 'LED Green GPIO', '<code>led_g_gpio</code>', 'int8', '-1 / GPIO', '-1', 'RGB LED green channel GPIO (-1 = disabled)'],
           ['36', 'LED Blue GPIO', '<code>led_b_gpio</code>', 'int8', '-1 / GPIO', '-1', 'RGB LED blue channel GPIO (-1 = disabled)'],
-          ['37', 'WS2812 GPIO', '<code>ws2812_gpio</code>', 'int8', '-1 / GPIO', '-1', 'WS2812 addressable RGB LED GPIO (-1 = disabled)'],
-          ['38', 'WS2812 Brightness', '<code>ws2812_brightness</code>', 'uint8', '0-100', '16', 'WS2812 brightness percentage'],
-          ['39', 'Lighting Pin 0-4', '<code>lighting_pin_0-4</code>', 'int8', '-1 / GPIO', '-1', 'GPIO for external lighting output channel (-1 = disabled)'],
-          ['40', 'Lighting Pattern 0-4', '<code>lighting_pattern_0-4</code>', 'uint8', '0-5', '0', '0=OFF, 1=SOLID, 2=BLINK_SLOW, 3=BLINK_FAST, 4=ARMED, 5=GPS_FLASH'],
-          ['41', 'Lighting Phase 0-4', '<code>lighting_phase_0-4</code>', 'int16', 'any', '0', 'Per-channel phase offset in milliseconds'],
-          ['42', 'DroneCAN RX GPIO', '<code>dronecan_rx_gpio</code>', 'int8', '-1 / GPIO', '-1', 'DroneCAN CAN bus RX GPIO (-1 = disabled)'],
-          ['43', 'DroneCAN TX GPIO', '<code>dronecan_tx_gpio</code>', 'int8', '-1 / GPIO', '-1', 'DroneCAN CAN bus TX GPIO (-1 = disabled)'],
-          ['44', 'DroneCAN Bitrate', '<code>dronecan_bitrate</code>', 'uint32', 'any', '1000000', 'DroneCAN CAN bus bitrate in bps'],
-          ['45', 'MAVLink USB', '<code>mavlink_usb_enable</code>', 'bool', '0/1', '0', 'Enable MAVLink over USB CDC serial (S3/C6 only)'],
-          ['46', 'OTA Trigger GPIO', '<code>ota_trigger_gpio</code>', 'int8', '-1 / GPIO', '-1', 'Boot-time GPIO to enter OTA update mode (-1 = disabled)'],
-          ['47', 'Auth Private Key', '<code>auth_private_key</code>', 'string', '0-512 chars', '""', 'Ed25519 private key in PEM format for signing auth pages'],
-          ['48', 'Startup Delay', '<code>start_delay_ms</code>', 'uint32', '0-30000 ms', '10000', 'Delay before transmission starts after boot']
+          ['37', 'DroneCAN RX GPIO', '<code>dronecan_rx_gpio</code>', 'int8', '-1 / GPIO', '-1', 'DroneCAN CAN bus RX GPIO (-1 = disabled)'],
+          ['38', 'DroneCAN TX GPIO', '<code>dronecan_tx_gpio</code>', 'int8', '-1 / GPIO', '-1', 'DroneCAN CAN bus TX GPIO (-1 = disabled)'],
+          ['39', 'DroneCAN Bitrate', '<code>dronecan_bitrate</code>', 'uint32', 'any', '1000000', 'DroneCAN CAN bus bitrate in bps'],
+          ['40', 'MAVLink USB', '<code>mavlink_usb_enable</code>', 'bool', '0/1', '0', 'Enable MAVLink over USB CDC serial (S3/C6 only)'],
+          ['41', 'OTA Trigger GPIO', '<code>ota_trigger_gpio</code>', 'int8', '-1 / GPIO', '-1', 'Boot-time GPIO to enter OTA update mode (-1 = disabled)'],
+          ['42', 'Auth Private Key', '<code>auth_private_key</code>', 'string', '0-512 chars', '""', 'Ed25519 private key in PEM format for signing auth pages'],
+          ['43', 'Startup Delay', '<code>start_delay_ms</code>', 'uint32', '0-30000 ms', '10000', 'Delay before transmission starts after boot']
         ]
       },
       {
@@ -516,7 +511,6 @@ esptool.py --chip esp32s3 --port COM3 --baud 921200 \\
         type: 'table',
         cols: ['Endpoint', 'Method', 'Description'],
         rows: [
-          ['<code>/</code>', 'GET', 'Web configuration page (HTML)'],
           ['<code>/api/config</code>', 'GET', 'Get current configuration as JSON'],
           ['<code>/api/config</code>', 'POST', 'Set configuration. Send JSON body with parameters to update'],
           ['<code>/api/status</code>', 'GET', 'Get live telemetry status as JSON (protocol, GPS, counters)'],
@@ -550,7 +544,7 @@ esptool.py --chip esp32s3 --port COM3 --baud 921200 \\
       },
       {
         type: 'p',
-        html: 'A subset of configuration parameters is stored in the ESP32\u2019s Non-Volatile Storage (NVS) flash memory under the namespace <code>esp_rid</code> and persists across power cycles, reboots, and OTA updates. The full key layout is in <a href="#guide-techref">Technical Reference → NVS Key Layout</a>. Parameters that are not persisted (protocol, UART port and TX/RX pins, WS2812, GPIO lighting, DroneCAN, MAVLink USB, OTA trigger GPIO, auth private key, startup delay) are runtime-only and reset to defaults on reboot. A factory reset erases the <code>esp_rid</code> namespace and restores defaults.'
+        html: 'A subset of configuration parameters is stored in the ESP32\u2019s Non-Volatile Storage (NVS) flash memory under the namespace <code>esp_rid</code> and persists across power cycles, reboots, and OTA updates. The full key layout is in <a href="#guide-techref">Technical Reference → NVS Key Layout</a>. Parameters that are not persisted (protocol, UART port and TX/RX pins, DroneCAN, MAVLink USB, OTA trigger GPIO, auth private key, startup delay) are runtime-only and reset to defaults on reboot. A factory reset erases the <code>esp_rid</code> namespace and restores defaults.'
       }
     ]
   },
@@ -673,11 +667,11 @@ esptool.py --chip esp32c6 --port COM3 write_flash 0x0 target/riscv32imc-unknown-
         type: 'callout',
         tone: 'info',
         title: 'Note',
-        html: 'The web UI is fully functional as a standalone demo. The configurator, dashboard, console, and OTA upload interfaces can be explored without hardware. When running on the actual ESP32, the UI talks to the REST API at <code>192.168.4.1</code>.'
+        html: 'This app is the only configuration interface: the firmware is headless and serves only a JSON REST API. The configurator, dashboard, console, and OTA upload interfaces can be explored without hardware (virtual device mode); with a real ESP32 the app talks to the API at <code>192.168.4.1</code>.'
       },
       {
         type: 'h',
-        text: 'Accessing the Web UI'
+        text: 'Accessing the App'
       },
       {
         type: 'ol',
@@ -685,7 +679,7 @@ esptool.py --chip esp32c6 --port COM3 write_flash 0x0 target/riscv32imc-unknown-
           'Power the OmniRID (USB or battery).',
           'On your phone, tablet, or PC, scan for WiFi networks.',
           'Connect to <b>ESP-RID</b> (no password by default).',
-          'Open a browser and navigate to <b>http://192.168.4.1</b>.'
+          'Open the OmniRID app (this PWA). It reaches the device API at <code>192.168.4.1</code> — the firmware hosts no page of its own.'
         ]
       },
       {
@@ -812,8 +806,6 @@ esptool.py --chip esp32c6 --port COM3 write_flash 0x0 target/riscv32imc-unknown-
         type: 'ul',
         items: [
           '<b>Status LED (R/G/B):</b> Three independent GPIO pins for RGB status LED. 7 states via PWM: BOOT, NO_GPS, GPS_OK, DEMO, LOCKED, OTA, ERROR.',
-          '<b>WS2812 LED:</b> Addressable RGB LED driven via RMT. Configurable GPIO and brightness (0-100%).',
-          '<b>GPIO Lighting:</b> 5 independent lighting outputs. Each channel configurable with GPIO pin, pattern (OFF/SOLID/BLINK_SLOW/BLINK_FAST/ARMED/GPS_FLASH), and phase offset in milliseconds.',
           '<b>DroneCAN:</b> CAN bus receiver. Configurable RX/TX GPIO pins and bitrate (default 1 Mbps). Decodes <code>uavcan.equipment.gnss.Fix2</code>.',
           '<b>UART Pins:</b> Select UART peripheral port (UART0/1/2) and assign any GPIO for TX and RX.',
           '<b>MAVLink USB:</b> Enable MAVLink over USB CDC serial transport (ESP32-S3/C6 only).',
@@ -879,7 +871,7 @@ esptool.py --chip esp32c6 --port COM3 write_flash 0x0 target/riscv32imc-unknown-
         type: 'callout',
         tone: 'info',
         title: 'Status',
-        html: 'OTA is implemented with client-side SHA-256 verification (Web Crypto API) and server-side Ed25519 signature verification (lock level ≥ 1). The web UI computes a SHA-256 hash of the firmware binary before upload and sends it via the <code>X-Expected-SHA256</code> header. The <code>rid-core::security</code> crate handles all cryptographic verification. The partition scheme is factory + a single OTA slot (<code>ota_0</code>); a failed update rolls back to the factory image.'
+        html: 'OTA is implemented with client-side SHA-256 verification (Web Crypto API) and server-side Ed25519 signature verification (lock level ≥ 1). The app computes a SHA-256 hash of the firmware binary before upload and sends it via the <code>X-Expected-SHA256</code> header. The <code>rid-core::security</code> crate handles all cryptographic verification. The partition scheme is factory + a single OTA slot (<code>ota_0</code>); a failed update rolls back to the factory image.'
       },
       {
         type: 'h',
@@ -909,7 +901,7 @@ esptool.py --chip esp32c6 --port COM3 write_flash 0x0 target/riscv32imc-unknown-
         type: 'ol',
         items: [
           'Build the firmware (see <a href="#guide-building">section 4 → Building from Source</a>) or download a pre-built <code>.bin</code> from the project\u2019s releases.',
-          'Open the Web UI at <code>http://192.168.4.1</code>.',
+          'Open the OmniRID app and go to the <b>Firmware</b> page.',
           'Scroll to the <b>Firmware Update</b> section.',
           'Click <b>Select .bin file</b> and choose your firmware binary.',
           'The browser computes a <b>SHA-256 hash</b> of the file (via Web Crypto API) and sends it as the <code>X-Expected-SHA256</code> header.',
@@ -1026,7 +1018,7 @@ esptool.py --chip esp32c6 --port COM3 write_flash 0x0 target/riscv32imc-unknown-
         type: 'table',
         cols: ['Level', 'Name', 'Effect'],
         rows: [
-          ['0', 'Normal', 'All configuration changes are allowed via web UI and REST API. No authentication required.'],
+          ['0', 'Normal', 'All configuration changes are allowed via the app and REST API. No authentication required.'],
           ['1', 'Locked', 'Configuration changes require Ed25519-signed commands authenticated with a configured public key. Unsigned POST requests to <code>/api/config</code> are rejected. OTA updates require <code>X-Signature</code> header.'],
           ['2', 'eFuse Permanent', 'Same as Level 1, but the lock level is burned into eFuse and cannot be changed. This is an <b>irreversible</b> operation. Only use when the device is in its final deployment configuration.']
         ]
@@ -1100,7 +1092,7 @@ cat public.pem`
       },
       {
         type: 'p',
-        html: 'The configuration access point can be password-protected. Set a WiFi password in the Web UI to prevent unauthorized access to the configuration interface. The password is stored in NVS and can be up to 20 characters.'
+        html: 'The configuration access point can be password-protected. Set a WiFi password from the app\u2019s Access Point page to prevent unauthorized access to the device API. The password is stored in NVS and can be up to 20 characters.'
       },
       {
         type: 'callout',
@@ -1250,8 +1242,6 @@ cat public.pem`
           ['Lock Level 1 (Signed)', '✓', '✓', '✓'],
           ['Lock Level 2 (eFuse)', '✓', '✓', '✓'],
           ['Status LED (GPIO)', '✓', '✓', '✓'],
-          ['WS2812 Addressable LED', '✓', '✓', '✓'],
-          ['GPIO Lighting (5-ch)', '✓', '✓', '✓'],
           ['DroneCAN (CAN Bus)', '✓', '✓', '✓'],
           ['MAVLink USB Transport', '✗', '✓', '✓'],
           ['Kalman Position Filter', '✓', '✓', '✓'],
@@ -1303,7 +1293,7 @@ cat public.pem`
       },
       {
         type: 'p',
-        html: 'UART pins, RGB LED, WS2812, GPIO lighting, DroneCAN, and OTA trigger pins are all configurable via the web UI at <code>192.168.4.1</code> (any GPIO, default -1).'
+        html: 'UART pins, the RGB status LED, DroneCAN, and OTA trigger pins are all configurable from the app\u2019s Hardware page via <code>POST /api/config</code> (any GPIO, default -1).'
       }
     ]
   },
@@ -1349,7 +1339,7 @@ cat public.pem`
         type: 'ul',
         items: [
           '<b>GPS fix is required</b> for transmissions in the current build — the "Broadcast without GPS" option currently has no practical effect. Check the Status page.',
-          'Verify that transmission modes are enabled in the Web UI (WiFi Beacon, BLE).',
+          'Verify that transmission modes are enabled in the app\u2019s Transmission page (WiFi Beacon, BLE).',
           'If using a phone as a receiver, use a dedicated ODID app (e.g., Drone Scanner, OpenDroneID Viewer).',
           'WiFi Beacon requires the phone to be in range and scanning. Some phones do not passively scan WiFi beacons.',
           'BLE 4.0 is more universally detectable than BLE 5.0 LR. Enable BLE 4.0 if BLE 5.0 is not detected.',
@@ -1500,7 +1490,7 @@ cat public.pem`
       },
       {
         type: 'p',
-        html: 'Runtime-only settings that are <b>not</b> persisted: protocol, UART port and TX/RX pins, WS2812 GPIO/brightness, lighting pins/patterns/phase offsets, DroneCAN RX/TX/bitrate, MAVLink USB, OTA trigger GPIO, auth private key, startup delay.'
+        html: 'Runtime-only settings that are <b>not</b> persisted: protocol, UART port and TX/RX pins, DroneCAN RX/TX/bitrate, MAVLink USB, OTA trigger GPIO, auth private key, startup delay.'
       },
       {
         type: 'h',
@@ -1761,7 +1751,7 @@ cat public.pem`
           'Rust code: <code>cargo fmt</code> (edition 2024), <code>cargo clippy -D warnings</code>.',
           '<code>no_std</code> for firmware crates; <code>std</code> only in <code>bsp-esp32</code>.',
           'Keep <code>unsafe</code> out of core crates (only in hardware glue).',
-          'HTML/CSS: Clean, minimal, responsive. The web UI is embedded and must be compact.'
+          'UI code: Nuxt 4 / Vue 3 in <code>OmniRID-app/</code>; the firmware is headless (no embedded HTML) — all UI lives in the app.'
         ]
       },
       {

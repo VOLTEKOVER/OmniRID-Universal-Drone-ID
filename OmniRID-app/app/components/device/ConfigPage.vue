@@ -176,8 +176,6 @@ const validateField = (field: ConfigField) => {
     message = 'Longitude must be between -180 and 180.'
   } else if (['channel', 'wifi_channel'].includes(field.name) && (Number(text) < 1 || Number(text) > 13 || !Number.isInteger(Number(text)))) {
     message = 'WiFi channel must be an integer from 1 to 13.'
-  } else if (field.name.includes('brightness') && (Number(text) < 0 || Number(text) > 255)) {
-    message = 'Brightness must be between 0 and 255.'
   } else if (field.name.includes('rate') && (Number(text) < 0 || Number(text) > 5)) {
     message = 'Rate must be between 0 and 5 Hz.'
   } else if (field.name === 'startup_delay' && (Number(text) < 0 || Number(text) > 30000)) {

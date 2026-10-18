@@ -6,7 +6,7 @@
 
 use rid_interface::{MAX_KEY_LEN, NUM_KEYS};
 
-use crate::config::{clamp_region, cstr, BspConfig, NUM_LIGHTING_PINS};
+use crate::config::{clamp_region, cstr, BspConfig};
 
 /// Abstract non-volatile key/value store, mirroring the ESP-IDF NVS subset
 /// used by `nvs_storage.c`.
@@ -30,46 +30,6 @@ pub trait NvsStore {
     fn get_blob(&mut self, key: &str, out: &mut [u8]) -> bool;
     fn set_blob(&mut self, key: &str, value: &[u8]);
     fn erase_all(&mut self);
-}
-
-/// Loads a `[i16; N]` blob; on a missing/mismatched blob `out` is left
-/// untouched matching the C `if (nvs_get_...)` guard.
-fn load_blob_i16(nvs: &mut impl NvsStore, key: &str, out: &mut [i16]) {
-    let n = core::mem::size_of_val(out);
-    let mut buf = [0u8; NUM_LIGHTING_PINS * 2];
-    if buf.len() < n || !nvs.get_blob(key, &mut buf[..n]) {
-        return;
-    }
-    for (i, slot) in out.iter_mut().enumerate() {
-        let mut b = [0u8; 2];
-        b.copy_from_slice(&buf[i * 2..i * 2 + 2]);
-        *slot = i16::from_le_bytes(b);
-    }
-}
-
-/// Saves a `[i16; N]` as a little-endian blob.
-fn save_blob_i16(nvs: &mut impl NvsStore, key: &str, value: &[i16]) {
-    let n = core::mem::size_of_val(value);
-    let mut buf = [0u8; NUM_LIGHTING_PINS * 2];
-    if buf.len() < n {
-        return;
-    }
-    for (i, v) in value.iter().enumerate() {
-        buf[i * 2..i * 2 + 2].copy_from_slice(&v.to_le_bytes());
-    }
-    nvs.set_blob(key, &buf[..n]);
-}
-
-/// Reinterprets a `[i8; N]` slice as its byte representation.
-fn i8_bytes(v: &[i8]) -> &[u8] {
-    // SAFETY: `i8` and `u8` have identical size/alignment and there is no
-    // padding, so viewing as bytes is well-defined.
-    unsafe { core::slice::from_raw_parts(v.as_ptr() as *const u8, v.len()) }
-}
-
-/// Reinterprets a byte slice as `[i8; N]` (byte-identical layout).
-fn bytes_i8(v: &[u8]) -> &[i8] {
-    unsafe { core::slice::from_raw_parts(v.as_ptr() as *const i8, v.len()) }
 }
 
 /// Builds the `pubkey%d` NVS key (1-based, like the C `snprintf`).
@@ -126,15 +86,6 @@ pub fn save(cfg: &BspConfig, nvs: &mut impl NvsStore) {
     nvs.set_u8("uart_port", cfg.uart_port);
     nvs.set_u8("tx_pin", cfg.tx_pin);
     nvs.set_u8("rx_pin", cfg.rx_pin);
-
-    // WS2812.
-    nvs.set_i8("ws2812_gpio", cfg.ws2812_gpio);
-    nvs.set_u8("ws2812_br", cfg.ws2812_brightness);
-
-    // External lighting.
-    nvs.set_blob("light_pins", i8_bytes(&cfg.lighting_pins));
-    nvs.set_blob("light_pat", &cfg.lighting_patterns);
-    save_blob_i16(nvs, "light_phase", &cfg.lighting_phase_offsets);
 
     // DroneCAN.
     nvs.set_i8("dronecan_rx", cfg.dronecan_rx_gpio);
@@ -249,29 +200,6 @@ pub fn load(cfg: &mut BspConfig, nvs: &mut impl NvsStore) {
     if let Some(v) = nvs.get_u8("rx_pin") {
         cfg.rx_pin = v;
     }
-
-    // WS2812.
-    if let Some(v) = nvs.get_i8("ws2812_gpio") {
-        cfg.ws2812_gpio = v;
-    }
-    if let Some(v) = nvs.get_u8("ws2812_br") {
-        cfg.ws2812_brightness = v;
-    }
-
-    // External lighting.
-    {
-        let mut buf = [0u8; NUM_LIGHTING_PINS];
-        if nvs.get_blob("light_pins", &mut buf) {
-            cfg.lighting_pins.copy_from_slice(bytes_i8(&buf));
-        }
-    }
-    {
-        let mut buf = [0u8; NUM_LIGHTING_PINS];
-        if nvs.get_blob("light_pat", &mut buf) {
-            cfg.lighting_patterns = buf;
-        }
-    }
-    load_blob_i16(nvs, "light_phase", &mut cfg.lighting_phase_offsets);
 
     // DroneCAN.
     if let Some(v) = nvs.get_i8("dronecan_rx") {
@@ -517,15 +445,6 @@ mod tests {
         cfg.tx_pin = 21;
         cfg.rx_pin = 22;
 
-        // WS2812.
-        cfg.ws2812_gpio = 8;
-        cfg.ws2812_brightness = 42;
-
-        // External lighting.
-        cfg.lighting_pins = [3, -1, 5, -1, 7];
-        cfg.lighting_patterns = [1, 2, 3, 4, 5];
-        cfg.lighting_phase_offsets = [100, 200, -50, 400, 500];
-
         // DroneCAN.
         cfg.dronecan_rx_gpio = 13;
         cfg.dronecan_tx_gpio = 14;
@@ -564,11 +483,6 @@ mod tests {
         cfg.uart_port = 3;
         cfg.tx_pin = 30;
         cfg.rx_pin = 31;
-        cfg.ws2812_gpio = 4;
-        cfg.ws2812_brightness = 99;
-        cfg.lighting_pins = [1, 2, 3, 4, 5];
-        cfg.lighting_patterns = [9, 8, 7, 6, 5];
-        cfg.lighting_phase_offsets = [-1, -2, -3, -4, -5];
         cfg.dronecan_rx_gpio = 15;
         cfg.dronecan_tx_gpio = 16;
         cfg.dronecan_bitrate = 500000;
@@ -592,8 +506,6 @@ mod tests {
         // Overwrite some defaults so we can tell they are kept.
         cfg.protocol = rid_interface::Protocol::Msp;
         cfg.uart_port = 2;
-        cfg.ws2812_gpio = 8;
-        cfg.lighting_pins = [3, 3, 3, 3, 3];
         cfg.dronecan_bitrate = 999;
         cfg.start_delay_ms = 12345;
 
@@ -602,13 +514,8 @@ mod tests {
 
         assert_eq!(cfg.protocol, rid_interface::Protocol::Msp);
         assert_eq!(cfg.uart_port, 2);
-        assert_eq!(cfg.ws2812_gpio, 8);
-        assert_eq!(cfg.lighting_pins, [3, 3, 3, 3, 3]);
         assert_eq!(cfg.dronecan_bitrate, 999);
         assert_eq!(cfg.start_delay_ms, 12345);
-        // Fields not touched keep their pre-load defaults.
-        assert_eq!(cfg.lighting_patterns, [0; 5]);
-        assert_eq!(cfg.lighting_phase_offsets, [0; 5]);
     }
 
     #[test]

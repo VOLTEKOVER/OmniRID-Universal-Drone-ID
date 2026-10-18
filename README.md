@@ -47,7 +47,7 @@ OmniRID is an **open-source Drone ID transmitter** for ESP32 that turns any flig
 1. [Quick Start](#quick-start)
 2. [Features](#features)
 3. [Ground Station (Web App / PWA)](#ground-station-web-app--pwa)
-4. [Web UI & Demo](#web-ui--demo)
+4. [Demo & CLI](#demo--cli)
 5. [Hardware](#hardware)
 6. [Build](#build)
 7. [Project Structure](#project-structure)
@@ -65,8 +65,7 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 1. Open the [Live Demo](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/config(demo).html) (full simulation: GPS, battery, logs).
 2. Flash the firmware to your ESP32 (see [Hardware](#hardware) and [Build](#build)).
 3. Connect to the WiFi network **ESP-RID**.
-4. Open `http://192.168.4.1` to configure the device.
-5. Open the [OmniRID App (PWA)](OmniRID-app/index.html) for the ground station dashboard.
+4. Open the [OmniRID App (PWA)](OmniRID-app/index.html) — the only configuration surface (the firmware is headless: JSON API at `192.168.4.1` only, no embedded web UI).
 
 ---
 
@@ -108,7 +107,7 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 | **Lock levels** | 3 tiers: Normal / Ed25519 signed / eFuse permanent |
 | **OTA updates** | WiFi AP with client-side SHA-256 verification (Web Crypto) + Ed25519 signature |
 | **Hardening** | Safe JSON parsing, rate limiting (10 failed attempts/60 s), bounded strings |
-| **Configuration** | 70+ parameters: UAS ID, rates, power, public keys, auth, lock, lighting |
+| **Configuration** | 70+ parameters (JSON API + CORS): UAS ID, rates, power, public keys, auth, lock, RGB status LED |
 
 ---
 
@@ -164,7 +163,7 @@ On Windows, double-click `start-webui.bat` — it installs deps, starts the dev 
 
 ---
 
-## Web UI & Demo
+## Demo & CLI
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="OmniRID Dashboard" width="820">
@@ -246,8 +245,7 @@ cargo +esp build --target riscv32imc-esp-none-elf   --manifest-path firmware/Car
 |:---:|---|
 | 1 | Flash the firmware to your ESP32 via USB |
 | 2 | Connect to WiFi network **ESP-RID** |
-| 3 | Open `http://192.168.4.1` to configure |
-| 4 | Open the [OmniRID App (PWA)](OmniRID-app/index.html) for the ground station dashboard |
+| 3 | Open the [OmniRID App (PWA)](OmniRID-app/index.html) and connect it to `192.168.4.1` (device AP) to configure |
 
 ---
 
@@ -263,7 +261,7 @@ OmniRID-Universal-Drone-ID/
 │   ├── firmware/                 # Firmware crates
 │   │   ├── app/                  # Binary entry point
 │   │   ├── rid-core/             # Core logic (no_std, alloc)
-│   │   ├── rid-app/              # Application layer (+ web UI)
+│   │   ├── rid-app/              # Application layer (JSON API, CLI, NVS, OTA)
 │   │   ├── rid-interface/        # Shared traits/interfaces
 │   │   └── bsp-sim/              # Simulated board support (host tests)
 │   │
@@ -323,7 +321,7 @@ OmniRID-Universal-Drone-ID/
 | **Quick Start** | [GitHub Pages](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/) |
 | **Technical Wiki** | [Protocols, wiring, API, security](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/guide.html) |
 | **Hardware BOM** | [`docs/prototype_bom.md`](docs/prototype_bom.md) |
-| **API Reference** | Web UI `/api/*` endpoints (documented in the guide) |
+| **API Reference** | Headless `/api/*` JSON endpoints with CORS (documented in the guide) |
 
 ---
 

@@ -117,6 +117,19 @@ pub struct KalmanOut {
     pub heading: i16,
 }
 
+/// Position-estimate covariance (variance) per axis, port of the Kalman
+/// `P00` terms. Used by the diagnostic API ("Kalman covariance export").
+/// `sqrt(cov)` is the 1-sigma position uncertainty in degrees.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct KalmanCovariance {
+    /// Latitude position variance (deg^2), `lat.p00`.
+    pub lat: f32,
+    /// Longitude position variance (deg^2), `lon.p00`.
+    pub lon: f32,
+    /// Altitude position variance (m^2), `alt.p00`.
+    pub alt: f32,
+}
+
 impl Kalman3d {
     /// Port of `rid_kalman_init()`.
     pub fn init(&mut self) {
@@ -196,6 +209,16 @@ impl Kalman3d {
         self.lat.valid = false;
         self.lon.valid = false;
         self.alt.valid = false;
+    }
+
+    /// Current position-estimate covariance per axis (`P00` terms).
+    /// Returns the raw filter variances; callers take `sqrt` for 1-sigma.
+    pub fn covariance(&self) -> KalmanCovariance {
+        KalmanCovariance {
+            lat: self.lat.p00,
+            lon: self.lon.p00,
+            alt: self.alt.p00,
+        }
     }
 }
 
@@ -361,5 +384,21 @@ mod tests {
         let o = k.get();
         assert_close(o.speed, k.lat.v * DEG2M_LAT, 1e-3);
         assert!(o.heading == 0 || o.heading == 360);
+    }
+
+    #[test]
+    fn covariance_returns_p00_per_axis() {
+        let mut k = Kalman3d::default();
+        k.update(45.0, 9.0, 100.0, 0);
+        k.update(45.0, 9.0, 100.0, 1_000_000);
+        let c = k.covariance();
+        // p00 starts at `r` on first update and shrinks with subsequent updates.
+        assert!(c.lat > 0.0);
+        assert!(c.lon > 0.0);
+        assert!(c.alt > 0.0);
+        // Covariance is non-negative (variance).
+        assert!(c.lat.is_sign_positive());
+        assert!(c.lon.is_sign_positive());
+        assert!(c.alt.is_sign_positive());
     }
 }

@@ -1,7 +1,11 @@
-//! ESP-IDF HTTP server: serves the embedded web UI, API endpoints, and OTA.
+//! ESP-IDF HTTP server: JSON API endpoints and OTA only — no embedded UI.
 //!
-//! Port of the HTTP routing from `web_config.c` and `rid_ota.c`.  The pure
-//! logic (JSON rendering, OTA validation, log ring) lives in `rid_app`.
+//! The firmware is headless: all configuration logic lives in the external
+//! OmniRID PWA (GitHub Pages), which talks to these endpoints over the
+//! device's WiFi AP.  Every response carries permissive CORS headers and
+//! each route has an OPTIONS preflight handler so browser clients on a
+//! different origin (the PWA) can call the API directly.  The pure logic
+//! (JSON rendering, OTA validation, log ring) lives in `rid_app`.
 
 use alloc::string::String;
 use alloc::sync::Arc;
@@ -16,12 +20,30 @@ use rid_app::web;
 use rid_app::web_config::{
     handle_command, signed_action_decision, CommandKind, CommandOutcome, ConfigWrite,
 };
-use rid_app::webui;
 
 use crate::SharedState;
 
 /// Response headers for the JSON API.
 const JSON_CT: &[(&str, &str)] = &[("Content-Type", "application/json")];
+
+/// CORS + JSON headers: the PWA is served from another origin (GitHub
+/// Pages) and reaches the device directly over its AP, so every response
+/// must be readable cross-origin.
+const CORS_JSON: &[(&str, &str)] = &[
+    ("Content-Type", "application/json"),
+    ("Access-Control-Allow-Origin", "*"),
+    ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
+    ("Access-Control-Allow-Headers", "Content-Type, X-Signature, X-Expected-SHA256"),
+];
+
+/// Preflight response headers: echo the request headers/methods the PWA
+/// may send (JSON bodies, Ed25519 signatures, OTA hash).
+const CORS_PREFLIGHT: &[(&str, &str)] = &[
+    ("Access-Control-Allow-Origin", "*"),
+    ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
+    ("Access-Control-Allow-Headers", "Content-Type, X-Signature, X-Expected-SHA256"),
+    ("Access-Control-Max-Age", "86400"),
+];
 
 /// Monotonic millisecond clock, mirroring the C `esp_timer_get_time() / 1000`.
 fn now_ms() -> u32 {
@@ -47,10 +69,25 @@ fn write_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>) -> Confi
 }
 
 /// Signed-command gate for `/api/command`. At lock level >= 1 restart/reset
-/// commands require a valid `X-Signature`; there is no rate limiter here.
+/// commands require a valid `X-Signature` and now honour the same failure
+/// rate limiter as config writes (`dataflow.md` #11).
 fn command_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>) -> CommandOutcome {
     let (level, keys) = lock_and_keys(state);
-    handle_command(level, body, sig, &keys)
+    let mut rate = state.sig_rate.lock();
+    handle_command(level, body, sig, &keys, &mut rate, now_ms())
+}
+
+/// Register an OPTIONS preflight handler for a path.
+fn add_cors_preflight(
+    server: &mut EspHttpServer<'static>,
+    path: &'static str,
+) -> Result<(), EspError> {
+    server
+        .fn_handler(path, Method::Options, move |req| -> Result<(), EspIOError> {
+            req.into_response(204, None, CORS_PREFLIGHT)?;
+            Ok(())
+        })
+        .map(|_| ())
 }
 
 /// Start the HTTP server with all API routes.
@@ -61,16 +98,17 @@ fn command_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>) -> Com
 pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError> {
     let mut server = EspHttpServer::new(&Default::default()).expect("httpd start");
 
-    // Serve embedded web UI assets.
-    for asset in webui::ASSETS {
-        let path = asset.path;
-        server
-            .fn_handler(path, Method::Get, move |req| -> Result<(), EspIOError> {
-                let content_type = asset.content_type;
-                req.into_response(200, Some(asset.data), &[("Content-Type", content_type)])?;
-                Ok(())
-            })
-            .expect("register handler");
+    // CORS preflight for every API route (browser clients on another origin).
+    for path in [
+        "/api/config",
+        "/api/status",
+        "/api/capabilities",
+        "/api/reset",
+        "/api/logs",
+        "/api/command",
+        "/ota",
+    ] {
+        add_cors_preflight(&mut server, path)?;
     }
 
     // GET /api/config
@@ -80,11 +118,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
             .fn_handler("/api/config", Method::Get, move |req| -> Result<(), EspIOError> {
                 let lock = state.ctl.lock();
                 let json = lock.config_json();
-                req.into_response(
-                    200,
-                    Some(json.as_str()),
-                    &[("Content-Type", "application/json")],
-                )?;
+                req.into_response(200, Some(json.as_str()), CORS_JSON)?;
                 Ok(())
             })
             .expect("register handler");
@@ -111,7 +145,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         req.into_response(
                             429,
                             Some(r#"{"error":"too many failed signature attempts"}"#),
-                            JSON_CT,
+                            CORS_JSON,
                         )?;
                         return Ok(());
                     }
@@ -119,7 +153,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         req.into_response(
                             401,
                             Some(r#"{"error":"invalid or missing signature"}"#),
-                            JSON_CT,
+                            CORS_JSON,
                         )?;
                         return Ok(());
                     }
@@ -140,11 +174,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                     }
                 };
                 let resp = if result { r#"{"ok":true}"# } else { r#"{"error":"invalid config"}"# };
-                req.into_response(
-                    200,
-                    Some(resp),
-                    &[("Content-Type", "application/json")],
-                )?;
+                req.into_response(200, Some(resp), CORS_JSON)?;
                 Ok(())
             })
             .expect("register handler");
@@ -157,11 +187,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
             .fn_handler("/api/status", Method::Get, move |req| -> Result<(), EspIOError> {
                 let lock = state.ctl.lock();
                 let json = lock.status_json();
-                req.into_response(
-                    200,
-                    Some(json.as_str()),
-                    &[("Content-Type", "application/json")],
-                )?;
+                req.into_response(200, Some(json.as_str()), CORS_JSON)?;
                 Ok(())
             })
             .expect("register handler");
@@ -172,11 +198,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
         server
             .fn_handler("/api/capabilities", Method::Get, move |req| -> Result<(), EspIOError> {
                 let json = crate::capabilities::capabilities_json();
-                req.into_response(
-                    200,
-                    Some(json.as_str()),
-                    &[("Content-Type", "application/json")],
-                )?;
+                req.into_response(200, Some(json.as_str()), CORS_JSON)?;
                 Ok(())
             })
             .expect("register handler");
@@ -202,7 +224,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         req.into_response(
                             429,
                             Some(r#"{"error":"too many failed signature attempts"}"#),
-                            JSON_CT,
+                            CORS_JSON,
                         )?;
                         return Ok(());
                     }
@@ -210,7 +232,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         req.into_response(
                             401,
                             Some(r#"{"error":"invalid or missing signature"}"#),
-                            JSON_CT,
+                            CORS_JSON,
                         )?;
                         return Ok(());
                     }
@@ -221,11 +243,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                     lock.factory_reset();
                     super::nvs_erase();
                 }
-                req.into_response(
-                    200,
-                    Some(r#"{"ok":true}"#),
-                    &[("Content-Type", "application/json")],
-                )?;
+                req.into_response(200, Some(r#"{"ok":true}"#), CORS_JSON)?;
                 Ok(())
             })
             .expect("register handler");
@@ -240,11 +258,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                 let mut buf = [0u8; web::LOG_BUF_SIZE];
                 let n = lock.render_log_json(&mut buf);
                 let json = String::from_utf8_lossy(&buf[..n]);
-                req.into_response(
-                    200,
-                    Some(json.as_ref()),
-                    &[("Content-Type", "application/json")],
-                )?;
+                req.into_response(200, Some(json.as_ref()), CORS_JSON)?;
                 Ok(())
             })
             .expect("register handler");
@@ -266,16 +280,24 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                 }
                 let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
                 match command_decision(&state, &body, sig.as_deref()) {
+                    CommandOutcome::RateLimited => {
+                        req.into_response(
+                            429,
+                            Some(r#"{"error":"too many failed signature attempts"}"#),
+                            CORS_JSON,
+                        )?;
+                        return Ok(());
+                    }
                     CommandOutcome::InvalidSignature => {
                         req.into_response(
                             401,
                             Some(r#"{"error":"invalid or missing signature"}"#),
-                            JSON_CT,
+                            CORS_JSON,
                         )?;
                     }
                     CommandOutcome::Ok(CommandKind::Status) => {
                         let json = state.ctl.lock().status_json();
-                        req.into_response(200, Some(json.as_str()), JSON_CT)?;
+                        req.into_response(200, Some(json.as_str()), CORS_JSON)?;
                     }
                     CommandOutcome::Ok(CommandKind::FactoryReset) => {
                         {
@@ -283,18 +305,14 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                             lock.factory_reset();
                             super::nvs_erase();
                         }
-                        req.into_response(200, Some(r#"{"ok":true}"#), JSON_CT)?;
+                        req.into_response(200, Some(r#"{"ok":true}"#), CORS_JSON)?;
                     }
                     CommandOutcome::Ok(CommandKind::Restart) => {
-                        req.into_response(200, Some(r#"{"ok":true}"#), JSON_CT)?;
+                        req.into_response(200, Some(r#"{"ok":true}"#), CORS_JSON)?;
                         crate::ota::reboot();
                     }
                     CommandOutcome::Ok(CommandKind::Unknown) => {
-                        req.into_response(
-                            400,
-                            Some(r#"{"error":"unknown command"}"#),
-                            JSON_CT,
-                        )?;
+                        req.into_response(400, Some(r#"{"error":"unknown command"}"#), CORS_JSON)?;
                     }
                 }
                 Ok(())
@@ -327,7 +345,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         req.into_response(
                             429,
                             Some(r#"{"error":"too many failed signature attempts"}"#),
-                            JSON_CT,
+                            CORS_JSON,
                         )?;
                         return Ok(());
                     }
@@ -335,14 +353,14 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         req.into_response(
                             401,
                             Some(r#"{"error":"invalid or missing signature"}"#),
-                            JSON_CT,
+                            CORS_JSON,
                         )?;
                         return Ok(());
                     }
                     ConfigWrite::Ok => {}
                 }
                 let resp = r#"{"error":"OTA via API not yet wired - use /update"}"#;
-                req.into_response(200, Some(resp), JSON_CT)?;
+                req.into_response(200, Some(resp), CORS_JSON)?;
                 Ok(())
             })
             .expect("register handler");

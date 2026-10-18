@@ -16,7 +16,7 @@ use rid_interface::{
     TRANSMIT_WIFI_NAN,
 };
 
-use crate::kalman::Kalman3d;
+use crate::kalman::{Kalman3d, KalmanCovariance};
 use crate::patrol::Patrol;
 use crate::{hub, readiness};
 
@@ -43,10 +43,6 @@ pub struct TickOutcome {
     /// True when the absolute GPS timeout just expired.
     pub gps_stale: bool,
     pub led: LedState,
-    /// WS2812 color: green when `gps_valid`, amber otherwise.
-    pub ws2812_green: bool,
-    /// External lighting armed flag (`rid_lighting_set_state`).
-    pub lighting_armed: bool,
     /// `log_cycle % 100 == 0` (status box).
     pub periodic_status: bool,
     /// `log_cycle % 500 == 0` (system box).
@@ -108,6 +104,17 @@ impl Scheduler {
     pub fn apply_config(&mut self, config: &Config) {
         self.state.active_standard = hub::active_standard(config.region);
         self.state.standard_fallback = !hub::has_encoder(self.state.active_standard);
+    }
+
+    /// Current Kalman position-estimate covariance per axis, for diagnostics
+    /// ("Kalman covariance export"). `None` when the Kalman filter is disabled
+    /// or has never produced a valid estimate.
+    pub fn kalman_covariance(&self) -> Option<KalmanCovariance> {
+        if self.state.gps_valid && self.kalman.valid() {
+            Some(self.kalman.covariance())
+        } else {
+            None
+        }
     }
 
     /// Port of `update_transmissions()` in `esp_remote_id.c`.
@@ -379,9 +386,6 @@ impl Scheduler {
             LedState::NoGps
         };
 
-        let ws2812_green = self.state.gps_valid;
-        let lighting_armed = self.state.gps.armed;
-
         self.log_cycle += 1;
 
         TickOutcome {
@@ -389,8 +393,6 @@ impl Scheduler {
             tx_fired,
             gps_stale,
             led,
-            ws2812_green,
-            lighting_armed,
             periodic_status: self.log_cycle.is_multiple_of(100),
             periodic_system: self.log_cycle.is_multiple_of(500),
         }
@@ -816,5 +818,32 @@ mod tests {
         // important part is that the scheduler used the estimator path and the
         // altitude-differentiation state was not consulted.
         assert!(!s.alt_initialized);
+    }
+
+    #[test]
+    fn kalman_covariance_exposed() {
+        // Kalman covariance is readable as a diagnostic once the filter is valid.
+        let mut s = Scheduler::new();
+        let cfg = Config {
+            options: OPT_KALMAN_FILTER,
+            ..Config::default()
+        };
+        let mut rec = Recorder::default();
+        let mut g1 = fix();
+        g1.latitude = 45.50001;
+        let mut g2 = fix();
+        g2.latitude = 45.50002;
+        s.tick(&sample(1000, Some(g1)), &cfg, &mut rec);
+        s.tick(&sample(2000, Some(g2)), &cfg, &mut rec);
+        let cov = s.kalman_covariance().expect("covariance available");
+        assert!(cov.lat > 0.0);
+        assert!(cov.lon > 0.0);
+        assert!(cov.alt > 0.0);
+
+        // Kalman disabled -> None.
+        let mut s2 = Scheduler::new();
+        let cfg2 = Config::default();
+        s2.tick(&sample(3000, Some(g1)), &cfg2, &mut rec);
+        assert_eq!(s2.kalman_covariance(), None);
     }
 }

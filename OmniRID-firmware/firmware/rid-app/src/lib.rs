@@ -16,14 +16,11 @@ pub mod cli;
 pub mod config;
 pub mod json;
 pub mod led_status;
-pub mod led_ws2812;
-pub mod lighting;
 pub mod nvs;
 pub mod ota;
 pub mod state;
 pub mod web;
 pub mod web_config;
-pub mod webui;
 
 pub use ble4::build_legacy_adv;
 pub use cli::{
@@ -31,15 +28,11 @@ pub use cli::{
     parse_protocol_name, proto_name, set_tx_mode, ConfigSetError, KalmanUsageError, TxModeError,
     MAX_ARGS,
 };
-pub use config::{BspConfig, AUTH_KEY_MAX_LEN, NUM_LIGHTING_PINS};
+pub use config::{BspConfig, AUTH_KEY_MAX_LEN};
 pub use json::{apply_json, config_to_json, parse_region_name, region_name};
 pub use led_status::{
     blink_1hz, blink_4hz, blink_double, led_state_entry, pulse, rainbow, solid, LedPattern,
     LedState, LedStateMachine, Rgb, TX_FLASH_MS,
-};
-pub use led_ws2812::{brightness_scalar, hsv_to_rgb, rgb_to_grb, scale_rgb, ws2812_frame};
-pub use lighting::{
-    channel_active, channels_from_config, pattern_active, LightingChannel, LightingPattern,
 };
 pub use nvs::{erase, load, reset_preserve_keys, save, NvsStore};
 pub use ota::{

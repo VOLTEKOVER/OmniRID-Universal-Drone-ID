@@ -73,6 +73,8 @@ pub enum CommandKind {
 pub enum CommandOutcome {
     /// Auth passed (or not required); the BSP dispatches on the kind.
     Ok(CommandKind),
+    /// Too many signature failures in the window (rate limited).
+    RateLimited,
     /// The action needed a signature and the check failed.
     InvalidSignature,
 }
@@ -113,20 +115,27 @@ pub fn command_needs_auth(kind: CommandKind) -> bool {
 
 /// Auth gate of `handle_post_command`: at `lock_level >= 1` restart/reset
 /// commands need a valid `X-Signature` over the normalized command bytes.
-/// Note: unlike config writes, the command path has no rate limiter in C.
+/// Unlike config writes, the command path previously had no rate limiter in C.
+/// With `rate`/`now_ms` provided, the same sliding-window failure rate limit
+/// as config writes is applied (closes `dataflow.md` #11).
 pub fn handle_command(
     lock_level: u8,
     raw: &[u8],
     signature: Option<&[u8]>,
     keys: &[FixedKeyStr; NUM_KEYS],
+    rate: &mut SigRate,
+    now_ms: u32,
 ) -> CommandOutcome {
     let cmd = normalize_command(raw);
     let kind = command_kind(cmd);
-    if lock_level >= 1
-        && command_needs_auth(kind)
-        && !verify_signed_body(cmd, signature.unwrap_or(&[]), keys)
-    {
-        return CommandOutcome::InvalidSignature;
+    if lock_level >= 1 && command_needs_auth(kind) {
+        if !rate.check(now_ms) {
+            return CommandOutcome::RateLimited;
+        }
+        if !verify_signed_body(cmd, signature.unwrap_or(&[]), keys) {
+            rate.record_fail(now_ms);
+            return CommandOutcome::InvalidSignature;
+        }
     }
     CommandOutcome::Ok(kind)
 }
@@ -313,42 +322,45 @@ mod tests {
 
     #[test]
     fn unlocked_commands_need_no_signature() {
+        let mut rate = SigRate::new();
         assert_eq!(
-            handle_command(0, b"restart", None, keys()),
+            handle_command(0, b"restart", None, keys(), &mut rate, 1000),
             CommandOutcome::Ok(CommandKind::Restart)
         );
         assert_eq!(
-            handle_command(0, b"\"status\"", None, keys()),
+            handle_command(0, b"\"status\"", None, keys(), &mut rate, 1000),
             CommandOutcome::Ok(CommandKind::Status)
         );
     }
 
     #[test]
     fn locked_restart_requires_signature() {
+        let mut rate = SigRate::new();
         let sig = sign(b"restart");
         assert_eq!(
-            handle_command(1, b"restart", Some(sig.as_bytes()), keys()),
+            handle_command(1, b"restart", Some(sig.as_bytes()), keys(), &mut rate, 1000),
             CommandOutcome::Ok(CommandKind::Restart)
         );
         assert_eq!(
-            handle_command(1, b"restart", None, keys()),
+            handle_command(1, b"restart", None, keys(), &mut rate, 1000),
             CommandOutcome::InvalidSignature
         );
         let bad = sign(b"reset");
         assert_eq!(
-            handle_command(1, b"restart", Some(bad.as_bytes()), keys()),
+            handle_command(1, b"restart", Some(bad.as_bytes()), keys(), &mut rate, 1000),
             CommandOutcome::InvalidSignature
         );
     }
 
     #[test]
     fn locked_status_and_unknown_need_no_signature() {
+        let mut rate = SigRate::new();
         assert_eq!(
-            handle_command(1, b"status", None, keys()),
+            handle_command(1, b"status", None, keys(), &mut rate, 1000),
             CommandOutcome::Ok(CommandKind::Status)
         );
         assert_eq!(
-            handle_command(1, b"frobnicate", None, keys()),
+            handle_command(1, b"frobnicate", None, keys(), &mut rate, 1000),
             CommandOutcome::Ok(CommandKind::Unknown)
         );
     }
@@ -357,9 +369,46 @@ mod tests {
     fn quoted_command_signed_over_normalized_bytes() {
         // The client signs the normalized command ("restart"), and the quoted
         // body must verify.
+        let mut rate = SigRate::new();
         let sig = sign(b"restart");
         assert_eq!(
-            handle_command(1, b"\"restart\"", Some(sig.as_bytes()), keys()),
+            handle_command(
+                1,
+                b"\"restart\"",
+                Some(sig.as_bytes()),
+                keys(),
+                &mut rate,
+                1000
+            ),
+            CommandOutcome::Ok(CommandKind::Restart)
+        );
+    }
+
+    #[test]
+    fn command_path_is_rate_limited_like_config_writes() {
+        // Issue #11: restart/reset commands must share the failure rate limit
+        // with config writes so a locked device can't be hammered.
+        let mut rate = SigRate::new();
+        for _ in 0..10 {
+            rate.record_fail(1000);
+        }
+        let sig = sign(b"restart");
+        // Even a valid signature is rejected while rate-limited.
+        assert_eq!(
+            handle_command(1, b"restart", Some(sig.as_bytes()), keys(), &mut rate, 5000),
+            CommandOutcome::RateLimited
+        );
+        // After the window elapses a valid signature passes again.
+        let after = 1000 + crate::web::SIG_RATE_WINDOW_MS;
+        assert_eq!(
+            handle_command(
+                1,
+                b"restart",
+                Some(sig.as_bytes()),
+                keys(),
+                &mut rate,
+                after
+            ),
             CommandOutcome::Ok(CommandKind::Restart)
         );
     }

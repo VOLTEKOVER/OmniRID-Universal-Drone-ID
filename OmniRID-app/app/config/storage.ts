@@ -85,8 +85,6 @@ export const runtimeOnly: string[] = [
   'Data protocol',
   'UART port',
   'TX / RX pins',
-  'WS2812 GPIO and brightness',
-  'Lighting pins, patterns and phase offsets',
   'DroneCAN RX / TX / bitrate',
   'MAVLink over USB',
   'OTA trigger GPIO',

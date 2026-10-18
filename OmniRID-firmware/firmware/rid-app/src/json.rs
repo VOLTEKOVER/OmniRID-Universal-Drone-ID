@@ -7,14 +7,15 @@
 //! enforced. The `%.1f`/`%.6f` float formatting of the C is preserved by
 //! pre-formatting the value and wrapping it in a `serde_json::Number`
 //! (`arbitrary_precision` keeps the exact digits). Unlike cJSON, serde_json
-//! escapes strings on output, so the web UI always receives well-formed JSON.
+//! escapes strings on output, so API clients (the OmniRID PWA) always
+//! receive well-formed JSON.
 
 use alloc::format;
 use alloc::string::String;
 use rid_interface::{Protocol, Region, MAX_KEY_LEN, MAX_STR_LEN, NUM_KEYS};
 use serde_json::{Map, Number, Value};
 
-use crate::config::{cstr, BspConfig, AUTH_KEY_MAX_LEN, NUM_LIGHTING_PINS};
+use crate::config::{cstr, BspConfig, AUTH_KEY_MAX_LEN};
 
 /// Same names as `g_region_names` in `rid_output.c`, in `rid_region_t` order.
 const REGION_NAMES: [&str; Region::COUNT] = [
@@ -219,25 +220,6 @@ pub fn apply_json(cfg: &mut BspConfig, json: &str) -> bool {
         short(&mut cfg.wifi_password, s, MAX_STR_LEN);
     }
 
-    if let Some(v) = int("ws2812_gpio") {
-        cfg.ws2812_gpio = v as i8;
-    }
-    if let Some(v) = int("ws2812_brightness") {
-        cfg.ws2812_brightness = v as u8;
-    }
-
-    for i in 0..NUM_LIGHTING_PINS {
-        if let Some(v) = int(&format!("lighting_pin_{}", i)) {
-            cfg.lighting_pins[i] = v as i8;
-        }
-        if let Some(v) = int(&format!("lighting_pattern_{}", i)) {
-            cfg.lighting_patterns[i] = v as u8;
-        }
-        if let Some(v) = int(&format!("lighting_phase_{}", i)) {
-            cfg.lighting_phase_offsets[i] = v as i16;
-        }
-    }
-
     if let Some(v) = int("dronecan_rx_gpio") {
         cfg.dronecan_rx_gpio = v as i8;
     }
@@ -328,8 +310,6 @@ pub fn config_to_json(c: &BspConfig) -> String {
     m.insert("uart_port".into(), Value::from(c.uart_port));
     m.insert("tx_pin".into(), Value::from(c.tx_pin));
     m.insert("rx_pin".into(), Value::from(c.rx_pin));
-    m.insert("ws2812_gpio".into(), Value::from(c.ws2812_gpio));
-    m.insert("ws2812_brightness".into(), Value::from(c.ws2812_brightness));
     m.insert("dronecan_rx_gpio".into(), Value::from(c.dronecan_rx_gpio));
     m.insert("dronecan_tx_gpio".into(), Value::from(c.dronecan_tx_gpio));
     m.insert("dronecan_bitrate".into(), Value::from(c.dronecan_bitrate));
@@ -343,24 +323,6 @@ pub fn config_to_json(c: &BspConfig) -> String {
         m.insert(
             format!("public_key_{}", i),
             Value::from(cstr(&c.public_keys[i - 1])),
-        );
-    }
-    for i in 0..NUM_LIGHTING_PINS {
-        m.insert(
-            format!("lighting_pin_{}", i),
-            Value::from(c.lighting_pins[i]),
-        );
-    }
-    for i in 0..NUM_LIGHTING_PINS {
-        m.insert(
-            format!("lighting_pattern_{}", i),
-            Value::from(c.lighting_patterns[i]),
-        );
-    }
-    for i in 0..NUM_LIGHTING_PINS {
-        m.insert(
-            format!("lighting_phase_{}", i),
-            Value::from(c.lighting_phase_offsets[i]),
         );
     }
 
@@ -476,16 +438,12 @@ mod tests {
     }
 
     #[test]
-    fn apply_json_lighting_and_keys() {
+    fn apply_json_public_keys() {
         let mut c = BspConfig::default();
         assert!(apply_json(
             &mut c,
-            r#"{"lighting_pin_0":12,"lighting_pattern_2":3,"lighting_phase_4":-45,
-                "public_key_1":"0123456789abcdef","public_key_5":"pk5"}"#,
+            r#"{"public_key_1":"0123456789abcdef","public_key_5":"pk5"}"#,
         ));
-        assert_eq!(c.lighting_pins[0], 12);
-        assert_eq!(c.lighting_patterns[2], 3);
-        assert_eq!(c.lighting_phase_offsets[4], -45);
         assert_eq!(cstr(&c.public_keys[0]), "0123456789abcdef");
         assert_eq!(cstr(&c.public_keys[4]), "pk5");
         assert_eq!(cstr(&c.public_keys[1]), "");
@@ -560,9 +518,6 @@ mod tests {
             baud_rate: 230400,
             mavlink_sysid: 7,
             start_delay_ms: 2000,
-            lighting_pins: [0, 1, 2, 3, 4],
-            lighting_phase_offsets: [10, 20, 30, 40, 50],
-            ws2812_brightness: 32,
             ..BspConfig::default()
         };
 

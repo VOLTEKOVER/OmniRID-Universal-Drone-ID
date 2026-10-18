@@ -12,7 +12,7 @@ use rid_interface::{
 };
 
 /// Derives the hub-facing `Config` from the full BSP config (the subset the
-/// scheduler/hub use; transport/pin/lighting fields stay BSP-side).
+/// scheduler/hub use; transport/pin fields stay BSP-side).
 pub fn core_config(bsp: &BspConfig) -> Config {
     Config {
         region: bsp.region,
@@ -203,7 +203,7 @@ fn state_snapshot(state: &State) -> rid_app::state::State {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rid_app::config::{cstr, NUM_LIGHTING_PINS};
+    use rid_app::config::cstr;
     use rid_interface::{
         CStr, GpsData, Identity, Protocol, Region, MAX_KEY_LEN, NUM_KEYS, TRANSMIT_BLE4,
     };
@@ -324,7 +324,6 @@ mod tests {
         assert_eq!(ctl.state().active_standard, Standard::Astm);
         assert_eq!(cstr(&ctl.config().public_keys[0]), "ED25519KEY");
         assert_eq!(ctl.config().public_keys[1], [0; MAX_KEY_LEN + 1]);
-        assert_eq!(ctl.config().lighting_pins, [-1; NUM_LIGHTING_PINS]);
         assert_eq!(ctl.config().public_keys.len(), NUM_KEYS);
     }
 
