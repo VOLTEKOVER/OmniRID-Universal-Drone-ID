@@ -124,6 +124,31 @@ OmniRID/
 - [x] **Auto-update la verifica upstream** — `protocol-updates.yml` (settimanale) confronta upstream per OpenDroneID, MAVLink, DroneCAN, ESP-IDF e pagine regulatory; opendroneid è ancora path-dependency (vendored), non `rev` dep
 - [ ] **Flash encryption** — eFuse AES-256 (port from peinser)
 
+### 📌 GitHub — Aperti / in corso (aggiornamento 2026-10-18)
+
+- [ ] **[#43] ESP-IDF 6.0 / esp-idf-sys 0.38** — bump committato in `ac65114`
+  (ancora da pushare): esp-idf-sys 0.37 → 0.38.1, esp-idf-svc 0.52 → 0.53
+  (re-vendorizzato), esp-idf-hal 0.46 → 0.47. Contro IDF 6.0.2 **bindgen ora
+  genera `bindings.rs` per la prima volta**. Rimanente blocco: `esp-idf-hal
+  0.47` fallisce con 15 errori perché 36 struct (tra cui `spi_transaction_t`,
+  `rmt_encoder_t`) vengono generate **opache** (`{ _address: u8 }`) invece che
+  coi campi reali → `cargo +esp check` hardware ancora rosso. Prossimo
+  candidato: bindgen 0.73.2 (il lock attuale pinna 0.71.1); altrimenti
+  bisogna rifare il preprocessamento completo di `bindings.h` e bisectare
+  l'argomento che opacizza le struct.
+- [ ] **[#22] Conflitto MAVLink USB / console UART0** (riaperto, "ancora
+  valido") — il port Rust usa già `usb_serial_jtag_*` per la console;
+  `sdkconfig.defaults` non dichiara alcuna impostazione console. Serve una
+  decisione: chiusura documentata o fix esplicito in sdkconfig.
+- [ ] **Backlog non ancora preso** — #26 (refactor prioritari), #27
+  (portabilità + dipendenze), #29 (mesh/LoRa/SD/CLI/Kalman/stats — parte già
+  fatto), #46 (encoder non-ASTM), #47 (flash encryption), #52 (DroneCAN
+  Identity/AHRS), #53 (ground tools), #54 (Web UI polish).
+- [ ] **Dependabot** — 1 alert high + 1 moderate aperti sul repo.
+- [ ] `docs/index.html`/`guide.html` linkano ancora `config(demo).html`
+  (file assente, intenzionale: la config è solo PWA — valutare se rimuovere
+  i link).
+
 ---
 
 ## ✅ DONE — Completed Work
