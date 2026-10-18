@@ -57,6 +57,14 @@ impl AuthSigner {
     ///
     /// Page 0 carries `AUTH_PAGE_ZERO_DATA_SIZE` bytes, later pages carry
     /// `AUTH_PAGE_NONZERO_DATA_SIZE` bytes each.
+    ///
+    /// # Signing convention (issue #51)
+    ///
+    /// RFC 8032 **pure Ed25519 over the raw UAS ID bytes**, as required by
+    /// the ASTM F3411-22a Authentication message. Verifiers must use the
+    /// same message; note this is a different message (not a different
+    /// convention) from the web API, which signs `SHA-256(body)` — see
+    /// `crate::security::verify_signed_body`.
     pub fn sign_identity(&self, uas_id: &[u8]) -> Option<AuthPack> {
         let key = self.signing_key.as_ref()?;
         if uas_id.is_empty() || uas_id[0] == 0 {
@@ -106,6 +114,7 @@ impl AuthSigner {
 mod tests {
     use super::*;
     use alloc::string::{String, ToString};
+    use ed25519_dalek::{Signature, Verifier};
     use pem_rfc7468::LineEnding;
     use pkcs8::EncodePrivateKey;
 
@@ -154,7 +163,13 @@ mod tests {
         assert_eq!(pack.pages[0].length, AUTH_SIG_SIZE as u8);
         assert_eq!(pack.pages[3].last_page_index, 3);
         // Every byte of the signature is in the pages.
-        let mut sig_rebuilt = [0u8; AUTH_SIG_SIZE];
+        let sig_rebuilt = rebuild_sig(&pack);
+        assert_ne!(sig_rebuilt, [0u8; AUTH_SIG_SIZE]);
+    }
+
+    /// Reassembles the 64-byte Ed25519 signature from the auth pages.
+    fn rebuild_sig(pack: &AuthPack) -> [u8; AUTH_SIG_SIZE] {
+        let mut sig = [0u8; AUTH_SIG_SIZE];
         let mut offset = 0;
         for p in 0..pack.count as usize {
             let page = &pack.pages[p];
@@ -164,11 +179,41 @@ mod tests {
                 AUTH_PAGE_NONZERO_DATA_SIZE
             };
             let n = (AUTH_SIG_SIZE - offset).min(cap);
-            sig_rebuilt[offset..offset + n].copy_from_slice(&page.auth_data[..n]);
+            sig[offset..offset + n].copy_from_slice(&page.auth_data[..n]);
             offset += n;
         }
         assert_eq!(offset, AUTH_SIG_SIZE);
-        assert_ne!(sig_rebuilt, [0u8; AUTH_SIG_SIZE]);
+        sig
+    }
+
+    #[test]
+    fn sign_identity_is_pure_ed25519_over_the_raw_uas_id() {
+        // Issue #51: pin the identity-auth signing convention (RFC 8032
+        // pure Ed25519 over the raw UAS ID bytes) so it cannot drift
+        // towards the web convention (SHA-256(body)) unnoticed.
+        let uas_id = b"TEST-UAS-123";
+        let mut s = AuthSigner::default();
+        assert!(s.init(Some(&valid_pem())));
+        let pack = s.sign_identity(uas_id).expect("sign");
+
+        let sk = SigningKey::from_bytes(&[7u8; 32]);
+        let vk = sk.verifying_key();
+        let sig = Signature::from_bytes(&rebuild_sig(&pack));
+
+        // Canonical convention verifies...
+        assert!(vk.verify(uas_id, &sig).is_ok());
+        // ...and the web convention (signature over SHA-256 of the message)
+        // or an Ed25519ph prehash must NOT verify this signature.
+        let digest = sha256(uas_id);
+        assert!(vk.verify(&digest, &sig).is_err());
+    }
+
+    /// Minimal SHA-256, same crate `security.rs` uses.
+    fn sha256(data: &[u8]) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut h = Sha256::new();
+        h.update(data);
+        h.finalize().into()
     }
 
     #[test]

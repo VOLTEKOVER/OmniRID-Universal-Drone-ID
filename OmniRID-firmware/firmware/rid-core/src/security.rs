@@ -157,9 +157,21 @@ fn parse_public_key(key: &FixedKeyStr) -> Option<VerifyingKey> {
 
 /// Port of `rid_security_verify_signed_body()`.
 ///
+/// # Canonical web signing convention (issue #51)
+///
+/// The signature in `X-Signature` (base64) is **RFC 8032 pure Ed25519 over
+/// `SHA-256(body)`** — the digest *is* the signed message. This is the one
+/// convention shared by the PWA guide, the CLI examples and this verifier;
+/// the tests pin it down and assert that the near-miss variants a third
+/// party might produce — pure Ed25519 over the raw body, or Ed25519ph /
+/// SHA-512 hashing — are rejected rather than silently half-working.
+///
+/// Note this differs from identity auth signing (`crate::auth`), which is
+/// pure Ed25519 over the raw UAS ID bytes as required by ASTM F3411-22a
+/// auth pages: different protocol, different message, same primitive.
+///
 /// The body is hashed with SHA-256 and the signature (base64) is verified
-/// with Ed25519 against every configured public key. Like mbedtls's
-/// `pk_verify` for Ed25519, the digest is the message being signed.
+/// with Ed25519 against every configured public key.
 pub fn verify_signed_body(
     body: &[u8],
     sig_b64: &[u8],
@@ -300,6 +312,36 @@ mod tests {
         ));
         // Empty signature must fail.
         assert!(!verify_signed_body(body, b"", &keys_pem));
+    }
+
+    #[test]
+    fn signed_body_accepts_only_the_canonical_convention() {
+        // Issue #51: pin down the one web signing convention (RFC 8032 pure
+        // Ed25519 over SHA-256(body)) and reject the near-miss variants a
+        // third-party signer might produce, instead of half-working.
+        let sk = ed25519_dalek::SigningKey::from_bytes(&[11u8; 32]);
+        let vk = sk.verifying_key();
+        let body = b"{\"protocol\":\"nmea\"}";
+        let mut keys = [[0u8; rid_interface::MAX_KEY_LEN + 1]; rid_interface::NUM_KEYS];
+        keys[0] = rid_interface::key_str(&format!(
+            "PUBLIC_KEYV1:{}",
+            b64_encode(vk.to_bytes().as_ref())
+        ));
+
+        // Canonical: pure Ed25519 over SHA-256(body) -> accepted.
+        let canonical = b64_encode(&sk.sign(&sha256(body)).to_bytes());
+        assert!(verify_signed_body(body, canonical.as_bytes(), &keys));
+
+        // (a) Pure Ed25519 over the raw body — an ASTM-style signer that
+        //     skips the SHA-256 step -> rejected.
+        let raw_body_sig = b64_encode(&sk.sign(body).to_bytes());
+        assert!(!verify_signed_body(body, raw_body_sig.as_bytes(), &keys));
+
+        // (b) Client that hashed the body with SHA-512 instead of SHA-256
+        //     -> rejected.
+        use sha2::{Digest, Sha512};
+        let sha512_sig = b64_encode(&sk.sign(&Sha512::digest(body)).to_bytes());
+        assert!(!verify_signed_body(body, sha512_sig.as_bytes(), &keys));
     }
 
     fn b64_encode(data: &[u8]) -> String {

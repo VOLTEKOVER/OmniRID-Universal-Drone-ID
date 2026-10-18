@@ -51,6 +51,18 @@ pub struct TickOutcome {
 
 /// Central scheduler, port of the `g_state`/`g_kalman` globals plus the
 /// static TX rate timers of `esp_remote_id.c`.
+///
+/// # Concurrency invariant (issue #49)
+///
+/// In the C firmware the Kalman task wrote `g_state.gps` without holding
+/// `g_lock` while TX builders read it — a data race. In this port the
+/// filter and the state live in the *same* struct and are only ever
+/// touched through `&mut self`: `tick()` applies the Kalman output to
+/// `state.gps` and builds the TX frames from it in one exclusive step, so
+/// readers can never observe a torn GPS snapshot. Owners must keep this
+/// invariant: serialise access to the whole `Scheduler` (the BSP holds the
+/// owning `Controller` behind a single lock) and never share `state`
+/// separately from the scheduler behind another lock or atomics.
 #[derive(Debug)]
 pub struct Scheduler {
     pub state: State,

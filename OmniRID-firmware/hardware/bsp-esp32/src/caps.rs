@@ -1,6 +1,7 @@
-//! Per-chip capability matrix, grounded in the ESP-IDF firmware configuration
-//! (`sdkconfig`: `CONFIG_BT_BLE_50_EXTEND_ADV_EN` on esp32s3/esp32c6, native
-//! USB-Serial-JTAG on esp32c6, USB OTG on esp32s3).
+//! Per-chip capability matrix, grounded in what the bindings in this crate
+//! actually deliver (not just what the silicon/sdkconfig could support):
+//! WiFi/BLE injection in `wifi.rs`/`ble.rs`, native USB on esp32s3/esp32c6.
+//! A capability is `true` only when the transmit path behind it exists.
 
 use rid_interface::region::Standard;
 
@@ -12,7 +13,8 @@ pub struct Capabilities {
     pub wifi: bool,
     /// BLE 4.x legacy advertising.
     pub ble: bool,
-    /// BLE 5 extended advertising (esp32s3/esp32c6 only).
+    /// BLE 5 extended advertising. True only where the binding transmits it
+    /// (`ble::transmit_extended`: esp32s3 today — issue #45).
     pub ble5: bool,
     /// Native USB.
     pub usb: bool,
@@ -20,9 +22,10 @@ pub struct Capabilities {
     pub nvs: bool,
     /// Status LED.
     pub led: bool,
-    /// HTTP config web page.
+    /// HTTP JSON config API (`web.rs`, headless — no embedded page).
     pub web: bool,
-    /// OTA update over Wi-Fi.
+    /// OTA update over Wi-Fi. False until an upload path exists: `/ota`
+    /// currently answers 501 and `ota::check_and_run` only logs (see web.rs).
     pub ota: bool,
     /// Broadcast standards the radio stack can transmit.
     pub standards: &'static [Standard],
@@ -41,7 +44,7 @@ impl Capabilities {
             nvs: true,
             led: true,
             web: true,
-            ota: true,
+            ota: false,
             standards: &[Standard::Astm],
         };
 
@@ -49,25 +52,31 @@ impl Capabilities {
         return Self {
             wifi: true,
             ble: true,
+            // Extended advertising transmits on S3 (ext-adv instances 0/1,
+            // 1M + Coded PHY) — see `ble::transmit_extended`.
             ble5: true,
             usb: true,
             nvs: true,
             led: true,
             web: true,
-            ota: true,
+            ota: false,
             standards: &[Standard::Astm],
         };
 
         #[cfg(feature = "esp32c6")]
         return Self {
             wifi: true,
-            ble: true,
-            ble5: true,
+            // Issue #45: the BLE stack is never initialised on C6 in this
+            // port (`ble::init` is a no-op and both transmit paths return
+            // `false`), so no BLE capability may be advertised. Re-enable
+            // once the C6 binding actually transmits.
+            ble: false,
+            ble5: false,
             usb: true,
             nvs: true,
             led: true,
             web: true,
-            ota: true,
+            ota: false,
             standards: &[Standard::Astm, Standard::ChnGb, Standard::Frdid],
         };
 
@@ -88,13 +97,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_chip_has_wifi_and_ble() {
+    fn every_chip_has_wifi() {
         let c = Capabilities::current();
         assert!(c.wifi);
-        assert!(c.ble);
     }
 
     #[test]
+    fn ota_is_off_until_an_upload_path_exists() {
+        // `/ota` answers 501 and `ota::check_and_run` only logs (see web.rs).
+        assert!(!Capabilities::current().ota);
+    }
+
+    #[test]
+    #[cfg(feature = "esp32")]
+    fn esp32_reports_legacy_ble_only() {
+        let c = Capabilities::current();
+        assert!(c.ble);
+        assert!(!c.ble5);
+    }
+
+    #[test]
+    #[cfg(feature = "esp32s3")]
+    fn s3_reports_ble5() {
+        let c = Capabilities::current();
+        assert!(c.ble);
+        assert!(c.ble5);
+    }
+
+    #[test]
+    #[cfg(feature = "esp32c6")]
+    fn c6_reports_no_ble_until_the_binding_transmits() {
+        // Issue #45: `ble::init` is a no-op on C6 and both transmit paths
+        // return false, so no BLE capability may be advertised.
+        let c = Capabilities::current();
+        assert!(!c.ble, "C6 must not advertise BLE4: init() is a no-op");
+        assert!(
+            !c.ble5,
+            "C6 must not advertise BLE5: ext-adv never transmits"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "esp32c6")]
     fn esp32c6_supports_all_three_standards() {
         let c = Capabilities::current();
         assert!(c.supports(Standard::Astm));

@@ -46,7 +46,11 @@ esp-idf-svc = { path = "vendor/esp-idf-svc" }
 # esp-idf-sys through esp-idf-svc/esp-idf-hal (`embuild::espidf::sysenv`).
 # Without it the final binary link loses the `--ldproxy-linker` argument
 # and the `ldproxy` linker fails with "Cannot locate argument".
-embuild = "0.33"
+# `features = ["espidf"]` is set unconditionally so build.rs *compiles* on
+# host builds too (the call itself is gated at runtime on the `hardware`
+# feature — see build.rs); otherwise `embuild::espidf` is configured out
+# and even `cargo test` for the host-only `caps` matrix fails to build.
+embuild = { version = "0.33", features = ["espidf"] }
 
 [dependencies]
 rid-app = { path = "../../firmware/rid-app" }
