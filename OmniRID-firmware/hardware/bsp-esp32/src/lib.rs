@@ -15,9 +15,9 @@ pub mod caps;
 
 // ESP-IDF glue modules — only compiled when building for real hardware.
 #[cfg(feature = "hardware")]
-pub mod core;
-#[cfg(feature = "hardware")]
 pub mod ble;
+#[cfg(feature = "hardware")]
+pub mod core;
 #[cfg(feature = "hardware")]
 pub mod led;
 #[cfg(feature = "hardware")]
@@ -35,8 +35,8 @@ pub use rid_app::*;
 
 // Re-export the controller from the `app` crate so `bsp-esp32` users get it
 // without depending on `app` directly.
-pub use app::controller::Controller;
 pub use app::capabilities;
+pub use app::controller::Controller;
 
 // ---------------------------------------------------------------------------
 // ESP-IDF glue: shared state and Transmitter implementation
@@ -82,6 +82,15 @@ pub fn nvs_save(cfg: &rid_app::config::BspConfig) {
 pub fn nvs_erase() {
     let mut store = nvs::EspNvsStorage::new();
     rid_app::nvs::erase(&mut store);
+}
+
+/// Erase the stored configuration but restore the authorised public keys
+/// (hardware side of `rid_app::nvs::reset_preserve_keys`). A factory reset
+/// must not silently unlock the device by wiping the keys.
+#[cfg(feature = "hardware")]
+pub fn nvs_reset_preserve_keys() {
+    let mut store = nvs::EspNvsStorage::new();
+    rid_app::nvs::reset_preserve_keys(&mut store);
 }
 
 /// Load configuration from NVS.

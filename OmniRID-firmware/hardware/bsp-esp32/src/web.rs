@@ -10,10 +10,9 @@
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use embedded_svc::io::Read;
+use embedded_svc::io::Write;
 use esp_idf_svc as _;
-use esp_idf_svc::http::server::EspHttpServer;
-use esp_idf_svc::http::Method;
+use esp_idf_svc::http::server::{EspHttpConnection, EspHttpServer, Method, Request};
 use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::sys::EspError;
 use rid_app::web;
@@ -23,9 +22,6 @@ use rid_app::web_config::{
 
 use crate::SharedState;
 
-/// Response headers for the JSON API.
-const JSON_CT: &[(&str, &str)] = &[("Content-Type", "application/json")];
-
 /// CORS + JSON headers: the PWA is served from another origin (GitHub
 /// Pages) and reaches the device directly over its AP, so every response
 /// must be readable cross-origin.
@@ -33,7 +29,10 @@ const CORS_JSON: &[(&str, &str)] = &[
     ("Content-Type", "application/json"),
     ("Access-Control-Allow-Origin", "*"),
     ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
-    ("Access-Control-Allow-Headers", "Content-Type, X-Signature, X-Expected-SHA256"),
+    (
+        "Access-Control-Allow-Headers",
+        "Content-Type, X-Signature, X-Expected-SHA256",
+    ),
 ];
 
 /// Preflight response headers: echo the request headers/methods the PWA
@@ -41,9 +40,70 @@ const CORS_JSON: &[(&str, &str)] = &[
 const CORS_PREFLIGHT: &[(&str, &str)] = &[
     ("Access-Control-Allow-Origin", "*"),
     ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
-    ("Access-Control-Allow-Headers", "Content-Type, X-Signature, X-Expected-SHA256"),
+    (
+        "Access-Control-Allow-Headers",
+        "Content-Type, X-Signature, X-Expected-SHA256",
+    ),
     ("Access-Control-Max-Age", "86400"),
 ];
+
+/// Maximum accepted body for `POST /api/config` (the whole config document).
+const MAX_CONFIG_BODY: usize = 16 * 1024;
+
+/// Maximum accepted body for `POST /api/reset` and `POST /api/command`.
+const MAX_CMD_BODY: usize = 4 * 1024;
+
+/// HTTP reason phrase for the status codes this API returns.
+fn reason_phrase(status: u16) -> &'static str {
+    match status {
+        200 => "OK",
+        204 => "No Content",
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        404 => "Not Found",
+        413 => "Payload Too Large",
+        429 => "Too Many Requests",
+        500 => "Internal Server Error",
+        501 => "Not Implemented",
+        _ => "",
+    }
+}
+
+/// Send a complete JSON response: status line + CORS headers + body.
+///
+/// `embedded_svc`'s `into_response(status, message, headers)` takes the HTTP
+/// *reason phrase* as `message`; the payload has to be written on the
+/// returned `Response`.  (Passing the JSON as `message` would put it in the
+/// status line — where clients discard it — and send an empty body.)
+fn send_json(
+    req: Request<&mut EspHttpConnection<'_>>,
+    status: u16,
+    body: &str,
+) -> Result<(), EspIOError> {
+    let mut resp = req.into_response(status, Some(reason_phrase(status)), CORS_JSON)?;
+    resp.write_all(body.as_bytes())
+}
+
+/// Read the whole request body into a buffer, capped at `max` bytes.
+/// Returns `None` when the body exceeds the cap (the caller answers 413).
+fn read_body(
+    req: &mut Request<&mut EspHttpConnection<'_>>,
+    max: usize,
+) -> Result<Option<Vec<u8>>, EspIOError> {
+    let mut body = Vec::new();
+    let mut buf = [0u8; 1024];
+    loop {
+        let n = req.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        if body.len() + n > max {
+            return Ok(None);
+        }
+        body.extend_from_slice(&buf[..n]);
+    }
+    Ok(Some(body))
+}
 
 /// Monotonic millisecond clock, mirroring the C `esp_timer_get_time() / 1000`.
 fn now_ms() -> u32 {
@@ -51,7 +111,9 @@ fn now_ms() -> u32 {
 }
 
 /// Live lock level (clamped to `u8`) plus the authorised public keys.
-fn lock_and_keys(state: &SharedState) -> (u8, [rid_interface::FixedKeyStr; rid_interface::NUM_KEYS]) {
+fn lock_and_keys(
+    state: &SharedState,
+) -> (u8, [rid_interface::FixedKeyStr; rid_interface::NUM_KEYS]) {
     let ctl = state.ctl.lock();
     (
         ctl.bsp_config.lock_level.max(0) as u8,
@@ -83,18 +145,26 @@ fn add_cors_preflight(
     path: &'static str,
 ) -> Result<(), EspError> {
     server
-        .fn_handler(path, Method::Options, move |req| -> Result<(), EspIOError> {
-            req.into_response(204, None, CORS_PREFLIGHT)?;
-            Ok(())
-        })
+        .fn_handler(
+            path,
+            Method::Options,
+            move |req| -> Result<(), EspIOError> {
+                // No body: the native handler sends the bare 204 via `complete()`.
+                req.into_response(204, Some(reason_phrase(204)), CORS_PREFLIGHT)?;
+                Ok(())
+            },
+        )
         .map(|_| ())
 }
 
 /// Start the HTTP server with all API routes.
 ///
 /// `EspHttpServer::new` starts the server immediately (there is no separate
-/// `start()` step).  Each `fn_handler` closure returns `Result<(), EspIOError>`
-/// and pushes the response body through `into_response`'s `message` argument.
+/// `start()` step).  Each `fn_handler` closure returns `Result<(), EspIOError>`:
+/// responses go through [`send_json`], which sets the status line + CORS
+/// headers with `into_response` and then writes the JSON body on the
+/// returned `Response` (in `embedded-svc` the `into_response` `message`
+/// argument is the HTTP reason phrase, NOT the payload).
 pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError> {
     let mut server = EspHttpServer::new(&Default::default()).expect("httpd start");
 
@@ -115,12 +185,15 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
     {
         let state = state.clone();
         server
-            .fn_handler("/api/config", Method::Get, move |req| -> Result<(), EspIOError> {
-                let lock = state.ctl.lock();
-                let json = lock.config_json();
-                req.into_response(200, Some(json.as_str()), CORS_JSON)?;
-                Ok(())
-            })
+            .fn_handler(
+                "/api/config",
+                Method::Get,
+                move |req| -> Result<(), EspIOError> {
+                    let json = state.ctl.lock().config_json();
+                    send_json(req, 200, &json)?;
+                    Ok(())
+                },
+            )
             .expect("register handler");
     }
 
@@ -128,55 +201,55 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
     {
         let state = state.clone();
         server
-            .fn_handler("/api/config", Method::Post, move |mut req| -> Result<(), EspIOError> {
-                let mut body = Vec::new();
-                let mut buf = [0u8; 1024];
-                loop {
-                    let n = req.read(&mut buf)?;
-                    if n == 0 {
-                        break;
-                    }
-                    body.extend_from_slice(&buf[..n]);
-                }
-                let json_str = alloc::str::from_utf8(&body).unwrap_or("{}");
-                let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                match write_decision(&state, &body, sig.as_deref()) {
-                    ConfigWrite::RateLimited => {
-                        req.into_response(
-                            429,
-                            Some(r#"{"error":"too many failed signature attempts"}"#),
-                            CORS_JSON,
-                        )?;
+            .fn_handler(
+                "/api/config",
+                Method::Post,
+                move |mut req| -> Result<(), EspIOError> {
+                    let Some(body) = read_body(&mut req, MAX_CONFIG_BODY)? else {
+                        send_json(req, 413, r#"{"error":"payload too large"}"#)?;
                         return Ok(());
-                    }
-                    ConfigWrite::InvalidSignature => {
-                        req.into_response(
-                            401,
-                            Some(r#"{"error":"invalid or missing signature"}"#),
-                            CORS_JSON,
-                        )?;
-                        return Ok(());
-                    }
-                    ConfigWrite::Ok => {}
-                }
-                let result = {
-                    let mut lock = state.ctl.lock();
-                    if rid_app::json::apply_json(&mut lock.bsp_config, json_str) {
-                        let cfg = lock.bsp_config.clone();
-                        let outcome = lock.set_config(&cfg);
-                        super::nvs_save(&lock.bsp_config);
-                        if outcome.protocol_reinit_required {
-                            // TODO: re-init UART
+                    };
+                    let json_str = alloc::str::from_utf8(&body).unwrap_or("{}");
+                    let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
+                    match write_decision(&state, &body, sig.as_deref()) {
+                        ConfigWrite::RateLimited => {
+                            send_json(
+                                req,
+                                429,
+                                r#"{"error":"too many failed signature attempts"}"#,
+                            )?;
+                            return Ok(());
                         }
-                        true
-                    } else {
-                        false
+                        ConfigWrite::InvalidSignature => {
+                            send_json(req, 401, r#"{"error":"invalid or missing signature"}"#)?;
+                            return Ok(());
+                        }
+                        ConfigWrite::Ok => {}
                     }
-                };
-                let resp = if result { r#"{"ok":true}"# } else { r#"{"error":"invalid config"}"# };
-                req.into_response(200, Some(resp), CORS_JSON)?;
-                Ok(())
-            })
+                    let applied = {
+                        let mut lock = state.ctl.lock();
+                        if rid_app::json::apply_json(&mut lock.bsp_config, json_str) {
+                            let cfg = lock.bsp_config.clone();
+                            let outcome = lock.set_config(&cfg);
+                            super::nvs_save(&lock.bsp_config);
+                            if outcome.protocol_reinit_required {
+                                // TODO: re-init UART
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    };
+                    // A body that cannot be parsed as a config document is a
+                    // client error; anything else was applied and persisted.
+                    if applied {
+                        send_json(req, 200, r#"{"ok":true}"#)?;
+                    } else {
+                        send_json(req, 400, r#"{"error":"invalid config"}"#)?;
+                    }
+                    Ok(())
+                },
+            )
             .expect("register handler");
     }
 
@@ -184,23 +257,30 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
     {
         let state = state.clone();
         server
-            .fn_handler("/api/status", Method::Get, move |req| -> Result<(), EspIOError> {
-                let lock = state.ctl.lock();
-                let json = lock.status_json();
-                req.into_response(200, Some(json.as_str()), CORS_JSON)?;
-                Ok(())
-            })
+            .fn_handler(
+                "/api/status",
+                Method::Get,
+                move |req| -> Result<(), EspIOError> {
+                    let json = state.ctl.lock().status_json();
+                    send_json(req, 200, &json)?;
+                    Ok(())
+                },
+            )
             .expect("register handler");
     }
 
     // GET /api/capabilities
     {
         server
-            .fn_handler("/api/capabilities", Method::Get, move |req| -> Result<(), EspIOError> {
-                let json = crate::capabilities::capabilities_json();
-                req.into_response(200, Some(json.as_str()), CORS_JSON)?;
-                Ok(())
-            })
+            .fn_handler(
+                "/api/capabilities",
+                Method::Get,
+                move |req| -> Result<(), EspIOError> {
+                    let json = crate::capabilities::capabilities_json();
+                    send_json(req, 200, &json)?;
+                    Ok(())
+                },
+            )
             .expect("register handler");
     }
 
@@ -208,44 +288,41 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
     {
         let state = state.clone();
         server
-            .fn_handler("/api/reset", Method::Post, move |mut req| -> Result<(), EspIOError> {
-                let mut body = Vec::new();
-                let mut buf = [0u8; 256];
-                loop {
-                    let n = req.read(&mut buf)?;
-                    if n == 0 {
-                        break;
-                    }
-                    body.extend_from_slice(&buf[..n]);
-                }
-                let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                match write_decision(&state, &body, sig.as_deref()) {
-                    ConfigWrite::RateLimited => {
-                        req.into_response(
-                            429,
-                            Some(r#"{"error":"too many failed signature attempts"}"#),
-                            CORS_JSON,
-                        )?;
+            .fn_handler(
+                "/api/reset",
+                Method::Post,
+                move |mut req| -> Result<(), EspIOError> {
+                    let Some(body) = read_body(&mut req, MAX_CMD_BODY)? else {
+                        send_json(req, 413, r#"{"error":"payload too large"}"#)?;
                         return Ok(());
+                    };
+                    let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
+                    match write_decision(&state, &body, sig.as_deref()) {
+                        ConfigWrite::RateLimited => {
+                            send_json(
+                                req,
+                                429,
+                                r#"{"error":"too many failed signature attempts"}"#,
+                            )?;
+                            return Ok(());
+                        }
+                        ConfigWrite::InvalidSignature => {
+                            send_json(req, 401, r#"{"error":"invalid or missing signature"}"#)?;
+                            return Ok(());
+                        }
+                        ConfigWrite::Ok => {}
                     }
-                    ConfigWrite::InvalidSignature => {
-                        req.into_response(
-                            401,
-                            Some(r#"{"error":"invalid or missing signature"}"#),
-                            CORS_JSON,
-                        )?;
-                        return Ok(());
+                    {
+                        let mut lock = state.ctl.lock();
+                        lock.factory_reset();
+                        // Wipe the config but keep the authorised public keys: a
+                        // factory reset must not silently unlock a locked device.
+                        super::nvs_reset_preserve_keys();
                     }
-                    ConfigWrite::Ok => {}
-                }
-                {
-                    let mut lock = state.ctl.lock();
-                    lock.factory_reset();
-                    super::nvs_erase();
-                }
-                req.into_response(200, Some(r#"{"ok":true}"#), CORS_JSON)?;
-                Ok(())
-            })
+                    send_json(req, 200, r#"{"ok":true}"#)?;
+                    Ok(())
+                },
+            )
             .expect("register handler");
     }
 
@@ -253,14 +330,23 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
     {
         let state = state.clone();
         server
-            .fn_handler("/api/logs", Method::Get, move |req| -> Result<(), EspIOError> {
-                let lock = state.log_ring.lock();
-                let mut buf = [0u8; web::LOG_BUF_SIZE];
-                let n = lock.render_log_json(&mut buf);
-                let json = String::from_utf8_lossy(&buf[..n]);
-                req.into_response(200, Some(json.as_ref()), CORS_JSON)?;
-                Ok(())
-            })
+            .fn_handler(
+                "/api/logs",
+                Method::Get,
+                move |req| -> Result<(), EspIOError> {
+                    let mut buf = [0u8; web::LOG_BUF_SIZE];
+                    // Render under the lock, then send with the lock released:
+                    // `send_json` performs socket I/O that must not block the
+                    // log ring.
+                    let n = {
+                        let lock = state.log_ring.lock();
+                        lock.render_log_json(&mut buf)
+                    };
+                    let json = String::from_utf8_lossy(&buf[..n]);
+                    send_json(req, 200, &json)?;
+                    Ok(())
+                },
+            )
             .expect("register handler");
     }
 
@@ -268,99 +354,80 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
     {
         let state = state.clone();
         server
-            .fn_handler("/api/command", Method::Post, move |mut req| -> Result<(), EspIOError> {
-                let mut body = Vec::new();
-                let mut buf = [0u8; 256];
-                loop {
-                    let n = req.read(&mut buf)?;
-                    if n == 0 {
-                        break;
-                    }
-                    body.extend_from_slice(&buf[..n]);
-                }
-                let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                match command_decision(&state, &body, sig.as_deref()) {
-                    CommandOutcome::RateLimited => {
-                        req.into_response(
-                            429,
-                            Some(r#"{"error":"too many failed signature attempts"}"#),
-                            CORS_JSON,
-                        )?;
+            .fn_handler(
+                "/api/command",
+                Method::Post,
+                move |mut req| -> Result<(), EspIOError> {
+                    let Some(body) = read_body(&mut req, MAX_CMD_BODY)? else {
+                        send_json(req, 413, r#"{"error":"payload too large"}"#)?;
                         return Ok(());
-                    }
-                    CommandOutcome::InvalidSignature => {
-                        req.into_response(
-                            401,
-                            Some(r#"{"error":"invalid or missing signature"}"#),
-                            CORS_JSON,
-                        )?;
-                    }
-                    CommandOutcome::Ok(CommandKind::Status) => {
-                        let json = state.ctl.lock().status_json();
-                        req.into_response(200, Some(json.as_str()), CORS_JSON)?;
-                    }
-                    CommandOutcome::Ok(CommandKind::FactoryReset) => {
-                        {
-                            let mut lock = state.ctl.lock();
-                            lock.factory_reset();
-                            super::nvs_erase();
+                    };
+                    let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
+                    match command_decision(&state, &body, sig.as_deref()) {
+                        CommandOutcome::RateLimited => {
+                            send_json(
+                                req,
+                                429,
+                                r#"{"error":"too many failed signature attempts"}"#,
+                            )?;
+                            return Ok(());
                         }
-                        req.into_response(200, Some(r#"{"ok":true}"#), CORS_JSON)?;
+                        CommandOutcome::InvalidSignature => {
+                            send_json(req, 401, r#"{"error":"invalid or missing signature"}"#)?;
+                            return Ok(());
+                        }
+                        CommandOutcome::Ok(CommandKind::Status) => {
+                            let json = state.ctl.lock().status_json();
+                            send_json(req, 200, &json)?;
+                        }
+                        CommandOutcome::Ok(CommandKind::FactoryReset) => {
+                            {
+                                let mut lock = state.ctl.lock();
+                                lock.factory_reset();
+                                // Keep the authorised public keys (see /api/reset).
+                                super::nvs_reset_preserve_keys();
+                            }
+                            send_json(req, 200, r#"{"ok":true}"#)?;
+                        }
+                        CommandOutcome::Ok(CommandKind::Restart) => {
+                            send_json(req, 200, r#"{"ok":true}"#)?;
+                            // Reboot only after the HTTP stack has flushed the
+                            // response: the native handler still has to run
+                            // `complete()` (the chunked terminator) after this
+                            // closure returns, so an immediate `esp_restart()`
+                            // here would cut the connection mid-response.
+                            let _ = std::thread::Builder::new().stack_size(4096).spawn(|| {
+                                std::thread::sleep(std::time::Duration::from_millis(300));
+                                crate::ota::reboot();
+                            });
+                        }
+                        CommandOutcome::Ok(CommandKind::Unknown) => {
+                            send_json(req, 400, r#"{"error":"unknown command"}"#)?;
+                        }
                     }
-                    CommandOutcome::Ok(CommandKind::Restart) => {
-                        req.into_response(200, Some(r#"{"ok":true}"#), CORS_JSON)?;
-                        crate::ota::reboot();
-                    }
-                    CommandOutcome::Ok(CommandKind::Unknown) => {
-                        req.into_response(400, Some(r#"{"error":"unknown command"}"#), CORS_JSON)?;
-                    }
-                }
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .expect("register handler");
     }
 
-    // POST /ota
+    // POST /ota — reserved for firmware uploads.
+    //
+    // The upload pipeline (streaming into the OTA partition + hash/signature
+    // verification) is not implemented in this build, so the request is
+    // rejected up front — before any body is buffered: holding a whole
+    // update image in RAM would be an easy memory-exhaustion vector.  The
+    // signed-action gate must come back together with the real
+    // implementation (there is nothing to protect while the endpoint only
+    // answers 501).
     {
-        let state = state.clone();
         server
-            .fn_handler("/ota", Method::Post, move |mut req| -> Result<(), EspIOError> {
-                // Read body.
-                let mut body = Vec::new();
-                let mut buf = [0u8; 4096];
-                loop {
-                    let n = req.read(&mut buf)?;
-                    if n == 0 {
-                        break;
-                    }
-                    body.extend_from_slice(&buf[..n]);
-                }
-                // The firmware image is not applied yet, but the same
-                // signed-action gate already protects the endpoint so that a
-                // locked device rejects unsigned uploads as soon as
-                // `X-Expected-SHA256` + `X-Signature` handling lands here.
-                let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                match write_decision(&state, &body, sig.as_deref()) {
-                    ConfigWrite::RateLimited => {
-                        req.into_response(
-                            429,
-                            Some(r#"{"error":"too many failed signature attempts"}"#),
-                            CORS_JSON,
-                        )?;
-                        return Ok(());
-                    }
-                    ConfigWrite::InvalidSignature => {
-                        req.into_response(
-                            401,
-                            Some(r#"{"error":"invalid or missing signature"}"#),
-                            CORS_JSON,
-                        )?;
-                        return Ok(());
-                    }
-                    ConfigWrite::Ok => {}
-                }
-                let resp = r#"{"error":"OTA via API not yet wired - use /update"}"#;
-                req.into_response(200, Some(resp), CORS_JSON)?;
+            .fn_handler("/ota", Method::Post, move |req| -> Result<(), EspIOError> {
+                send_json(
+                    req,
+                    501,
+                    r#"{"error":"OTA not implemented; flash via serial/USB"}"#,
+                )?;
                 Ok(())
             })
             .expect("register handler");

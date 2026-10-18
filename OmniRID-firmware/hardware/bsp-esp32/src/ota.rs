@@ -7,11 +7,12 @@
 use esp_idf_svc as _;
 use esp_idf_svc::sys::{self as sys};
 
-/// Check the OTA trigger GPIO and, if held low, enter OTA mode.
+/// Check the OTA trigger GPIO and, if held low, log it.
 ///
-/// In OTA mode, a dedicated AP named "RemoteID-OTA" is started and an
-/// HTTP server listens for firmware uploads.  The function never returns
-/// (it loops forever waiting for uploads or rebooting).
+/// The dedicated "RemoteID-OTA" AP + upload server from `rid_ota.c` is not
+/// implemented in this build. Entering the old infinite wait here would
+/// hang the device at boot with no way to ever receive an image, so the
+/// trigger is only reported and the normal boot sequence continues.
 pub fn check_and_run(ota_trigger_gpio: i8) {
     if ota_trigger_gpio < 0 {
         return;
@@ -29,11 +30,11 @@ pub fn check_and_run(ota_trigger_gpio: i8) {
         }
     }
 
-    // Enter OTA mode: start a minimal AP + HTTP server.
-    // This is a simplified version; the full C implementation is in rid_ota.c.
-    loop {
-        unsafe { sys::vTaskDelay(1000); }
-    }
+    log::warn!(
+        "[OTA] trigger GPIO {} held low at boot, but OTA mode is not implemented in this \
+         build (no receive server): continuing normal boot.",
+        ota_trigger_gpio
+    );
 }
 
 /// Write a chunk to the OTA partition.
@@ -57,6 +58,9 @@ pub fn reboot() -> ! {
 /// Minimal OTA write handle wrapping ESP-IDF OTA APIs.
 pub struct OtaHandle {
     handle: sys::esp_ota_handle_t,
+    /// Update partition being written; it becomes the boot partition on
+    /// success (kept here because `esp_ota_end` consumes the handle only).
+    partition: *const sys::esp_partition_t,
 }
 
 impl OtaHandle {
@@ -71,26 +75,25 @@ impl OtaHandle {
             if sys::esp_ota_begin(partition, usize::MAX, &mut handle) != sys::ESP_OK {
                 return None;
             }
-            Some(Self { handle })
+            Some(Self { handle, partition })
         }
     }
 
     fn write(&mut self, data: &[u8]) -> bool {
         unsafe {
-            sys::esp_ota_write(self.handle, data.as_ptr() as *const _, data.len())
-                == sys::ESP_OK
+            sys::esp_ota_write(self.handle, data.as_ptr() as *const _, data.len()) == sys::ESP_OK
         }
     }
 
     fn finish(self) -> bool {
         let ok = unsafe { sys::esp_ota_end(self.handle) == sys::ESP_OK };
         if ok {
-            // Set the boot partition to the update partition.
+            // Boot the partition that was just written (the update partition
+            // chosen in `begin()`), not the running one: pointing the boot
+            // selector back at `running` would silently discard the new image.
             unsafe {
-                let running = sys::esp_ota_get_running_partition();
-                let boot = sys::esp_ota_get_boot_partition();
-                if boot != running {
-                    sys::esp_ota_set_boot_partition(running);
+                if sys::esp_ota_set_boot_partition(self.partition) != sys::ESP_OK {
+                    return false;
                 }
             }
         }

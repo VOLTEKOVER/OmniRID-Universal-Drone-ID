@@ -54,7 +54,15 @@ pub fn apply_json(cfg: &mut BspConfig, json: &str) -> bool {
     };
 
     // cJSON `valueint` = (int)valuedouble (truncation toward zero).
-    let int = |k: &str| -> Option<i64> { root.get(k).and_then(Value::as_f64).map(|f| f as i64) };
+    // JSON booleans are also accepted as 0/1, so flag fields sent as
+    // `true`/`false` are not silently ignored (serde_json booleans have no
+    // f64 representation, so `as_f64` would drop them).
+    let int = |k: &str| -> Option<i64> {
+        match root.get(k) {
+            Some(Value::Bool(b)) => Some(i64::from(*b)),
+            other => other.and_then(Value::as_f64).map(|f| f as i64),
+        }
+    };
     // cJSON `valuedouble`.
     let dbl = |k: &str| -> Option<f64> { root.get(k).and_then(Value::as_f64) };
     // cJSON string items (`cJSON_IsString`).
@@ -364,6 +372,21 @@ mod tests {
         assert_eq!(c.region, Region::Jpn);
         assert_eq!(c.protocol, Protocol::Nmea);
         assert!(c.mavlink_usb_enable);
+    }
+
+    #[test]
+    fn apply_json_accepts_bool_flags() {
+        let mut c = BspConfig::default();
+        assert!(apply_json(
+            &mut c,
+            r#"{"webserver_en":false,"mavlink_usb_enable":true,"bcast_powerup":true}"#,
+        ));
+        assert_eq!(c.webserver_en, 0);
+        assert!(c.mavlink_usb_enable);
+        assert_eq!(c.bcast_powerup, 1);
+        // Numbers keep working as before.
+        assert!(apply_json(&mut c, r#"{"webserver_en":1}"#));
+        assert_eq!(c.webserver_en, 1);
     }
 
     #[test]

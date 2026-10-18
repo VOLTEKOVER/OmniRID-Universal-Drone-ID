@@ -5,11 +5,20 @@
 
 use esp_idf_svc as _;
 use esp_idf_svc::hal::peripherals::Peripherals;
-use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::sys::{self as sys};
 use esp_idf_svc::wifi::{self as wifi_svc, AuthMethod, Configuration, EspWifi, Protocol};
-use rid_interface::{Config, GpsData, Identity};
 use rid_app::config::cstr;
+use rid_interface::{Config, GpsData, Identity};
+use spin::Mutex;
+
+/// Owns the live `EspWifi` handle for the whole program lifetime.
+///
+/// Dropping `EspWifi` stops and deinits the WiFi driver (`EspWifi::drop`
+/// -> `detach_netif()` -> `esp_wifi_stop()`, then `WifiDriver::drop` ->
+/// `clear_all()` -> `esp_wifi_deinit()`), which would tear the AP down the
+/// moment `init()` returns. The handle is kept here purely to own it: the
+/// TX path talks to the driver through the raw `esp_idf_sys` bindings.
+static WIFI_DRIVER: Mutex<Option<EspWifi<'static>>> = Mutex::new(None);
 
 /// Global WiFi state.
 struct WifiState {
@@ -43,9 +52,12 @@ pub fn init(cfg: &rid_app::config::BspConfig) {
     let _ = sys::esp!(unsafe { sys::esp_event_loop_create_default() });
 
     let peripherals = Peripherals::take().expect("peripherals");
-    let sysloop = esp_idf_svc::eventloop::EspSystemEventLoop::take()
-        .expect("failed to init sysloop");
-    let nvs = EspDefaultNvsPartition::take().expect("failed to init NVS partition");
+    let sysloop =
+        esp_idf_svc::eventloop::EspSystemEventLoop::take().expect("failed to init sysloop");
+    // Shared handle: `EspWifi` keeps its clone alive for the program's whole
+    // lifetime (see WIFI_DRIVER), so taking the partition again here would
+    // fail once the config store has used it (or vice versa).
+    let nvs = crate::nvs::partition();
 
     let mut wifi = EspWifi::new(peripherals.modem, sysloop, Some(nvs)).expect("wifi");
 
@@ -85,6 +97,13 @@ pub fn init(cfg: &rid_app::config::BspConfig) {
     // Set TX power (ESP-IDF uses 0.25 dBm units). The binding takes i8.
     let power_quarter_dbm = (cfg.wifi_power_dbm * 4.0) as i8;
     unsafe { sys::esp_wifi_set_max_tx_power(power_quarter_dbm) };
+
+    // Keep the driver alive: dropping `EspWifi` would stop and deinit WiFi
+    // immediately (see WIFI_DRIVER). The assert also guards against a
+    // silent double-init leaving a stale handle behind.
+    let mut slot = WIFI_DRIVER.lock();
+    assert!(slot.is_none(), "wifi::init called twice");
+    *slot = Some(wifi);
 
     state().initialized = true;
 }
@@ -159,12 +178,9 @@ pub fn transmit_wifi_nan(gps: &GpsData, identity: &Identity, config: &Config, co
     let outcome = out_astm::build_uas(gps, identity, config, None);
 
     let mut buf = [0u8; 1024];
-    if let Ok(len) = out_astm::wifi::build_nan_action_frame(
-        &outcome.uas,
-        &state().mac,
-        counter,
-        &mut buf,
-    ) {
+    if let Ok(len) =
+        out_astm::wifi::build_nan_action_frame(&outcome.uas, &state().mac, counter, &mut buf)
+    {
         tx_raw(&buf[..len]);
     }
 }
@@ -176,5 +192,7 @@ fn tick_us() -> u64 {
 
 /// Shut down WiFi.
 pub fn deinit() {
-    // Best-effort: no-op if not initialised.
+    // Dropping the handle stops and deinits the WiFi driver (see WIFI_DRIVER).
+    drop(WIFI_DRIVER.lock().take());
+    state().initialized = false;
 }

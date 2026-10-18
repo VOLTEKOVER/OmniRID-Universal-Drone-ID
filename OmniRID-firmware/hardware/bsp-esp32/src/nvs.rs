@@ -6,8 +6,30 @@
 use esp_idf_svc as _;
 use esp_idf_svc::nvs::{EspNvsPartition, NvsDefault};
 use rid_app::nvs::NvsStore;
+use spin::Mutex;
 
 const NS: &str = "esp_rid";
+
+/// Shared handle to the default NVS partition, claimed once and kept for
+/// the whole program lifetime.
+///
+/// `EspNvsPartition::take()` succeeds only while no other owner exists, so
+/// every consumer (the config store here, the WiFi driver in `wifi.rs`)
+/// must share this single handle instead of re-taking the partition: the
+/// WiFi driver holds its clone forever, so any later `take()` would fail
+/// and panic on the next `nvs_save`/`nvs_load`.
+static PARTITION: Mutex<Option<EspNvsPartition<NvsDefault>>> = Mutex::new(None);
+
+/// Returns the shared handle to the default NVS partition, claiming it on
+/// first use.
+pub fn partition() -> EspNvsPartition<NvsDefault> {
+    let mut guard = PARTITION.lock();
+    if guard.is_none() {
+        let p = EspNvsPartition::<NvsDefault>::take().expect("default NVS partition unavailable");
+        *guard = Some(p.clone());
+    }
+    guard.as_ref().expect("default NVS partition").clone()
+}
 
 /// ESP-IDF NVS implementation of `NvsStore`.
 pub struct EspNvsStorage {
@@ -17,8 +39,9 @@ pub struct EspNvsStorage {
 impl EspNvsStorage {
     /// Opens the `esp_rid` namespace on the default NVS partition.
     pub fn new() -> Self {
-        let partition = EspNvsPartition::<NvsDefault>::take().expect("no NVS partition");
-        Self { partition }
+        Self {
+            partition: partition(),
+        }
     }
 
     fn open(&self) -> Result<esp_idf_svc::nvs::EspNvs<NvsDefault>, esp_idf_svc::sys::EspError> {
@@ -141,13 +164,16 @@ impl NvsStore for EspNvsStorage {
 
 /// Initialise the NVS flash partition.  Port of `nvs_storage_init()`.
 pub fn init() {
-    esp_idf_svc::sys::esp!(unsafe {
-        esp_idf_sys::nvs_flash_init()
-    })
-    .or_else(|_| unsafe {
-        esp_idf_sys::nvs_flash_erase();
-        esp_idf_sys::nvs_flash_init();
-        Ok::<(), esp_idf_svc::sys::EspError>(())
-    })
-    .expect("NVS init failed");
+    esp_idf_svc::sys::esp!(unsafe { esp_idf_sys::nvs_flash_init() })
+        .or_else(|_| unsafe {
+            esp_idf_sys::nvs_flash_erase();
+            esp_idf_sys::nvs_flash_init();
+            Ok::<(), esp_idf_svc::sys::EspError>(())
+        })
+        .expect("NVS init failed");
+
+    // Claim the shared default-partition handle up front (boot order:
+    // `init` -> `nvs_load` -> `wifi::init`), so every later user clones it
+    // instead of re-taking the partition.
+    let _ = partition();
 }
