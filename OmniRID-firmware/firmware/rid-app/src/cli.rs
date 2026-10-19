@@ -365,9 +365,7 @@ impl CommandHistory {
 
     /// Clears the history.
     pub fn clear(&mut self) {
-        for entry in &mut self.entries {
-            *entry = None;
-        }
+        self.entries.fill(None);
         self.head = 0;
         self.count = 0;
         self.cursor = 0;
