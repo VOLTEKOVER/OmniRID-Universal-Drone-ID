@@ -16,6 +16,7 @@ const MAX_RESPONSE_BYTES = 1024 * 1024
 const isPrivateIpv4 = (host: string) => {
   if (isIP(host) !== 4) return false
   const [a, b] = host.split('.').map(Number)
+  if (a === undefined || b === undefined) return false
   if (a === 10) return true
   if (a === 172 && b >= 16 && b <= 31) return true
   if (a === 192 && b === 168) return true

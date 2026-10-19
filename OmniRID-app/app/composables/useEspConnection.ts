@@ -8,7 +8,7 @@ const ESP_IP_KEY = 'omnirid:esp-ip'
 export type EspTransport = 'wifi' | 'usb' | 'none'
 
 type ProxyOptions = {
-  method?: string
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   headers?: Record<string, string>
   timeout?: number

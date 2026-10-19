@@ -267,7 +267,7 @@ onMounted(async () => {
       /* Device offline: the connection watcher already flags it. Only warn when
          the device is reachable but refused/errored on the config request. */
       if (isEspConnected.value) {
-        const message = lastError.value ?? error instanceof Error ? error.message : 'The device did not return its configuration.'
+        const message = lastError.value ?? (error instanceof Error ? error.message : 'The device did not return its configuration.')
         toast.add({
           title: 'Configuration not loaded',
           description: message,

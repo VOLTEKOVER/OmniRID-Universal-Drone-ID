@@ -46,8 +46,6 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
-  css: ['~/assets/css/main.css'],
-
   routeRules: {
     '/api/**': {
       cors: true
