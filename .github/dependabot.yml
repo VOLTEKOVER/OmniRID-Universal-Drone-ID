@@ -10,7 +10,13 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
-    open-pull-requests-limit: 2
+    # High cap so nothing ever queues behind a stuck PR: every library must
+    # be proposed. Minor/patch arrive batched in one weekly PR per ecosystem,
+    # breaking bumps (incl. 0.x minors) get their own PR for individual review.
+    open-pull-requests-limit: 10
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "npm"
     directory: "/OmniRID-app"
@@ -22,7 +28,10 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "cargo"
     directory: "/OmniRID-firmware"
@@ -34,7 +43,10 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 10
+    groups:
+      firmware-minor-patch:
+        update-types: ["minor", "patch"]
 
   # bsp-esp32 is a standalone workspace (excluded from the OmniRID-firmware
   # workspace glob), so it needs its own entry.
@@ -48,4 +60,7 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 10
+    groups:
+      bsp-minor-patch:
+        update-types: ["minor", "patch"]
