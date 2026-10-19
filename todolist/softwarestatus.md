@@ -5,7 +5,7 @@
 > The C firmware audit and fix campaign findings (A–P, §9 of `dataflow.md`)
 > remain as historical reference for the port.
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19
 Tests: 302 passing | Clippy: clean | Edition: 2024
 
 > Session fixes (2026-08-28): [#18] MSP framing off-by-one → MSP v1 standard;
@@ -61,6 +61,24 @@ Tests: 302 passing | Clippy: clean | Edition: 2024
 > App side: `LIGHT_PATTERNS`, the Hardware-page sections and the chip
 > feature flags `ws2812`/`gpioLighting` were dropped too (only
 > `led_r/g/b_gpio` remain). See `dataflow.md` §10 #16.
+
+> Session cleanup (2026-10-19):
+> - **Static docs site deleted** (`1992a42`, pushed) — `docs/index.html`,
+>   `guide.html`, `architecture.html`, `bootstrap-theme.css`, `manifest.json`
+>   removed (firmware headless, PWA is the only UI); `docs/images/` (9 file)
+>   kept for reuse. Risolve anche il vecchio TODO sui link a
+>   `config(demo).html`.
+> - **Dependabot PR tutti mergiati** su `omnirid-webapp-pwa`: #64 (13 update
+>   npm in OmniRID-app, solo lockfile — includesse due downgrades di
+>   transitive: undici 8.10.0→6.29.1, brace-expansion 2.1.0→1.1.21, per
+>   allineare i range), #65 (softprops/action-gh-release 3.0.3), #66
+>   (actions/setup-node 7.1.0). Branch dipendenti cancellati da GitHub.
+>   Restano 18 alert sicurezza (3 critical, 10 high) sul default branch —
+>   scesi da 78 proprio con il merge di #64.
+> - **Riordino branch**: locale `universal` portato al sync con origin
+>   (`9ec0988`), orfano `main` cancellato, remote `fork` (quix2k23/ESPsquawk)
+>   rimosso, branch remoti già mergeati ripuliti. Online e locali restano
+>   **solo** `universal` e `omnirid-webapp-pwa`.
 
 ---
 
@@ -124,30 +142,49 @@ OmniRID/
 - [x] **Auto-update la verifica upstream** — `protocol-updates.yml` (settimanale) confronta upstream per OpenDroneID, MAVLink, DroneCAN, ESP-IDF e pagine regulatory; opendroneid è ancora path-dependency (vendored), non `rev` dep
 - [ ] **Flash encryption** — eFuse AES-256 (port from peinser)
 
-### 📌 GitHub — Aperti / in corso (aggiornamento 2026-10-18)
+### 📌 GitHub — Aperti / in corso (aggiornamento 2026-10-19)
 
-- [ ] **[#43] ESP-IDF 6.0 / esp-idf-sys 0.38** — bump committato in `ac65114`
-  (ancora da pushare): esp-idf-sys 0.37 → 0.38.1, esp-idf-svc 0.52 → 0.53
+- [ ] **[#43] ESP-IDF 6.0 / esp-idf-sys 0.38** — bump committato e **pushato**
+  in `ac65114`: esp-idf-sys 0.37 → 0.38.1, esp-idf-svc 0.52 → 0.53
   (re-vendorizzato), esp-idf-hal 0.46 → 0.47. Contro IDF 6.0.2 **bindgen ora
   genera `bindings.rs` per la prima volta**. Rimanente blocco: `esp-idf-hal
-  0.47` fallisce con 15 errori perché 36 struct (tra cui `spi_transaction_t`,
-  `rmt_encoder_t`) vengono generate **opache** (`{ _address: u8 }`) invece che
-  coi campi reali → `cargo +esp check` hardware ancora rosso. Prossimo
-  candidato: bindgen 0.73.2 (il lock attuale pinna 0.71.1); altrimenti
-  bisogna rifare il preprocessamento completo di `bindings.h` e bisectare
-  l'argomento che opacizza le struct.
+  0.47` fallisce perché 36 struct (tra cui `spi_transaction_t`,
+  `rmt_encoder_t`) vengono generate **opache** (`{ _address: u8 }`) →
+  `cargo +esp check` hardware ancora rosso. **Diagnosi avanzata, poi
+  sospeso su richiesta dell'utente** (riprendere solo su richiesta):
+  - Harness riproduttivo in `/tmp/opencode/bgtest` che invecchia
+    *esattamente* la invocazione di bindgen di esp-idf-sys 0.38.1 (Factory
+    da embuild cmake file-api, 245 argomenti clang, picolibc, define
+    `ESP_IDF_COMP*`, `-target riscv32`) → con **entrambi** i libclang
+    (20.1 Espressif e 23.1 di sistema) produce bindings **corretti**
+    (1 sola struct truly empty). Quindi: non è bindgen, non è libclang,
+    non è la versione dei crate.
+  - Escluso anche: flag opaque-type (nessuno in esp-idf-sys/embuild),
+    header extra (`pub mod` = 0), path di include relativi.
+  - Enigma riscontrato solo nel build reale: `spi_transaction_t` risulta
+    `{ _address: u8 }` pur essendoci la definizione completa in
+    `driver/spi_master.h` (mentre `spi_device_t` fwd-decl viene gestito
+    correttamente). stderr del build script reale identico (19 warning).
+  - Prossimi passi (quando si riprende): verificare doppie copie di
+    `driver/spi_master.h` nell'albero IDF con shadowing in include-order;
+    forzare il rerun del build script cancellando
+    `target/.../.fingerprint/esp-idf-sys-*` (cmake build in `out/build`
+    sopravvive) per un loop di riproduzione veloce e diff real-vs-harness.
 - [ ] **[#22] Conflitto MAVLink USB / console UART0** (riaperto, "ancora
   valido") — il port Rust usa già `usb_serial_jtag_*` per la console;
   `sdkconfig.defaults` non dichiara alcuna impostazione console. Serve una
-  decisione: chiusura documentata o fix esplicito in sdkconfig.
+  decisione: chiusura documentata o fix esplicito in sdkconfig. Indagine
+  avviata ma interrotta.
 - [ ] **Backlog non ancora preso** — #26 (refactor prioritari), #27
   (portabilità + dipendenze), #29 (mesh/LoRa/SD/CLI/Kalman/stats — parte già
   fatto), #46 (encoder non-ASTM), #47 (flash encryption), #52 (DroneCAN
   Identity/AHRS), #53 (ground tools), #54 (Web UI polish).
-- [ ] **Dependabot** — 1 alert high + 1 moderate aperti sul repo.
-- [ ] `docs/index.html`/`guide.html` linkano ancora `config(demo).html`
-  (file assente, intenzionale: la config è solo PWA — valutare se rimuovere
-  i link).
+- [x] **Dependabot PR** — #64/#65/#66 mergiati (vedi nota sessione 2026-10-19).
+  Restano gli **alert di sicurezza** su GitHub: **18** (3 critical, 10 high,
+  2 moderate, 3 low) sul default branch — scesi da 78 dopo il merge di #64 →
+  https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/security/dependabot
+  (la parte npm coperta in parte da #64; il grosso è altrove — C firmware
+  legacy / dipendenze non npm, da verificare).
 
 ---
 
