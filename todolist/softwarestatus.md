@@ -79,6 +79,30 @@ Tests: 302 passing | Clippy: clean | Edition: 2024
 >   (`9ec0988`), orfano `main` cancellato, remote `fork` (quix2k23/ESPsquawk)
 >   rimosso, branch remoti già mergeati ripuliti. Online e locali restano
 >   **solo** `universal` e `omnirid-webapp-pwa`.
+>
+> Session deps-update (2026-10-19, `098e167`/`e4131b8`/`233d3f2`):
+> - **Firmware + protocolli**: tutte le crate registry aggiornate alla
+>   latest — `ed25519-dalek` 2→**3.0** (rimosso `std` dalla dev-dep di
+>   rid-app, feature rimossa in 3.0; API from_bytes/Signer/Verifier
+>   invariate, 305 test verdi), `pkcs8` 0.10→**0.11**, `pem-rfc7468`
+>   0.7→**1.0**, `spin` 0.9→**0.12** (bsp-esp32), più `cargo update`
+>   integrale su entrambi i lockfile (serde_json 1.0.154, sha2 0.11.1,
+>   embuild 0.33.5, esp-idf-sys 0.38.1, cc 1.9.0; duplicati sha2/getrandom/
+>   rand_core collassati). inputs/outputs non avevano dipendenze indietro
+>   (solo `libm`, già latest).
+> - **App**: `pnpm update --latest` — nuxt 4.6.2, @nuxt/ui 4.12,
+>   @vueuse 15.0, eslint 10.13, vue 3.5.44, ecc. **typescript 7 rifiutato**:
+>   vue-tsc 3.3.13 non risolve il compiler nativo TS7 (`ERR_PACKAGE_PATH_NOT_EXPORTED`),
+>   resta 6.0.3. Dichiarato `@types/node` esplicitamente (prima era solo un
+>   peer optional risolto per caso da residui di node_modules; clean install
+>   rompeva il typecheck).
+> - **Bug preesistenti fixati** (`233d3f2`, erano 7 errori `nuxt typecheck`
+>   mai eseguito in CI): `css` duplicato in nuxt.config.ts, guard octet in
+>   isPrivateIpv4, precedenza `??` vs `?:` in ConfigPage (crash su
+>   error.message quando la config request falliva), method union in
+>   useEspConnection. Typecheck ora 0 errori, build+lint verdi.
+> - Nota: i PR Dependabot #67/#68/#70/#72 arrivati nel mentre sono stati
+>   risolti in rebase (i bump erano già inclusi negli update locali).
 
 ---
 
