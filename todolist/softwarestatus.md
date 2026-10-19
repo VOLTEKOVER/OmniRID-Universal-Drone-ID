@@ -144,6 +144,38 @@ Tests: 302 passing | Clippy: clean | Edition: 2024
 >   in una PR sola/settimana per ecosistema, breaking (e minor 0.x
 >   cargo) in PR singole. **Zero ignore** — TypeScript 7 incluso
 >   (l'incompatibilità con vue-tsc la gestisce l'utente a parte).
+>
+> Session weekly-sync audit (2026-10-19, `19a62dd`):
+> - **MAVLink**: l'upstream ha spostato `HEARTBEAT`/
+>   `GLOBAL_POSITION_INT` in `standard.xml` (raggiunto via `<include>`
+>   che il job non risolveva) e rimosso `opendroneid.xml`; il job
+>   scaricava 3 file fidandosi del 404 (try/except → silent degrade).
+>   Ora scarica **tutti i 19 XML** di `message_definitions/v1.0` a SHA
+>   pinnato, `curl -f`, guardie di sanità (≥15 file, ≥300 messaggi) e
+>   **gate `cargo test -p proto-mavlink`** prima della PR. Verificato:
+>   397 messaggi, NO_CHANGES.
+> - **DroneCAN**: URL `Fix2.uavcan` → il file reale è
+>   `1063.Fix2.uavcan`; di conseguenza il baseline committato era
+>   **l'hash della pagina 404 di GitHub** (verificato byte-per-byte).
+>   URL fixato, `curl -f`, sanity "non è DSDL → rifiuto", baseline
+>   riscritto all'hash reale `93a38f21…`, filename ↔ `FIX2_DTID`
+>   confrontati (1063 ok).
+> - **Regulatory**: fetch senza UA (i siti gov rispondono 403 al curl
+>   default) → ora UA reale + `--retry-all-errors`; il push del baseline
+>   poteva **correre in parallelo** a quello DroneCAN nello stesso run →
+>   entrambi rebase-retry.
+> - **Dedupe issue per titolo esatto** (non per la label condivisa): è
+>   ciò che faceva finire i commenti "*Regulatory pages changed*" dentro
+>   #43. Dedupe di rito su tutte le sync.
+> - **Job `esp-idf` ELIMINATO**: confrontava il range del Cargo.toml
+>   (`0.38`) con l'esatta `max_stable_version` di crates.io
+>   (`0.38.1`) → permanentemente "changed", unico output la issue stale
+>   #43. `esp-idf-sys` in bsp-esp32 è coperto da Dependabot.
+> - Aggiunto **`concurrency`** a livello run; validazione con
+>   `yaml.safe_load` + `bash -n` su tutti i 18 blocchi `run`.
+> - Verifica sul campo: dispatch **4/4 job verdi**, zero PR, nessuna
+>   issue toccata (la #43 resta aperta per contesto IDF-6 — ha un
+>   commento che spiega tutto; #74 intatta).
 
 ---
 
