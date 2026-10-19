@@ -13,7 +13,7 @@ updates:
     open-pull-requests-limit: 2
 
   - package-ecosystem: "npm"
-    directory: "/OmniRID-Desktop"
+    directory: "/OmniRID-app"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -25,7 +25,21 @@ updates:
     open-pull-requests-limit: 2
 
   - package-ecosystem: "cargo"
-    directory: "/OmniRID"
+    directory: "/OmniRID-firmware"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Rome"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    open-pull-requests-limit: 2
+
+  # bsp-esp32 is a standalone workspace (excluded from the OmniRID-firmware
+  # workspace glob), so it needs its own entry.
+  - package-ecosystem: "cargo"
+    directory: "/OmniRID-firmware/hardware/bsp-esp32"
     schedule:
       interval: "weekly"
       day: "monday"
