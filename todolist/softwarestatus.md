@@ -103,6 +103,32 @@ Tests: 302 passing | Clippy: clean | Edition: 2024
 >   useEspConnection. Typecheck ora 0 errori, build+lint verdi.
 > - Nota: i PR Dependabot #67/#68/#70/#72 arrivati nel mentre sono stati
 >   risolti in rebase (i bump erano già inclusi negli update locali).
+>
+> Session opendroneid-sync (2026-10-19, `52956a7`/`cd189df`):
+> - **PR #73 chiusa come DOWNGRADE**: la sync settimanale punta a
+>   `releases/latest` di opendroneid-core-c, ma l'ultima release (v2.0)
+>   è del 2022-04-06 — più vecchia dello stato vendored che segue
+>   **master** (v2.0 rimuove `round()` da tutti gli encoder →
+>   troncamento invece di arrotondamento, toglie `const`, ecc.). I gate
+>   l'hanno preso: 3 test rotti (encode_system_roundtrip + 2 out-astm
+>   byte-exact). Vendor attuale = master + 2 micro-patch locali
+>   (PRIu32 per toolchain embedded, guard `#ifndef` INV_ALT/
+>   MAX_TIMESTAMP) — ora formalizzate in
+>   `vendor/local-tweaks.patch`.
+> - **Sync fissa per seguire master pinnato a SHA** (non releases):
+>   lo script scarica dal ref e ri-applica le patch locali (patch che
+>   fallisce ad alta voce se upstream tocca le stesse righe); il
+>   workflow risolve la SHA di master, chiude le PR sync superseded,
+>   branch `ci/opendroneid-master-<sha7>`. Validato end-to-end:
+>   sync su master 849c03a riproduce i file byte-identici →
+>   "No changes", dispatch verde 5/5.
+> - **Bug YAML fixato** (`cd189df`): le righe di continuazione del
+>   BODY multi-riga erano a colonna 0 → block scalar chiuso prima del
+>   tempo, workflow intero non parsabile (422 su dispatch). Lezione:
+>   validare con python yaml.safe_load dopo ogni edit di workflow.
+> - Branch `ci/opendroneid-v2.0` eliminato (remote+locale); zero PR
+>   aperte sul repo. `origin/HEAD` locale aggiornato a
+>   `omnirid-webapp-pwa` (era stale su `universal`).
 
 ---
 
