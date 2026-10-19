@@ -10,6 +10,12 @@ permissions:
   pull-requests: write
   issues: write
 
+# Serialize runs: the dronecan/regulatory baseline steps push to the default
+# branch. Two overlapping runs would race on those pushes (and on PRs).
+concurrency:
+  group: protocol-updates
+  cancel-in-progress: false
+
 jobs:
   # ─── OpenDroneID C library ───────────────────────────────────────────
   opendroneid:
@@ -87,47 +93,90 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Fetch upstream MAVLink XML
+      - name: Resolve upstream commit
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # Pin to a master commit so the raw URLs are reproducible and the
+          # PR/branch name records exactly which upstream state was synced.
+          sha="$(gh api repos/mavlink/mavlink/commits/master --jq .sha)"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "short=${sha:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch upstream MAVLink XML
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Upstream split the definitions: HEARTBEAT/GLOBAL_POSITION_INT now
+          # live in standard.xml, opendroneid.xml is gone, and includes are
+          # NOT resolved by fetching a couple of files. So we download the
+          # whole message_definitions/v1.0 set at the pinned commit.
+          #   -f  : a 404 must be fatal, never silently parsed as a message set
+          #   -sL : quiet, follow redirects
           mkdir -p /tmp/mavlink-upstream
-          curl -sL "https://raw.githubusercontent.com/mavlink/mavlink/master/message_definitions/v1.0/common.xml" -o /tmp/mavlink-upstream/common.xml
-          curl -sL "https://raw.githubusercontent.com/mavlink/mavlink/master/message_definitions/v1.0/ardupilotmega.xml" -o /tmp/mavlink-upstream/ardupilotmega.xml
-          curl -sL "https://raw.githubusercontent.com/mavlink/mavlink/master/message_definitions/v1.0/opendroneid.xml" -o /tmp/mavlink-upstream/opendroneid.xml
+          sha="${{ steps.ref.outputs.sha }}"
+          gh api "repos/mavlink/mavlink/contents/message_definitions/v1.0?ref=${sha}" \
+            --jq '.[].name | select(endswith(".xml"))' > /tmp/mavlink-files.txt
+          files=0
+          elements=0
+          while IFS= read -r f; do
+            curl -fsSL --retry 3 \
+              "https://raw.githubusercontent.com/mavlink/mavlink/${sha}/message_definitions/v1.0/${f}" \
+              -o "/tmp/mavlink-upstream/${f}"
+            files=$((files + 1))
+            n=$(grep -c '<message ' "/tmp/mavlink-upstream/${f}" || true)
+            elements=$((elements + n))
+          done < /tmp/mavlink-files.txt
+          echo "downloaded=${files} message-elements=${elements}"
+          if [ "${files}" -lt 15 ] || [ "${elements}" -lt 300 ]; then
+            echo "::error::upstream layout changed (files=${files}, messages=${elements}) — refusing to sync blind"
+            exit 1
+          fi
 
       - name: Extract message IDs
         run: |
           python3 << 'PYEOF'
           import xml.etree.ElementTree as ET
-          import json, sys
+          import glob, json, sys
 
           msgs = {}
-          for f in ["common.xml", "ardupilotmega.xml", "opendroneid.xml"]:
+          files = sorted(glob.glob("/tmp/mavlink-upstream/*.xml"))
+          for f in files:
               try:
-                  tree = ET.parse(f"/tmp/mavlink-upstream/{f}")
-                  for msg in tree.iter("message"):
-                      name = msg.get("name", "")
-                      msgid = msg.get("id", "")
-                      if name and msgid:
-                          crc_extra = msg.get("crc_extra", "0")
-                          msgs[name] = {"id": int(msgid), "crc_extra": int(crc_extra)}
+                  tree = ET.parse(f)
               except Exception as e:
-                  print(f"Warning: failed to parse {f}: {e}", file=sys.stderr)
+                  sys.exit(f"failed to parse {f}: {e}")
+              for msg in tree.iter("message"):
+                  name = msg.get("name", "")
+                  msgid = msg.get("id", "")
+                  if name and msgid:
+                      msgs[name] = {
+                          "id": int(msgid),
+                          "crc_extra": int(msg.get("crc_extra", "0") or 0),
+                      }
+
+          if len(msgs) < 300:
+              sys.exit(f"only {len(msgs)} messages extracted from {len(files)} files — refusing to compare")
 
           with open("/tmp/mavlink-upstream/messages.json", "w") as f:
               json.dump(msgs, f, indent=2)
-          print(f"Extracted {len(msgs)} messages from upstream XML")
+          print(f"Extracted {len(msgs)} messages from {len(files)} upstream files")
           PYEOF
 
       - name: Compare with hardcoded values
         id: compare
         run: |
           python3 << 'PYEOF'
-          import json, re, sys
+          import json, os, sys
+
+          import re
 
           with open("/tmp/mavlink-upstream/messages.json") as f:
               upstream = json.load(f)
 
-          with open("OmniRID-firmware/inputs/proto-mavlink/src/parser.rs") as f:
+          path = "OmniRID-firmware/inputs/proto-mavlink/src/parser.rs"
+          with open(path) as f:
               current = f.read()
 
           current_ids = {}
@@ -135,58 +184,88 @@ jobs:
               current_ids[m.group(1)] = int(m.group(2))
 
           changes = []
-          for name, info in upstream.items():
-              const_name = f"MSG_ID_{name}"
-              if const_name in current_ids and current_ids[const_name] != info["id"]:
-                  changes.append((const_name, current_ids[const_name], info["id"]))
+          for const_name, old_id in sorted(current_ids.items()):
+              name = const_name[len("MSG_ID_"):]
+              info = upstream.get(name)
+              if info is None:
+                  print(f"::warning::{const_name} is not in the upstream XML set — renamed or removed upstream?")
+                  continue
+              if info["id"] != old_id:
+                  changes.append((const_name, old_id, info["id"]))
 
           if changes:
+              new_content = current
+              for const_name, old_id, _ in changes:
+                  new_content = new_content.replace(
+                      f"const {const_name}: u32 = {old_id};",
+                      f"const {const_name}: u32 = {upstream[const_name[len('MSG_ID_'):]]['id']};",
+                  )
+              for const_name, _, new_id in changes:
+                  if f"const {const_name}: u32 = {new_id};" not in new_content:
+                      sys.exit(f"replacement failed for {const_name} — layout of line changed?")
+              with open(path, "w") as f:
+                  f.write(new_content)
+              with open("/tmp/mavlink-changes.txt", "w") as f:
+                  for const_name, old_id, new_id in changes:
+                      f.write(f"{const_name}: {old_id} -> {new_id}\n")
               print(f"CHANGED={len(changes)}")
               for c in changes:
                   print(f"  {c[0]}: {c[1]} -> {c[2]}")
-
-              # Apply changes to parser.rs
-              new_content = current
-              for const_name, old_id, new_id in changes:
-                  new_content = new_content.replace(
-                      f"const {const_name}: u32 = {old_id};",
-                      f"const {const_name}: u32 = {new_id};"
-                  )
-
-              with open("OmniRID-firmware/inputs/proto-mavlink/src/parser.rs", "w") as f:
-                  f.write(new_content)
-
-              with open("/tmp/mavlink-changes.txt", "w") as f:
-                  for c in changes:
-                      f.write(f"{c[0]}: {c[1]} -> {c[2]}\n")
           else:
               print("NO_CHANGES")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"changed={'true' if changes else 'false'}\n")
           PYEOF
 
+      - name: Gate — build and test the edited parser
+        if: steps.compare.outputs.changed == 'true'
+        working-directory: OmniRID-firmware
+        run: cargo test -p proto-mavlink --locked
+
       - name: Open pull request
-        if: always()
+        if: steps.compare.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ ! -f /tmp/mavlink-changes.txt ]; then
-            echo "No MAVLink message ID changes detected"
+          sha="${{ steps.ref.outputs.sha }}"
+          short="${{ steps.ref.outputs.short }}"
+          branch="ci/mavlink-sync-${short}"
+          if gh pr list --head "${branch}" --state open --json number --jq '.[0].number' | grep -q .; then
+            echo "PR for ${branch} already open"
             exit 0
           fi
-
-          RESULT=$(cat /tmp/mavlink-changes.txt)
-          BRANCH="ci/mavlink-update-$(date +%Y%m%d)"
+          # Close still-open sync PRs from older upstream commits: superseded.
+          for pr in $(gh pr list --head "ci/mavlink-sync-" --state open --json number --jq '.[].number'); do
+            head="$(gh pr view "$pr" --json headRefName --jq .headRefName)"
+            if [ "$head" != "$branch" ]; then
+              gh pr close "$pr" --comment "Superseded by \`${branch}\` (newer upstream MAVLink master)."
+            fi
+          done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
+          git checkout -b "${branch}"
           git add OmniRID-firmware/inputs/proto-mavlink/src/parser.rs
-          git commit -m "chore(proto-mavlink): update message IDs from upstream - ${BRANCH}"
-          git push origin "$BRANCH" || { echo "Branch already pushed"; exit 0; }
-          BODY="Automated update from upstream MAVLink XML specs. Changed: ${RESULT}"
+          git commit -m "chore(proto-mavlink): sync message IDs with upstream ${short}"
+          git push origin "${branch}"
+          {
+            echo "Automated sync of MAVLink message IDs from upstream master \`${sha}\`."
+            echo
+            echo "Changed:"
+            echo
+            echo '```'
+            cat /tmp/mavlink-changes.txt
+            echo '```'
+            echo
+            echo "IDs are extracted from the whole \`message_definitions/v1.0\` set (all files downloaded at the pinned commit), so messages defined only in \`standard.xml\` are covered too."
+            echo
+            echo "Gated by \`cargo test -p proto-mavlink\` earlier in this workflow."
+          } > /tmp/mavlink-pr-body.md
           gh pr create \
             --base omnirid-webapp-pwa \
-            --head "$BRANCH" \
-            --title "Update MAVLink message IDs from upstream" \
-            --body "$BODY"
+            --head "${branch}" \
+            --title "Sync MAVLink message IDs with upstream ${short}" \
+            --body-file /tmp/mavlink-pr-body.md
 
   # ─── DroneCAN DSDL ───────────────────────────────────────────────────
   dronecan:
@@ -203,14 +282,20 @@ jobs:
 
       - name: Fetch upstream DSDL
         run: |
+          # Fix2 is at uavcan/equipment/gnss/1063.Fix2.uavcan (DSDL files carry
+          # their id in the name). The old unprefixed path 404s, and the
+          # baseline committed back then was the hash of GitHub's 404 HTML.
+          #   -f : a 404 must be fatal, never hashed as if it were DSDL
           mkdir -p /tmp/dsdl-upstream
-          curl -sL "https://raw.githubusercontent.com/DroneCAN/DSDL/master/uavcan/equipment/gnss/Fix2.uavcan" -o /tmp/dsdl-upstream/Fix2.uavcan
+          curl -fsSL --retry 3 \
+            "https://raw.githubusercontent.com/DroneCAN/DSDL/master/uavcan/equipment/gnss/1063.Fix2.uavcan" \
+            -o /tmp/dsdl-upstream/Fix2.uavcan
 
       - name: Compare with current parser
         id: compare
         run: |
           python3 << 'PYEOF'
-          import re, hashlib
+          import hashlib, os, re, sys
 
           with open("OmniRID-firmware/inputs/proto-dronecan/src/parser.rs") as f:
               current = f.read()
@@ -218,16 +303,22 @@ jobs:
           with open("/tmp/dsdl-upstream/Fix2.uavcan") as f:
               dsdl = f.read()
 
+          # Refuse to baseline anything that is not DSDL text (HTML error
+          # pages, redirect bodies, ...).
+          if "<html" in dsdl.lower() or "<!doctype" in dsdl.lower() or len(dsdl) < 200 or "uavcan.Timestamp" not in dsdl:
+              sys.exit("downloaded Fix2.uavcan is not DSDL — refusing to touch the baseline")
+
+          # The datatype id is in the upstream filename: 1063.Fix2.uavcan
+          expected_dtid = 1063
           dtid_match = re.search(r'const FIX2_DTID:\s*u16\s*=\s*(\d+);', current)
           sig_match = re.search(r'const FIX2_SIGNATURE:\s*u64\s*=\s*(0x[0-9a-fA-F]+);', current)
-
           current_dtid = int(dtid_match.group(1)) if dtid_match else None
           current_sig = sig_match.group(1) if sig_match else None
-          field_count = len(re.findall(r'^\s+\w+\s+\w+', dsdl, re.MULTILINE))
+          dtid_ok = current_dtid == expected_dtid
+
+          field_count = len(re.findall(r'^\s*\w+(?:\.\w+)*\s+\w+', dsdl, re.MULTILINE))
           content_hash = hashlib.sha256(dsdl.encode()).hexdigest()
 
-          import os
-          os.makedirs(".regwatch", exist_ok=True)
           try:
               baseline = open(".regwatch/dronecan-fix2.txt").read().strip()
           except FileNotFoundError:
@@ -235,39 +326,55 @@ jobs:
 
           changed = baseline != "" and baseline != content_hash
 
-          print(f"DTID: {current_dtid}, Signature: {current_sig}, Fields: {field_count}, Hash: {content_hash}")
+          print(f"expected_dtid={expected_dtid} parser_dtid={current_dtid} (ok={dtid_ok})")
+          print(f"parser_signature={current_sig}")
+          print(f"fields={field_count} hash={content_hash}")
           print(f"changed={changed}")
 
-          with open("/tmp/dsdl-info.txt", "w") as f:
-              f.write(f"DTID: {current_dtid}\nSignature: {current_sig}\nFields: {field_count}\nHash: {content_hash}\n")
+          os.makedirs(".regwatch", exist_ok=True)
           with open(".regwatch/dronecan-fix2.txt", "w") as f:
               f.write(content_hash)
+          with open("/tmp/dsdl-info.txt", "w") as f:
+              f.write(f"DTID: expected {expected_dtid}, parser {current_dtid} (ok={dtid_ok})\n")
+              f.write(f"Signature: {current_sig}\n")
+              f.write(f"Fields: {field_count}\nHash: {content_hash}\n")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"changed={'true' if changed else 'false'}\n")
           PYEOF
 
       - name: Persist baseline
-        if: always()
         run: |
-          if [ ! -f .regwatch/dronecan-fix2.txt ]; then
-            echo "No baseline file generated; nothing to persist"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .regwatch/dronecan-fix2.txt
-          git diff --cached --quiet || git commit -m "chore: dronecan fix2 baseline $(date +%Y-%m-%d)"
-          git push || echo "Nothing to push"
+          if [ -z "$(git diff --cached --name-only)" ]; then
+            echo "No baseline change"
+            exit 0
+          fi
+          git commit -m "chore: dronecan baseline $(date +%Y-%m-%d)"
+          target="omnirid-webapp-pwa"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin "${target}" && git push origin "HEAD:${target}"; then
+              echo "baseline pushed"
+              exit 0
+            fi
+            echo "::warning::push attempt ${attempt} failed (parallel baseline job?), retrying"
+            sleep 5
+          done
+          echo "::error::could not push baseline after 3 attempts"
+          exit 1
 
-      - name: Open issue if changed
+      - name: Open issue
         if: steps.compare.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Dedupe on this job's own issue title, not just the shared label
-          # (the label is common to all sync jobs and would cross-suppress them).
+          # Exact-title dedupe. Relying on the shared label alone would
+          # cross-suppress the other sync jobs (and did: comments landed on
+          # the ESP-IDF issue).
           EXISTING=$(gh issue list --label "protocol-update" --state open \
-            --search '"DroneCAN DSDL" in:title' --json number --jq '.[0].number // empty')
+            --json number,title --jq '.[] | select(.title == "DroneCAN DSDL upstream changed") | .number' \
+            | head -n 1)
           if [ -n "$EXISTING" ]; then
             echo "Issue #$EXISTING already exists"
             exit 0
@@ -277,73 +384,7 @@ jobs:
           gh issue create \
             --title "DroneCAN DSDL upstream changed" \
             --label "protocol-update" \
-            --body "DroneCAN DSDL change detected. Info: ${INFO}. Check https://github.com/DroneCAN/DSDL/blob/master/uavcan/equipment/gnss/Fix2.uavcan and update OmniRID-firmware/inputs/proto-dronecan/src/parser.rs if needed."
-
-  # ─── ESP-IDF releases ────────────────────────────────────────────────
-  esp-idf:
-    name: ESP-IDF
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Ensure protocol-update label
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh label create "protocol-update" --description "Upstream protocol sync" --force
-
-      - name: Check crates.io for esp-idf-sys
-        id: check
-        run: |
-          python3 << 'PYEOF'
-          import json, urllib.request, os, re
-
-          current = None
-          with open("OmniRID-firmware/hardware/bsp-esp32/Cargo.toml") as f:
-              for line in f:
-                  if line.strip().startswith("#"):
-                      continue
-                  if "esp-idf-sys" in line and "version" in line:
-                      m = re.search(r'version\s*=\s*"([^"]+)"', line)
-                      if m:
-                          current = m.group(1)
-                          break
-          if current is None:
-              raise SystemExit("esp-idf-sys version not found in Cargo.toml")
-
-          url = "https://crates.io/api/v1/crates/esp-idf-sys"
-          req = urllib.request.Request(url, headers={"User-Agent": "omnirid-ci"})
-          resp = urllib.request.urlopen(req, timeout=10)
-          data = json.loads(resp.read())
-          latest = data["crate"]["max_stable_version"]
-
-          print(f"Current: {current}, Latest: {latest}")
-          changed = latest != current
-          if changed:
-              with open("/tmp/esp-idf-new.txt", "w") as f:
-                  f.write(f"{current}\n{latest}")
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"changed={'true' if changed else 'false'}\n")
-          PYEOF
-
-      - name: Open issue
-        if: steps.check.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          EXISTING=$(gh issue list --label "protocol-update" --state open \
-            --search '"ESP-IDF update" in:title' --json number --jq '.[0].number // empty')
-          if [ -n "$EXISTING" ]; then
-            echo "Issue #$EXISTING already exists"
-            exit 0
-          fi
-
-          CURRENT=$(sed -n '1p' /tmp/esp-idf-new.txt)
-          LATEST=$(sed -n '2p' /tmp/esp-idf-new.txt)
-          gh issue create \
-            --title "ESP-IDF update: $LATEST" \
-            --label "protocol-update" \
-            --body "New esp-idf-sys: ${CURRENT} -> ${LATEST}. Update OmniRID-firmware/hardware/bsp-esp32/Cargo.toml, run cargo check, check https://github.com/espressif/esp-idf/releases"
+            --body "DroneCAN DSDL change detected. Info: ${INFO}. Check https://github.com/DroneCAN/DSDL/blob/master/uavcan/equipment/gnss/1063.Fix2.uavcan and update OmniRID-firmware/inputs/proto-dronecan/src/parser.rs if needed."
 
   # ─── Regulatory page changes ─────────────────────────────────────────
   regulatory:
@@ -369,37 +410,63 @@ jobs:
             ["astm-rid"]="https://www.astm.org/committee/b10/home"
             ["china-sac"]="https://openstd.samr.gov.cn/bzgk/gb/"
           )
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36 omnirid-regwatch/1.0"
 
           for name in "${!URLS[@]}"; do
             url="${URLS[$name]}"
-            curl -sL --max-time 30 "$url" | sed 's/<[^>]*>//g' | tr -s '[:space:]' '\n' | grep -v '^$' > ".regwatch/$name.new" 2>/dev/null || true
-            [ ! -s ".regwatch/$name.new" ] && rm -f ".regwatch/$name.new" && continue
+            raw=".regwatch/${name}.raw"
+            if ! curl -sL --retry 3 --retry-all-errors --max-time 30 -A "$UA" "$url" -o "$raw"; then
+              echo "::warning::fetch failed for ${name} — skipping this week"
+              rm -f "$raw"
+              continue
+            fi
+            sed 's/<[^>]*>//g' "$raw" | tr -s '[:space:]' '\n' | grep -v '^$' > ".regwatch/${name}.new" || true
+            rm -f "$raw"
+            if [ ! -s ".regwatch/${name}.new" ]; then
+              echo "::warning::empty content for ${name} — skipping"
+              rm -f ".regwatch/${name}.new"
+              continue
+            fi
 
-            if [ -f ".regwatch/$name.txt" ]; then
-              OLD=$(cat ".regwatch/$name.txt" | tr -s '[:space:]' '\n' | grep -v '^$')
-              NEW=$(cat ".regwatch/$name.new" | tr -s '[:space:]' '\n' | grep -v '^$')
-              ADDED=$(diff <(echo "$OLD") <(echo "$NEW") 2>/dev/null | grep '^>' | wc -l)
-              REMOVED=$(diff <(echo "$OLD") <(echo "$NEW") 2>/dev/null | grep '^<' | wc -l)
-
-              if [ "$ADDED" -gt 3 ] || [ "$REMOVED" -gt 3 ]; then
-                DIFF=$(diff <(echo "$OLD") <(echo "$NEW") 2>/dev/null | head -30)
+            if [ -f ".regwatch/${name}.txt" ]; then
+              ADDED=$(diff <(grep -v '^$' ".regwatch/${name}.txt") ".regwatch/${name}.new" | grep -c '^>' || true)
+              REMOVED=$(diff <(grep -v '^$' ".regwatch/${name}.txt") ".regwatch/${name}.new" | grep -c '^<' || true)
+              if [ "${ADDED}" -gt 3 ] || [ "${REMOVED}" -gt 3 ]; then
+                DIFF=$(diff -u ".regwatch/${name}.txt" ".regwatch/${name}.new" | head -60 || true)
                 CHANGES="${CHANGES}\n### ${name}\n+${ADDED}/-${REMOVED} lines\n\`\`\`diff\n${DIFF}\n\`\`\`\n"
               fi
             fi
-            mv ".regwatch/$name.new" ".regwatch/$name.txt"
+            mv ".regwatch/${name}.new" ".regwatch/${name}.txt"
           done
 
           echo -e "$CHANGES" > .regwatch/changes.md
-          [ -n "$CHANGES" ] && echo "HAS_CHANGES=true" >> "$GITHUB_ENV" || echo "HAS_CHANGES=false" >> "$GITHUB_ENV"
+          if [ -n "$CHANGES" ]; then
+            echo "HAS_CHANGES=true" >> "$GITHUB_ENV"
+          else
+            echo "HAS_CHANGES=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Persist baseline
-        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .regwatch/*.txt
-          git diff --cached --quiet || git commit -m "chore: regulatory baseline $(date +%Y-%m-%d)"
-          git push || echo "Nothing to push"
+          if [ -z "$(git diff --cached --name-only)" ]; then
+            echo "No baseline change"
+            exit 0
+          fi
+          git commit -m "chore: regulatory baseline $(date +%Y-%m-%d)"
+          target="omnirid-webapp-pwa"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin "$target" && git push origin "HEAD:${target}"; then
+              echo "baseline pushed"
+              exit 0
+            fi
+            echo "::warning::push attempt ${attempt} failed (parallel baseline job?), retrying"
+            sleep 5
+          done
+          echo "::error::could not push baseline after 3 attempts"
+          exit 1
 
       - name: Open issue
         if: env.HAS_CHANGES == 'true'
@@ -407,14 +474,29 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           EXISTING=$(gh issue list --label "protocol-update" --state open \
-            --search '"Regulatory pages changed" in:title' --json number --jq '.[0].number // empty')
+            --json number,title --jq '.[] | select(.title == "Regulatory pages changed") | .number' \
+            | head -n 1)
+          {
+            echo "Updated $(date +%Y-%m-%d):"
+            echo
+            cat .regwatch/changes.md
+          } > /tmp/reg-body.md
           if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --body "Updated $(date +%Y-%m-%d):
-          $(cat .regwatch/changes.md)"
+            gh issue comment "$EXISTING" --body-file /tmp/reg-body.md
             exit 0
           fi
-
+          {
+            echo "Regulatory page changes detected. Review changed sources, check if wire format/timing/regional standard changed."
+            echo
+            cat .regwatch/changes.md
+          } > /tmp/reg-body.md
           gh issue create \
             --title "Regulatory pages changed" \
             --label "protocol-update" \
-            --body "Regulatory page changes detected. Review changed sources, check if wire format/timing/regional standard changed. Changes: $(cat .regwatch/changes.md | tr '\n' ' ')"
+            --body-file /tmp/reg-body.md
+
+  # NOTE: the previous "esp-idf" job was removed here. It compared the
+  # Cargo.toml semver RANGE ("0.38") against crates.io's exact
+  # max_stable_version ("0.38.1"), so it reported a change every week and
+  # its only real output was a permanently stale issue (#43). esp-idf-sys
+  # in bsp-esp32 is covered properly by Dependabot now.
