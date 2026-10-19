@@ -19,28 +19,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Resolve upstream tag
-        id: tag
+      - name: Resolve upstream commit
+        id: ref
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="$(gh api repos/opendroneid/opendroneid-core-c/releases/latest --jq .tag_name)"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          # Track master pinned by SHA, NOT releases/latest: the latest
+          # release (v2.0, 2022-04-06) predates the vendored master state and
+          # syncing to it reverts encoder fixes (round(), const, ...).
+          sha="$(gh api "repos/opendroneid/opendroneid-core-c/commits/master" --jq .sha)"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "short=${sha:0:7}" >> "$GITHUB_OUTPUT"
 
       - name: Update vendored files
         working-directory: OmniRID-firmware
-        run: bash ./scripts/update-opendroneid.sh "${{ steps.tag.outputs.tag }}"
+        run: bash ./scripts/update-opendroneid.sh "${{ steps.ref.outputs.sha }}"
 
       - name: Open pull request
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${{ steps.tag.outputs.tag }}"
-          branch="ci/opendroneid-${tag}"
+          sha="${{ steps.ref.outputs.sha }}"
+          short="${{ steps.ref.outputs.short }}"
+          branch="ci/opendroneid-master-${short}"
           if git diff --quiet; then
-            echo "No changes: vendored library already at ${tag}"
+            echo "No changes: vendored library already matches master ${short}"
             exit 0
           fi
+          # Close still-open sync PRs from older master commits: superseded.
+          for pr in $(gh pr list --head "ci/opendroneid-master-" --state open --json number --jq '.[].number'); do
+            head="$(gh pr view "$pr" --json headRefName --jq .headRefName)"
+            if [ "$head" != "$branch" ]; then
+              gh pr close "$pr" --comment "Superseded by \`${branch}\` (newer upstream master sync)."
+            fi
+          done
           if gh pr list --head "${branch}" --state open --json number --jq '.[0].number' | grep -q .; then
             echo "PR for ${branch} already open"
             exit 0
@@ -49,18 +61,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "${branch}"
           git add OmniRID-firmware/external-libs/opendroneid-sys/vendor
-          git commit -m "chore(opendroneid-sys): vendored library to ${tag}"
+          git commit -m "chore(opendroneid-sys): vendored library to master ${short}"
           git push origin "${branch}"
-          BODY=$(cat <<'EOF'
-          Automated update of the vendored OpenDroneID C library.
+          BODY="Automated sync of the vendored OpenDroneID C library to upstream master (${sha}).
 
-          The layout-parity tests in `opendroneid-sys` and the byte-exact tests in `out-astm` gate this PR: if the C struct layout or encoder behaviour changed, update the FFI mirror in `external-libs/opendroneid-sys/src/lib.rs` in this same PR.
-          EOF
-          )
+Tracks upstream master pinned by commit SHA — the \`v2.0\` release tag (2022-04-06) is older than the vendored state; syncing to \`releases/latest\` was a downgrade (see closed PR #73).
+
+The layout-parity tests in \`opendroneid-sys\` and the byte-exact tests in \`out-astm\` gate this PR: if the C struct layout or encoder behaviour changed, update the FFI mirror in \`external-libs/opendroneid-sys/src/lib.rs\` in this same PR."
           gh pr create \
             --base omnirid-webapp-pwa \
             --head "${branch}" \
-            --title "Update vendored OpenDroneID to ${tag}" \
+            --title "Sync vendored OpenDroneID to master ${short}" \
             --body "$BODY"
 
   # ─── MAVLink message IDs ─────────────────────────────────────────────

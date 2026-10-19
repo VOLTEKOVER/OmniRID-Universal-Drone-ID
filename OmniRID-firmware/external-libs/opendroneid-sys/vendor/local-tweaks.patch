@@ -1,0 +1,43 @@
+--- opendroneid.c
++++ opendroneid.c
+@@ -13,6 +13,7 @@
+ #include "opendroneid.h"
+ #include <math.h>
+ #include <stdio.h>
++#include <inttypes.h>
+ #define ENABLE_DEBUG 1
+ 
+ const float SPEED_DIV[2] = {0.25f, 0.75f};
+@@ -1429,7 +1430,7 @@
+     if (Auth->DataPage == 0) {
+         const char ODID_Auth_data_format[] =
+             "AuthType: %d\nDataPage: %d\nLastPageIndex: %d\nLength: %d\n"\
+-            "Timestamp: %u\nAuthData: ";
++            "Timestamp: %" PRIu32 "\nAuthData: ";
+         printf(ODID_Auth_data_format, Auth->AuthType, Auth->DataPage,
+                Auth->LastPageIndex, Auth->Length, Auth->Timestamp);
+         for (int i = 0; i < ODID_AUTH_PAGE_ZERO_DATA_SIZE; i++)
+@@ -1469,7 +1470,7 @@
+     const char ODID_System_data_format[] = "Operator Location Type: %d\n"
+         "Classification Type: %d\nLat/Lon: %.7f, %.7f\n"
+         "Area Count, Radius, Ceiling, Floor: %d, %d, %.2f, %.2f\n"
+-        "Category EU: %d, Class EU: %d, Altitude: %.2f, Timestamp: %u\n";
++        "Category EU: %d, Class EU: %d, Altitude: %.2f, Timestamp: %" PRIu32 "\n";
+     printf(ODID_System_data_format, System_data->OperatorLocationType,
+         System_data->ClassificationType,
+         System_data->OperatorLatitude, System_data->OperatorLongitude,
+--- opendroneid.h
++++ opendroneid.h
+@@ -90,8 +90,12 @@
+ #define MAX_LON         180     // Maximum longitude
+ #define MIN_ALT         (-1000) // Minimum altitude
+ #define MAX_ALT         31767.5f// Maximum altitude
++#ifndef INV_ALT
+ #define INV_ALT         MIN_ALT // Invalid altitude
++#endif
++#ifndef MAX_TIMESTAMP
+ #define MAX_TIMESTAMP   (60 * 60) // 1 hour in seconds
++#endif
+ #define INV_TIMESTAMP   0xFFFF  // Invalid, No Value or Unknown Timestamp
+ #define MAX_AREA_RADIUS 2550
+ 
