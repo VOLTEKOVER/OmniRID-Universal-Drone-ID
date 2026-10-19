@@ -13,4 +13,4 @@ ed25519-dalek = { version = "3", default-features = false, features = ["fast", "
 pkcs8 = { version = "0.10", default-features = false, features = ["alloc", "pem"] }
 
 [dev-dependencies]
-pem-rfc7468 = "0.7"
+pem-rfc7468 = "1.0"
