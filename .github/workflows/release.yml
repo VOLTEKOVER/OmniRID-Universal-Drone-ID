@@ -14,12 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -40,15 +34,17 @@ jobs:
 
           Open DroneID transmitter for ESP32 - ASTM F3411-22a / ASD-STAN prEN 4709-002.
 
-          Written in Rust. Firmware builds via \`cargo +esp build\` (see CI).
-          Ground station: Nuxt 3 PWA (Nuxt UI + Pinia + Vite PWA).
+          Written in Rust. Firmware builds via the ESP32 Firmware Cross-Build CI
+          workflow (\`OmniRID-firmware\`, ESP32/ESP32-S3/ESP32-C6).
+          Ground station: Nuxt 4 PWA (\`OmniRID-app\`), headless firmware
+          configured over the ESP-RID WiFi access point.
 
-          ## Downloads
+          ## Repository layout
 
-          | Artifact | Platform |
-          |----------|----------|
-          | OmniRID App (PWA) | Web — https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/OmniRID-app/ |
-          | Firmware | ESP32 builds via CI artifacts |
+          | Path | Content |
+          |------|---------|
+          | \`OmniRID-firmware\` | Rust firmware (rid-core, rid-app, bsp-esp32) |
+          | \`OmniRID-app\` | Nuxt 4 PWA ground station |
           EOF
 
           echo "" >> release-notes.md
@@ -62,10 +58,6 @@ jobs:
             echo "" >> release-notes.md
             git log "$PREV.." --format="  - %s" >> release-notes.md || true
           fi
-
-          echo "" >> release-notes.md
-          echo "---" >> release-notes.md
-          echo "Full documentation at https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/" >> release-notes.md
         shell: bash
 
       - name: Create Release
@@ -73,39 +65,3 @@ jobs:
         with:
           name: OmniRID v${{ env.VERSION }}
           body_path: release-notes.md
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: OmniRID-app/package-lock.json
-
-      - name: Install web app deps
-        run: npm ci
-        working-directory: OmniRID-app
-
-      - name: Static build (Nuxt generate)
-        run: npm run build
-        working-directory: OmniRID-app
-        env:
-          NUXT_APP_BASE_URL: /OmniRID-Universal-Drone-ID/OmniRID-app/
-
-      - name: Prepare Pages artifact (docs + web app)
-        run: |
-          mkdir -p _site/OmniRID-app
-          cp -r docs _site/docs
-          cp -r OmniRID-app/.output/public/* _site/OmniRID-app/
-        shell: bash
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
-        with:
-          path: _site
-          name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
-        with:
-          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}

@@ -11,7 +11,7 @@ permissions:
   issues: write
 
 jobs:
-  # â”€â”€ OpenDroneID C library â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ─── OpenDroneID C library ───────────────────────────────────────────
   opendroneid:
     name: OpenDroneID
     runs-on: ubuntu-latest
@@ -28,7 +28,7 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - name: Update vendored files
-        working-directory: OmniRID
+        working-directory: OmniRID-firmware
         run: bash ./scripts/update-opendroneid.sh "${{ steps.tag.outputs.tag }}"
 
       - name: Open pull request
@@ -41,25 +41,29 @@ jobs:
             echo "No changes: vendored library already at ${tag}"
             exit 0
           fi
+          if gh pr list --head "${branch}" --state open --json number --jq '.[0].number' | grep -q .; then
+            echo "PR for ${branch} already open"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "${branch}"
-          git add OmniRID/external-libs/opendroneid-sys/vendor
+          git add OmniRID-firmware/external-libs/opendroneid-sys/vendor
           git commit -m "chore(opendroneid-sys): vendored library to ${tag}"
           git push origin "${branch}"
           BODY=$(cat <<'EOF'
           Automated update of the vendored OpenDroneID C library.
-          
+
           The layout-parity tests in `opendroneid-sys` and the byte-exact tests in `out-astm` gate this PR: if the C struct layout or encoder behaviour changed, update the FFI mirror in `external-libs/opendroneid-sys/src/lib.rs` in this same PR.
           EOF
           )
           gh pr create \
-            --base universal \
+            --base omnirid-webapp-pwa \
             --head "${branch}" \
             --title "Update vendored OpenDroneID to ${tag}" \
             --body "$BODY"
 
-  # â”€â”€ MAVLink message IDs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ─── MAVLink message IDs ─────────────────────────────────────────────
   mavlink:
     name: MAVLink
     runs-on: ubuntu-latest
@@ -112,7 +116,7 @@ jobs:
           with open("/tmp/mavlink-upstream/messages.json") as f:
               upstream = json.load(f)
 
-          with open("OmniRID/inputs/proto-mavlink/src/parser.rs") as f:
+          with open("OmniRID-firmware/inputs/proto-mavlink/src/parser.rs") as f:
               current = f.read()
 
           current_ids = {}
@@ -138,7 +142,7 @@ jobs:
                       f"const {const_name}: u32 = {new_id};"
                   )
 
-              with open("OmniRID/inputs/proto-mavlink/src/parser.rs", "w") as f:
+              with open("OmniRID-firmware/inputs/proto-mavlink/src/parser.rs", "w") as f:
                   f.write(new_content)
 
               with open("/tmp/mavlink-changes.txt", "w") as f:
@@ -163,17 +167,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add OmniRID/inputs/proto-mavlink/src/parser.rs
+          git add OmniRID-firmware/inputs/proto-mavlink/src/parser.rs
           git commit -m "chore(proto-mavlink): update message IDs from upstream - ${BRANCH}"
-          git push origin "$BRANCH"
+          git push origin "$BRANCH" || { echo "Branch already pushed"; exit 0; }
           BODY="Automated update from upstream MAVLink XML specs. Changed: ${RESULT}"
           gh pr create \
-            --base universal \
+            --base omnirid-webapp-pwa \
             --head "$BRANCH" \
             --title "Update MAVLink message IDs from upstream" \
             --body "$BODY"
 
-  # â”€â”€ DroneCAN DSDL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ─── DroneCAN DSDL ───────────────────────────────────────────────────
   dronecan:
     name: DroneCAN
     runs-on: ubuntu-latest
@@ -197,7 +201,7 @@ jobs:
           python3 << 'PYEOF'
           import re, hashlib
 
-          with open("OmniRID/inputs/proto-dronecan/src/parser.rs") as f:
+          with open("OmniRID-firmware/inputs/proto-dronecan/src/parser.rs") as f:
               current = f.read()
 
           with open("/tmp/dsdl-upstream/Fix2.uavcan") as f:
@@ -249,7 +253,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          EXISTING=$(gh issue list --label "protocol-update" --state open --json number --jq '.[0].number // empty')
+          # Dedupe on this job's own issue title, not just the shared label
+          # (the label is common to all sync jobs and would cross-suppress them).
+          EXISTING=$(gh issue list --label "protocol-update" --state open \
+            --search '"DroneCAN DSDL" in:title' --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING" ]; then
             echo "Issue #$EXISTING already exists"
             exit 0
@@ -259,9 +266,9 @@ jobs:
           gh issue create \
             --title "DroneCAN DSDL upstream changed" \
             --label "protocol-update" \
-            --body "DroneCAN DSDL change detected. Info: ${INFO}. Check https://github.com/DroneCAN/DSDL/blob/master/uavcan/equipment/gnss/Fix2.uavcan and update proto-dronecan/src/parser.rs if needed."
+            --body "DroneCAN DSDL change detected. Info: ${INFO}. Check https://github.com/DroneCAN/DSDL/blob/master/uavcan/equipment/gnss/Fix2.uavcan and update OmniRID-firmware/inputs/proto-dronecan/src/parser.rs if needed."
 
-  # â”€â”€ ESP-IDF releases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ─── ESP-IDF releases ────────────────────────────────────────────────
   esp-idf:
     name: ESP-IDF
     runs-on: ubuntu-latest
@@ -278,16 +285,20 @@ jobs:
         id: check
         run: |
           python3 << 'PYEOF'
-          import json, urllib.request, os
+          import json, urllib.request, os, re
 
-          with open("OmniRID/hardware/bsp-esp32/Cargo.toml") as f:
+          current = None
+          with open("OmniRID-firmware/hardware/bsp-esp32/Cargo.toml") as f:
               for line in f:
+                  if line.strip().startswith("#"):
+                      continue
                   if "esp-idf-sys" in line and "version" in line:
-                      import re
                       m = re.search(r'version\s*=\s*"([^"]+)"', line)
                       if m:
                           current = m.group(1)
                           break
+          if current is None:
+              raise SystemExit("esp-idf-sys version not found in Cargo.toml")
 
           url = "https://crates.io/api/v1/crates/esp-idf-sys"
           req = urllib.request.Request(url, headers={"User-Agent": "omnirid-ci"})
@@ -309,7 +320,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          EXISTING=$(gh issue list --label "protocol-update" --state open --json number --jq '.[0].number // empty')
+          EXISTING=$(gh issue list --label "protocol-update" --state open \
+            --search '"ESP-IDF update" in:title' --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING" ]; then
             echo "Issue #$EXISTING already exists"
             exit 0
@@ -320,9 +332,9 @@ jobs:
           gh issue create \
             --title "ESP-IDF update: $LATEST" \
             --label "protocol-update" \
-            --body "New esp-idf-sys: ${CURRENT} -> ${LATEST}. Update bsp-esp32/Cargo.toml, run cargo check, check https://github.com/espressif/esp-idf/releases"
+            --body "New esp-idf-sys: ${CURRENT} -> ${LATEST}. Update OmniRID-firmware/hardware/bsp-esp32/Cargo.toml, run cargo check, check https://github.com/espressif/esp-idf/releases"
 
-  # â”€â”€ Regulatory page changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  # ─── Regulatory page changes ─────────────────────────────────────────
   regulatory:
     name: Regulatory
     runs-on: ubuntu-latest
@@ -383,9 +395,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          EXISTING=$(gh issue list --label "protocol-update" --state open --json number --jq '.[0].number // empty')
+          EXISTING=$(gh issue list --label "protocol-update" --state open \
+            --search '"Regulatory pages changed" in:title' --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --body "Updated $(date +%Y-%m-%d):\n$(cat .regwatch/changes.md)"
+            gh issue comment "$EXISTING" --body "Updated $(date +%Y-%m-%d):
+          $(cat .regwatch/changes.md)"
             exit 0
           fi
 
