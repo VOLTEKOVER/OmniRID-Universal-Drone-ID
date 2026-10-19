@@ -65,9 +65,9 @@ jobs:
           git push origin "${branch}"
           BODY="Automated sync of the vendored OpenDroneID C library to upstream master (${sha}).
 
-Tracks upstream master pinned by commit SHA — the \`v2.0\` release tag (2022-04-06) is older than the vendored state; syncing to \`releases/latest\` was a downgrade (see closed PR #73).
+          Tracks upstream master pinned by commit SHA — the \`v2.0\` release tag (2022-04-06) is older than the vendored state; syncing to \`releases/latest\` was a downgrade (see closed PR #73).
 
-The layout-parity tests in \`opendroneid-sys\` and the byte-exact tests in \`out-astm\` gate this PR: if the C struct layout or encoder behaviour changed, update the FFI mirror in \`external-libs/opendroneid-sys/src/lib.rs\` in this same PR."
+          The layout-parity tests in \`opendroneid-sys\` and the byte-exact tests in \`out-astm\` gate this PR: if the C struct layout or encoder behaviour changed, update the FFI mirror in \`external-libs/opendroneid-sys/src/lib.rs\` in this same PR."
           gh pr create \
             --base omnirid-webapp-pwa \
             --head "${branch}" \
