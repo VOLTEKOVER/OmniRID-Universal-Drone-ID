@@ -129,6 +129,21 @@ Tests: 302 passing | Clippy: clean | Edition: 2024
 > - Branch `ci/opendroneid-v2.0` eliminato (remote+locale); zero PR
 >   aperte sul repo. `origin/HEAD` locale aggiornato a
 >   `omnirid-webapp-pwa` (era stale su `universal`).
+>
+> Session dependabot-config (`9662016`):
+> - **Perché Dependabot non aveva aggiornato nulla**: fino a `c1dffa4`
+>   (oggi 11:00) la config guardava cartelle fantasma — cargo →
+>   `/OmniRID` (layout pre-riorganizzazione), npm →
+>   `/OmniRID-Desktop` (mai esistita), entry bsp-esp32 assente. Appena
+>   fixata: 4 PR in un minuto (pem-rfc7468, serde_json, dalek,
+>   vueuse) — cioè esattamente le librerie poi fatte a mano perché
+>   rosse/non mergeabili (dalek 3 con feature `std` fantasma, bug
+>   clippy-su-merge-ref, nessun auto-merge, `limit: 2` a bloccare la
+>   coda di ~30 librerie).
+> - Config ora: **limit 2→10** per ecosistema, **groups** minor+patch
+>   in una PR sola/settimana per ecosistema, breaking (e minor 0.x
+>   cargo) in PR singole. **Zero ignore** — TypeScript 7 incluso
+>   (l'incompatibilità con vue-tsc la gestisce l'utente a parte).
 
 ---
 
