@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/rid-rust-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/VOLTEKOVER/OmniRID-Universal-Drone-ID/rid-rust-ci.yml?logo=github" alt="CI"></a>
-  <a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/"><img src="https://img.shields.io/badge/BETA-000?logo=esphome&color=f9a825" alt="BETA"></a>
+  <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/esp32-build.yml"><img src="https://img.shields.io/github/actions/workflow/status/VOLTEKOVER/OmniRID-Universal-Drone-ID/esp32-build.yml?logo=github" alt="CI"></a>
+  <img src="https://img.shields.io/badge/BETA-000?logo=esphome&color=f9a825" alt="BETA">
   <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/releases"><img src="https://img.shields.io/github/v/release/VOLTEKOVER/OmniRID-Universal-Drone-ID?include_prereleases&logo=github&label=version" alt="Release"></a>
   <a href="https://www.espressif.com/"><img src="https://img.shields.io/badge/ESP32%20|%20S3%20|%20C6-000?logo=espressif" alt="Platform"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/VOLTEKOVER/OmniRID-Universal-Drone-ID?color=blue" alt="License"></a>
@@ -23,8 +23,9 @@ OmniRID is an **open-source Drone ID transmitter** for ESP32 that turns any flig
 - **Broadcast** via **WiFi Beacon + NAN + BLE 4.0/5.0**
 
 <p align="center">
-  <a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/"><b>Wiki &amp; Demo</b></a>&nbsp;&nbsp;
-  <a href="https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/config(demo).html"><b>Live Demo</b></a>
+  <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID"><b>Source</b></a>&nbsp;&nbsp;
+  <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/tree/omnirid-webapp-pwa/OmniRID-app"><b>Ground Station</b></a>&nbsp;&nbsp;
+  <a href="todolist/shared-todo.md"><b>Backlog</b></a>
 </p>
 
 ---
@@ -60,12 +61,14 @@ OmniRID is an **open-source Drone ID transmitter** for ESP32 that turns any flig
 
 ## Quick Start
 
-The fastest way to evaluate OmniRID is the **offline demo** — no hardware required:
+The old standalone HTML demo was removed together with the static docs site. Hardware is
+required, but no flight controller is: the firmware has a built-in **demo mode** that
+simulates a GPS patrol.
 
-1. Open the [Live Demo](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/config(demo).html) (full simulation: GPS, battery, logs).
-2. Flash the firmware to your ESP32 (see [Hardware](#hardware) and [Build](#build)).
-3. Connect to the WiFi network **ESP-RID**.
-4. Open the [OmniRID App (PWA)](OmniRID-app/index.html) — the only configuration surface (the firmware is headless: JSON API at `192.168.4.1` only, no embedded web UI).
+1. Flash the firmware to your ESP32 (see [Hardware](#hardware) and [Build](#build)).
+2. Connect to the WiFi network **ESP-RID**.
+3. Start the OmniRID App (see [Ground Station](#ground-station-web-app--pwa)) and point it at `192.168.4.1`.
+4. Enable **Demo mode** in the options to get simulated telemetry without a flight controller.
 
 ---
 
@@ -105,7 +108,7 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 |---|---|
 | **Authentication** | Ed25519 signing (ASTM F3411-22a compliant), 4 pages per broadcast cycle |
 | **Lock levels** | 3 tiers: Normal / Ed25519 signed / eFuse permanent |
-| **OTA updates** | WiFi AP with client-side SHA-256 verification (Web Crypto) + Ed25519 signature |
+| **Firmware update** | USB/serial flashing; the `/ota` endpoint is a `501` stub (validators exist, not wired) |
 | **Hardening** | Safe JSON parsing, rate limiting (10 failed attempts/60 s), bounded strings |
 | **Configuration** | 70+ parameters (JSON API + CORS): UAS ID, rates, power, public keys, auth, lock, RGB status LED |
 
@@ -117,47 +120,52 @@ The fastest way to evaluate OmniRID is the **offline demo** — no hardware requ
 |---|---|
 | **Framework** | Nuxt 4 / Vue 3 (Vite + Nitro static) |
 | **UI** | Nuxt UI (@nuxt/ui) — pannelli configurazione device, checklist, notifiche |
-| **PWA** | Installabile, 100% offline (Service Worker) |
+| **PWA** | Nuxt 4 static generate (`nuxt generate`) — no service worker yet, not installable |
 | **State** | Pinia + composables — stato configurazione e shell dashboard |
-| **Server API** | `OmniRID-app/server/api/*` — feed notifiche temporaneo |
+| **Server API** | `OmniRID-app/server/routes/api/esp/[...path].ts` — dev/self-hosted proxy to the device (absent in the static build) |
 
 > **Current boundary**: `OmniRID-app` is a browser **configuration dashboard** for
 > the OmniRID ESP32 device. It does **not** contain a browser-side ASTM decoder,
 > a BLE/Serial capture pipeline or a PCAP/KML importer — decoding lives in the
-> Rust firmware (parsers) and ASTM output in `docs/demo`. The pages render grouped
-> configuration surfaces and are being connected incrementally to the firmware API.
+> Rust firmware (parsers) and ASTM output is produced on the device. The pages
+> talk to the firmware through `/api/*` (via the dev proxy or directly when
+> CORS allows it).
 
-Installable **Progressive Web App** — works offline:
+Static SPA, no server required for the UI (device access needs the proxy or direct CORS):
 
 ```bash
 cd OmniRID-app
-npm install
-npm run dev             # http://localhost:3000 (hot reload)
-npm run build           # static build in .output/public
-npm run preview         # serve the build
+pnpm install
+pnpm dev                # http://localhost:3000 (hot reload)
+pnpm build              # static build in OmniRID-app/.output/public
+pnpm preview            # serve the build
+pnpm typecheck          # vue-tsc
+pnpm lint
 ```
-
-On Windows, double-click `start-webui.bat` — it installs deps, starts the dev server and opens the browser automatically.
 
 ### Current user-visible behavior
 
-1. **ESP connection indicator** — The header shows the connection state and the
-	configured address (`192.168.4.1` by default). The state is local UI state; it
-	is not yet confirmed by a live request to the ESP32.
-2. **ESP address editor** — The address popover accepts a new value during the
-	session. It does not yet persist the address or test the connection.
-3. **Configuration checklist** — Security, identity, flight controller and
-	transmission items can be checked manually; the percentage is computed in the
-	browser and is not yet derived from the actual device config.
-4. **Configuration pages** — Each page renders grouped fields from the shared
-	`ConfigPage` component. Inputs validate on blur (SSID 1-32, password 8-63,
-	GPS bounds, GPIO range, channel 1-13, …) and the Save button shows a success
-	toast. Persistence and `/api/config` writes are not yet connected.
-5. **Notifications** — The bell opens the error-history slideover and loads the
-	current static notification feed from `server/api/notifications.ts`. It is not
-	yet connected to live firmware logs or `/api/status`.
-6. **Theme** — The light/dark switch updates the Nuxt color mode and is shared by
-	the header and sidebar controls.
+1. **ESP connection** — The header shows the connection state and the address
+   (`192.168.4.1` by default), verified by a live `GET /api/capabilities`.
+   The address popover persists the value in `localStorage` and retries the
+   connection; state changes raise info/error notifications.
+2. **Configuration checklist** — Security, identity, flight controller and
+   transmission items are checked manually; the percentage is computed in the
+   browser and is not derived from the device config yet.
+3. **Configuration pages** — Grouped fields from the shared `ConfigPage`
+   component. Values are loaded with `GET /api/config`, validated on blur
+   (SSID, password, GPS bounds, GPIO ranges, channel, …) and saved with
+   `POST /api/config`; save is blocked while the device is offline.
+4. **Notifications** — Real events (connection loss/gain, config saved, preset
+   applied, import/export) feed the three-level slideover; unread badge,
+   mark-all-read and clear are supported.
+5. **Tools** — Console streams `GET /api/logs`, keeps command history (↑/↓) and
+   posts to `POST /api/command` with an optional manual `X-Signature`; Presets
+   round-trip `/api/config`; Logging records `/api/status` telemetry and
+   exports CSV.
+6. **Firmware page** — Presentational: the install flow via WebSerial and the
+   OTA progress bar are pending (firmware `/ota` currently answers `501`).
+7. **Theme** — Light/dark switch shared by header and sidebar.
 
 > Debug harness (CDP) lives in the OS temp dir, not in the repo; no commits.
 
@@ -169,7 +177,9 @@ On Windows, double-click `start-webui.bat` — it installs deps, starts the dev 
   <img src="docs/images/dashboard.png" alt="OmniRID Dashboard" width="820">
 </p>
 
-A live configuration demo is available that simulates GPS, battery, counters and logs — no hardware required. Try it at [config(demo).html](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/config(demo).html).
+The firmware has a built-in **demo mode** (Options bit 3, or the `demo` CLI
+command) that simulates a GPS patrol, so no flight controller is required.
+The old standalone HTML demo was removed with the static docs site.
 
 ### CLI commands (after flashing)
 
@@ -208,36 +218,54 @@ GND             ->   GND
 | **Stackable with L76K GNSS** | Direct GPS module option |
 | **~$15 total cost** | Best value |
 
-Full BOM & pinout: [`docs/prototype_bom.md`](docs/prototype_bom.md)
+Full BOM: the two tables above; default GPIO mapping lives in
+`OmniRID-firmware/hardware/bsp-esp32` (the old `prototype_bom.md` was removed —
+it remains in git history).
 
 ---
 
 ## Build
 
-### Online (no toolchain)
+### CI (no local toolchain)
 
-Every push to `universal` triggers automatic CI for all targets via GitHub Actions (host tests + ESP32 cross-builds). See the [latest builds](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/rid-rust-ci.yml).
+Every push to `omnirid-webapp-pwa` runs host tests + the three ESP32 cross-builds
+via GitHub Actions. The `esp32`/`esp32s3` links currently fail (see below);
+`esp32c6` and the host jobs are green. See the
+[latest builds](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/esp32-build.yml).
 
 ### Host build (Linux / macOS / Windows)
 
 ```bash
 git clone https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID.git
-cd OmniRID-Universal-Drone-ID/OmniRID
+cd OmniRID-Universal-Drone-ID/OmniRID-firmware
 
-cargo build --workspace          # builds all crates for the host
-cargo test --workspace           # runs 319 tests
-cargo clippy --workspace -- -D warnings
+cargo build --workspace           # builds all crates for the host
+cargo test --workspace            # runs 305 tests
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 ### ESP32 cross-build
 
-Requires Rust nightly with the ESP32 target + the ESP-IDF SDK:
+The ESP32 BSP is a standalone workspace in `OmniRID-firmware/hardware/bsp-esp32`.
+Xtensa targets need the `esp` toolchain (esp-rs); the RISC-V C6 target needs
+nightly with `rust-src` and a RISC-V GCC toolchain.
 
 ```bash
-cargo +esp build --target xtensa-esp32-none-elf    --manifest-path firmware/Cargo.toml
-cargo +esp build --target xtensa-esp32s3-none-elf  --manifest-path firmware/Cargo.toml
-cargo +esp build --target riscv32imc-esp-none-elf   --manifest-path firmware/Cargo.toml
+cd OmniRID-firmware/hardware/bsp-esp32
+
+# ESP32 / ESP32-S3 (Xtensa, esp toolchain)
+RUSTC_BOOTSTRAP=1 cargo +esp build -Z build-std=std,panic_abort \
+  --no-default-features --features esp32,hardware --target xtensa-esp32-espidf
+RUSTC_BOOTSTRAP=1 cargo +esp build -Z build-std=std,panic_abort \
+  --no-default-features --features esp32s3,hardware --target xtensa-esp32s3-espidf
+
+# ESP32-C6 (RISC-V, nightly + rust-src)
+RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \
+  --no-default-features --features esp32c6,hardware --target riscv32imac-esp-espidf
 ```
+
+> CI status: host and ESP32-C6 builds pass; the Xtensa `esp32`/`esp32s3` links
+> currently fail and are tracked in [`todolist/firmware-todo.md`](todolist/firmware-todo.md).
 
 ### Flash & connect
 
@@ -245,7 +273,7 @@ cargo +esp build --target riscv32imc-esp-none-elf   --manifest-path firmware/Car
 |:---:|---|
 | 1 | Flash the firmware to your ESP32 via USB |
 | 2 | Connect to WiFi network **ESP-RID** |
-| 3 | Open the [OmniRID App (PWA)](OmniRID-app/index.html) and connect it to `192.168.4.1` (device AP) to configure |
+| 3 | Start the OmniRID App (`cd OmniRID-app && pnpm dev`) and connect it to `192.168.4.1` (device AP) to configure |
 
 ---
 
@@ -255,7 +283,7 @@ Rust workspace (members: `firmware/*`, `inputs/*`, `outputs/*`, `external-libs/*
 
 ```
 OmniRID-Universal-Drone-ID/
-├── OmniRID/                      # Rust workspace root
+├── OmniRID-firmware/            # Rust workspace root
 │   ├── Cargo.toml                # Workspace manifest
 │   │
 │   ├── firmware/                 # Firmware crates
@@ -284,28 +312,23 @@ OmniRID-Universal-Drone-ID/
 │   └── scripts/                  # Build/helper scripts
 │
 ├── OmniRID-app/                  # Ground station (Nuxt 4 PWA)
-│   ├── nuxt.config.ts            # Nuxt + UI + Pinia + PWA config
+│   ├── nuxt.config.ts            # Nuxt + UI + state config (SPA, no server)
 │   ├── package.json
-│   ├── start-webui.bat           # Windows launcher (dev server + browser)
 │   ├── app/                      # Source (layouts, pages, components, composables)
-│   │   ├── pages.config.ts       # Navigation manifest (6 groups)
+│   │   ├── pages.config.ts       # Navigation manifest (5 groups, page status)
 │   │   ├── layouts/default.vue   # Dashboard shell (sidebar, header, search)
-│   │   ├── pages/                # device/, compliance-security/, tools/, docs/, dashboard, firmware, app-settings
-│   │   ├── components/           # device/ConfigPage, SectionTabs, NotificationsSlideover
-│   │   └── composables/          # useDashboard, useDeviceProfile
-│   ├── server/api/               # Notification feed stub
-│   └── public/                   # Static assets (logo, icons)
+│   │   ├── pages/                # dashboard, device/*, compliance-security/security, tools/*, docs/guide, firmware
+│   │   ├── components/           # device/ConfigPage, SectionTabs, ConsoleTerminal, …
+│   │   └── composables/          # useDashboard, useEspConnection, useDeviceProfile, useNotifications, …
+│   ├── server/routes/api/esp/    # Dev/self-hosted proxy to the device (absent in static build)
+│   └── public/                   # Static assets (icons, images, manifest)
 │
-├── docs/                         # GitHub Pages
-│   ├── index.html
-│   ├── guide.html
-│   ├── config(demo).html
-│   ├── prototype_bom.md
+├── docs/                         # Images only (static docs site removed)
 │   └── images/
 │
-├── todolist/                     # Status & planning docs
+├── todolist/                     # Backlog: firmware-todo, app-todo, shared-todo
 ├── 3D_FILES/                     # Enclosure/casing 3D models
-├── .github/workflows/            # CI (deploy-pages, esp32-build, omnirid-app-ci, protocol-updates, release, rid-rust-ci, security-audit)
+├── .github/workflows/            # CI (esp32-build, protocol-updates, release, security-audit)
 │
 ├── SECURITY.md
 ├── LICENSE                       # Apache 2.0
@@ -318,10 +341,11 @@ OmniRID-Universal-Drone-ID/
 
 | Resource | Link |
 |---|---|
-| **Quick Start** | [GitHub Pages](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/) |
-| **Technical Wiki** | [Protocols, wiring, API, security](https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/guide.html) |
-| **Hardware BOM** | [`docs/prototype_bom.md`](docs/prototype_bom.md) |
-| **API Reference** | Headless `/api/*` JSON endpoints with CORS (documented in the guide) |
+| **Firmware backlog** | [`todolist/firmware-todo.md`](todolist/firmware-todo.md) |
+| **App backlog** | [`todolist/app-todo.md`](todolist/app-todo.md) |
+| **Shared / repo backlog** | [`todolist/shared-todo.md`](todolist/shared-todo.md) |
+| **Hardware BOM** | See the hardware section |
+| **API Reference** | Headless `/api/*` JSON endpoints with CORS; also described in the in-app Guide page |
 
 ---
 
@@ -332,16 +356,24 @@ OmniRID-Universal-Drone-ID/
 | Level | Name | Behavior |
 |:---:|---|---|
 | **0** | Normal | No restrictions, full read access to config |
-| **1** | Ed25519 signed | Signature-based control for sensitive commands (restart, reset, OTA) |
+| **1** | Ed25519 signed | Signature required for `POST /api/config`, `/api/reset`, `/api/command` |
 | **2** | eFuse permanent | Reads the magic value in `EFUSE_BLK3`; irreversible (chip erase only) |
 
 ### OTA updates
 
+> **Not implemented yet.** `POST /ota` on the device currently answers
+> `501 {"error":"OTA not implemented; flash via serial/USB"}`. The validation
+> logic (SHA-256 + Ed25519, lock-level gate, idle timeout) exists and is tested
+> in `firmware/rid-app/src/ota.rs`, but it is not wired to the HTTP handler.
+> Flash over USB/serial for now. Tracked in
+> [`todolist/firmware-todo.md`](todolist/firmware-todo.md).
+
+The intended design, once wired:
+
 - **Client-side SHA-256** computed via the Web Crypto API (`crypto.subtle.digest`)
-- Mandatory **`X-Expected-SHA256`** header (hex-encoded SHA-256 of the firmware body)
-- Optional **`X-Signature`** header (Ed25519 signature, when lock level ≥ 1)
+- **`X-Expected-SHA256`** header (hex-encoded SHA-256 of the firmware body)
+- **`X-Signature`** header (Ed25519 signature, when lock level ≥ 1)
 - Server-side SHA-256 + Ed25519 verification via the shared security module
-- Mismatched or missing hashes are rejected, preventing corrupt or malicious firmware
 - Dual-OTA partition scheme with automatic rollback on failure
 
 ### Hardening
@@ -353,7 +385,7 @@ OmniRID-Universal-Drone-ID/
 
 ### Key storage
 
-- The Ed25519 **private key** is stored in NVS (plaintext; flash encryption is not yet available, see issue #47)
+- The Ed25519 **private key** is stored in NVS in plaintext (flash encryption is not enabled by default, see issue #47)
 - Up to **5 public keys** are supported for command authentication at each lock level
 - Once flash encryption lands, enable `CONFIG_SECURE_FLASH_ENC` on production builds
 
@@ -362,7 +394,7 @@ OmniRID-Universal-Drone-ID/
 ## Contributing
 
 1. Use Rust edition 2024 and follow `rustfmt` defaults.
-2. Run `cargo test --workspace` and `cargo clippy --workspace -- -D warnings` before submitting.
+2. Run `cargo test --workspace` and `cargo clippy --workspace --all-targets -- -D warnings` before submitting.
 3. Test on at least one target.
 4. Update documentation for significant changes.
 5. Open a PR with a description and hardware test notes.

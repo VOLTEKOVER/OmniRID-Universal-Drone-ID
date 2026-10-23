@@ -8,41 +8,44 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 - Rust stable toolchain (`rustup`)
 - (Optional) `espup` for ESP32 cross-compilation
-- (Optional) Node.js 22+ for the RID web app tooling (serve/deploy scripts)
+- (Optional) Node.js 22+ and `pnpm` for the OmniRID App
 
 ### Building the Workspace
 
 ```bash
-cd OmniRID
+cd OmniRID-firmware
 cargo build --workspace           # host build
-cargo test --workspace            # run all tests (319)
-cargo clippy --workspace -- -D warnings   # lint
+cargo test --workspace            # run all tests (305)
+cargo clippy --workspace --all-targets -- -D warnings   # lint
 ```
 
 ### Building the Web App (PWA)
 
 ```bash
 cd OmniRID-app
-npm run serve               # run local dev server (http://localhost:8080)
-npm run deploy              # publish to GitHub Pages
+pnpm install
+pnpm dev                    # local dev server (http://localhost:3000)
+pnpm build                  # static build in .output/public
+pnpm typecheck              # vue-tsc
+pnpm lint
 ```
 
 ## Project Structure
 
 ```
-OmniRID/
+OmniRID-firmware/
 ├── firmware/              # Core Rust crates
 │   ├── app/               # Application logic (lib + bin)
 │   ├── rid-core/          # Kalman filter, security, TX pipeline
 │   ├── rid-app/           # Feature logic (NVS, OTA, web, LED, config)
-│   └── rid-interface/     # Transport abstraction (WiFi/BLE/USB)
+│   └── rid-interface/     # Shared types and traits
 ├── inputs/                # Protocol parsers (MAVLink, MSP, NMEA, DroneCAN)
 ├── outputs/               # Protocol encoders (ASTM, NAN, BLE4, pack)
 ├── external-libs/         # FFI bindings (opendroneid-sys)
 └── hardware/bsp-esp32/    # ESP-IDF glue (standalone workspace)
 
-OmniRID-app/                   # Ground station (PWA)
-docs/                      # GitHub Pages documentation
+OmniRID-app/               # Ground station (Nuxt 4 SPA)
+docs/                      # Images only (static docs site removed)
 ```
 
 ## Making Changes
@@ -53,10 +56,10 @@ docs/                      # GitHub Pages documentation
 4. Verify no regressions:
    ```bash
    cargo test --workspace
-   cargo clippy --workspace -- -D warnings
+   cargo clippy --workspace --all-targets -- -D warnings
    ```
 5. Test on real hardware if possible
-6. Update [`todolist/softwarestatus.md`](todolist/softwarestatus.md) for file-level changes
+6. Update [`todolist/firmware-todo.md`](todolist/firmware-todo.md) / [`todolist/app-todo.md`](todolist/app-todo.md) when an item is fixed or discovered
 7. Commit with a clear message (see below)
 8. Push and open a Pull Request
 
@@ -82,7 +85,7 @@ Examples:
 - Rust: `cargo fmt` (edition 2024), `cargo clippy -D warnings`
 - `no_std` for firmware crates; `std` only in `bsp-esp32`
 - Keep `unsafe` out of core crates (only in hardware glue)
-- Update [`todolist/softwarestatus.md`](todolist/softwarestatus.md) with any new/changed source files
+- Update [`todolist/firmware-todo.md`](todolist/firmware-todo.md) / [`todolist/app-todo.md`](todolist/app-todo.md) with any new/changed source files
 
 ## Reporting Bugs
 

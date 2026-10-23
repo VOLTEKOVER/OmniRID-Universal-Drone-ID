@@ -4,8 +4,8 @@ export const appDescription = 'Universal ASTM F3411-22a Open DroneID transmitter
 export const appTagline = 'Remote ID'
 export const appProject = 'OmniRID-Universal-Drone-ID'
 export const appRepoUrl = 'https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID'
-export const appInstallerUrl = 'https://VOLTEKOVER.github.io/OmniRID-Universal-Drone-ID/'
-export const appSoftwareStatusUrl = 'https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/blob/universal/todolist/softwarestatus.md'
+export const appInstallerUrl = 'https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/releases'
+export const appSoftwareStatusUrl = 'https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/blob/omnirid-webapp-pwa/todolist/firmware-todo.md'
 
 export const espDefaultIp = '192.168.4.1'
 export const espWifiSsid = 'ESP-RID'

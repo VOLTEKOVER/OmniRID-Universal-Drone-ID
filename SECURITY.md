@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| latest universal | Yes |
+| latest `omnirid-webapp-pwa` | Yes |
 | < latest | No |
 
 ## Reporting a Vulnerability
@@ -35,15 +35,39 @@ This project implements a **WiFi AP + REST API** Remote ID transmitter:
 - **Web config server** runs on `192.168.4.1` (AP network) — no inbound internet exposure
 - **Authentication pages** available via Ed25519 signing (ASTM F3411-22a compliant)
 - **3-tier lock system**: Level 0 (open), Level 1 (Ed25519 signed commands), Level 2 (eFuse permanent)
-- **OTA updates** with SHA-256 integrity + optional Ed25519 signature verification
+- **Firmware update** over USB/serial; the `/ota` endpoint is a `501` stub (validators exist, not wired)
 - **Key management** — Ed25519 keys stored in NVS (flash encryption on the roadmap, see issue #47)
 
-### Hardening guide
+### Hardening checklist
 
-See [`docs/security-hardening.md`](docs/security-hardening.md) for the full
-threat model and the step-by-step procedure to enable WPA2 on the AP, the lock
-system, and Secure Boot v2 + Flash Encryption. Those features are **not enabled
-by default**.
+These features are **not enabled by default**. See the current gaps at the end
+of this file and the firmware backlog in
+[`todolist/firmware-todo.md`](todolist/firmware-todo.md).
+
+**Device (the only real boundary):**
+
+1. **Protect the WiFi AP.** The AP password defaults to empty (open network).
+   Set a WPA2-PSK password from the configuration, change the SSID, and keep
+   the device off untrusted networks.
+2. **Use lock level ≥ 1.** Sensitive writes then require an Ed25519
+   `X-Signature` (`POST /api/config`, `/api/reset`, `/api/command`). Note: the
+   PWA cannot sign requests, so a locked device is configured via the CLI or
+   the Console's manual signature field.
+3. **Enable Secure Boot v2 + Flash Encryption** in production (both protect the
+   *device*, not a published `.bin`). They are not enabled in the default
+   `sdkconfig` yet — see issue #47.
+4. **Treat the device as physically reachable:** USB/serial access is a full
+   compromise unless Secure Boot/Flash Encryption are enabled.
+5. **Flash firmware over USB/serial** — OTA is not implemented (see below).
+
+**Web app (damage limitation only):**
+
+- No secrets are embedded in the app; all authorisation is enforced on the device.
+- The production build minifies and obfuscates the bundle (raises cost only — not security).
+- Static hosting cannot send response headers; on a **self-hosted** deployment set
+  a CSP (`connect-src` must allow the device address, `img-src` the map tile host).
+- Whoever serves the app can modify it: use a trusted origin and verify the
+  device address.
 
 ### What is (and is not) protectable
 
@@ -56,44 +80,58 @@ by default**.
 - The web app is treated as **untrusted**: all authorisation is enforced on the
   device.
 
-### GitHub Pages hosting
+### Hosting
 
-The app is published as a **static SPA** to GitHub Pages, where **no server
-runs**. Consequently the `/api/esp/**` proxy (local development and self-hosted
-deployments only) is absent, and browsers block HTTPS→HTTP access to the device
-(mixed content), which also sends no CORS headers. On GitHub Pages the app is
-usable in **simulated mode** and as documentation; real device control over WiFi
-requires the device's own UI or a self-hosted deployment of the app.
+The app is a **static SPA**. There is no server in the static build, so the
+`/api/esp/**` proxy (development and self-hosted `nuxt build` only) does not
+exist there.
+
+- On a **static HTTPS host** (e.g. GitHub Pages), browsers block
+  HTTPS→HTTP requests to `http://192.168.4.1` as *mixed content*. Real device
+  control therefore needs a self-hosted deployment with the proxy, or the app
+  served over HTTP/localhost where direct CORS requests are allowed. The
+  firmware sends permissive CORS headers + `OPTIONS` preflight on every route.
+- WebSerial flashing works over HTTPS.
+- The old hosted docs/demo site has been removed; `docs/` now contains only
+  images.
 
 ### Web Configuration
 
-The web configuration interface is served on the AP network (192.168.4.1) with
-optional WPA2-PSK password protection. At lock level 0, no authentication is
-required for config changes. At level ≥ 1, all POST requests to `/api/config`
-and `/ota` require an `X-Signature` header (Ed25519 signature over the SHA-256
-hash of the body).
+The firmware is **headless**: it serves only a JSON API on the AP network
+(`192.168.4.1`), with permissive CORS and `OPTIONS` preflight. Configuration is
+edited through the external PWA (or `curl`).
+
+- At **lock level 0**, no authentication is required for config changes.
+- At **lock level ≥ 1**, `POST /api/config`, `POST /api/reset` and signed
+  commands on `POST /api/command` require an `X-Signature` header (Ed25519).
+  Failures share a rate limiter (10 failed attempts / 60 s → HTTP 429).
+- The PWA cannot produce signatures, so a locked device is configured via the
+  CLI or the Console's manual signature field.
 
 ### Firmware Updates
 
-OTA updates are uploaded via the web UI as HTTP POST to `/ota`. The browser
-computes a SHA-256 hash (Web Crypto API) sent as `X-Expected-SHA256` header.
-The server independently verifies the hash. At lock level ≥ 1, an Ed25519
-signature (`X-Signature` header) is also required. A dual-OTA partition scheme
-ensures automatic rollback on failure.
+**OTA is not implemented.** `POST /ota` answers `501` and rejects the body up
+front; firmware is flashed over USB/serial. The validation code (SHA-256 +
+Ed25519, lock-level gate, idle timeout) exists and is tested in
+`firmware/rid-app/src/ota.rs` but is not wired to the HTTP handler. Once
+implemented, the intended flow is `X-Expected-SHA256` (+ `X-Signature` at
+lock ≥ 1) with a dual-OTA partition scheme and rollback.
 
 ### Security Hardening
 
 - **Safe JSON parsing** — all JSON inputs parsed with `serde_json` (no unsafe C parsers)
 - **Rate limiting** — 10 failed signature attempts per 60s sliding window, then lockout
-- **Safe string handling** — Rust's ownership model prevents buffer overflows
-- **psa_crypto_init()** — PSA Crypto API initialized at boot for ESP-IDF v5+
-- **Shared verification module** — `rid-core::security` used by both web config and OTA
+- **Safe string handling** — bounded types (`MAX_STR_LEN`) and Rust's ownership model prevent buffer overflows
+- **Shared verification module** — `rid-core::security` used by the web handlers and the OTA validators
 
 ### Known gaps (tracked, not yet closed)
 
-The Rust HTTP layer `hardware/bsp-esp32/src/web.rs` does **not yet enforce** the
-lock-level / `X-Signature` checks on `POST /api/config`, `POST /api/reset` and
-`POST /ota`; the logic exists and is tested in `rid-app/src/web_config.rs` but is
-not wired into the handlers. Until then, lock level ≥ 1 is not enforced on the
-Rust firmware. Closing this is the highest-impact firmware security task. See
-`docs/security-hardening.md` §6 for details.
+- **OTA is not wired.** `POST /ota` is a `501` stub; the validators exist but are
+  not connected. Tracked in [`todolist/firmware-todo.md`](todolist/firmware-todo.md).
+- **Flash Encryption / Secure Boot v2 are not enabled** in the default
+  `sdkconfig` (issue #47). The Ed25519 private key is stored in NVS in plaintext.
+- **Locked devices cannot be configured from the browser** — the PWA has no
+  signing key; only the CLI or the Console's manual signature works.
+- Not a gap anymore: signature enforcement on `/api/config`, `/api/reset` and
+  `/api/command` (shared rate limiter) **is** wired in
+  `hardware/bsp-esp32/src/web.rs` and tested.
