@@ -317,7 +317,7 @@ OmniRID-Universal-Drone-ID/
 │   ├── app/                      # Source (layouts, pages, components, composables)
 │   │   ├── pages.config.ts       # Navigation manifest (4 groups, page status)
 │   │   ├── layouts/default.vue   # Dashboard shell (sidebar, header, search)
-│   │   ├── pages/                # dashboard, firmware, guide, tx/* (one file per sidebar page)
+│   │   ├── pages/                # dashboard, firmware, guide, tx/*, rx/* (one file per sidebar page)
 │   │   ├── components/           # device/ConfigPage, SectionTabs, ConsoleTerminal, …
 │   │   └── composables/          # useDashboard, useEspConnection, useDeviceProfile, useNotifications, …
 │   ├── server/routes/api/esp/    # Dev/self-hosted proxy to the device (absent in static build)

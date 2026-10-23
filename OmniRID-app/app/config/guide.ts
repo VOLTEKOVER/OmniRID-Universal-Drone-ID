@@ -619,7 +619,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
 │   ├── app/
 │   │   ├── pages.config.ts              # Navigation manifest (4 groups)
 │   │   ├── layouts/ components/ composables/
-│   │   └── pages/                       # dashboard, firmware, guide, tx/* (one file per sidebar page)
+│   │   └── pages/                       # dashboard, firmware, guide, tx/*, rx/* (one file per sidebar page)
 │   ├── server/routes/api/esp/           # Dev/self-hosted proxy to the device
 │   └── public/                          # Static assets
 ├── docs/                                # Images only (static docs site removed)
