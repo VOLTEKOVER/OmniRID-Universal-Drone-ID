@@ -1,7 +1,7 @@
-// Routes that changed when pages were reorganized. The same mapping is
-// declared in `nuxt.config.ts` `routeRules` (for SSR / self-hosted
-// deployments), but that server-side redirect does not exist on static hosting
-// where the app is a plain SPA — so apply the redirects client-side too.
+// Routes that changed when pages were reorganized. Handled only by this
+// client-side middleware: declaring them as `routeRules` redirects in
+// `nuxt.config.ts` would register a second, empty route for each old path and
+// duplicate the page routes. Unmatched paths still fall through to the 404.
 const LEGACY_REDIRECTS: Record<string, string> = {
   // Pages merged into others before the /tx reorganization.
   '/device/inputs': '/tx/flight-controller',
