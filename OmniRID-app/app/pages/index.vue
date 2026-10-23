@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { appName, appTagline, appVersion } from '~/config/app'
 
+// Partner logos come with their own intended background: ArduPilot is light on
+// dark, Betaflight/INAV are dark on light. Each logo gets a fixed tile so it
+// stays legible in both app themes instead of inverting brand colors.
 const flightControllers = [
-  { name: 'ArduPilot', logo: '/images/ardupilot_logo.webp' },
-  { name: 'Betaflight', logo: '/images/betaflight_logo.svg' },
-  { name: 'INAV', logo: '/images/inav_logo.png' }
+  { name: 'ArduPilot', logo: '/images/ardupilot_logo.webp', tile: 'bg-[#101418]' },
+  { name: 'Betaflight', logo: '/images/betaflight_logo.svg', tile: 'bg-white' },
+  { name: 'INAV', logo: '/images/inav_logo.png', tile: 'bg-white' }
 ]
 
 const channels = [
@@ -59,7 +62,7 @@ const capabilities = [
                 <img
                   src="/images/logo.svg"
                   alt="OmniRID logo"
-                  class="size-10 rounded-md ring-1 ring-default"
+                  class="size-10 rounded-md ring-1 ring-default dark:invert"
                 >
                 <span class="label-data">{{ appName }} / {{ appTagline }}</span>
                 <UBadge
@@ -191,11 +194,16 @@ const capabilities = [
                 :key="fc.name"
                 class="flex items-center gap-2.5 rounded-lg border border-default bg-elevated/40 px-4 py-2.5"
               >
-                <img
-                  :src="fc.logo"
-                  :alt="`${fc.name} logo`"
-                  class="size-7 object-contain"
+                <span
+                  class="flex size-8 shrink-0 items-center justify-center rounded-md p-1 ring-1 ring-default"
+                  :class="fc.tile"
                 >
+                  <img
+                    :src="fc.logo"
+                    :alt="`${fc.name} logo`"
+                    class="size-full object-contain"
+                  >
+                </span>
                 <span class="text-sm font-semibold text-highlighted">{{
                   fc.name
                 }}</span>
