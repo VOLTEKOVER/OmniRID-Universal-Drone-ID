@@ -290,7 +290,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const protocol of PROTOCOLS) {
     out.push({
       label: protocol.label,
-      to: '/device/flight-controller',
+      to: '/tx/flight-controller',
       icon: 'i-lucide-cable',
       suffix: 'Protocol',
       description: 'Flight-controller telemetry protocol',
@@ -300,7 +300,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const type of ID_TYPES) {
     out.push({
       label: type.label,
-      to: '/device/identity',
+      to: '/tx/identity',
       icon: 'i-lucide-id-card',
       suffix: 'ID type',
       description: 'Basic ID type broadcast by the device',
@@ -310,7 +310,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const type of UA_TYPES) {
     out.push({
       label: type.label,
-      to: '/device/identity',
+      to: '/tx/identity',
       icon: 'i-lucide-user',
       suffix: 'UA type',
       description: 'Aircraft category reported to receivers',
@@ -320,7 +320,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const level of LOCK_LEVELS) {
     out.push({
       label: level.label,
-      to: '/compliance-security/security',
+      to: '/tx/security',
       icon: 'i-lucide-lock',
       suffix: 'Lock level',
       description: 'Firmware lock and signed-command mode',
@@ -331,7 +331,7 @@ export function referenceEntries(): SearchEntry[] {
     const info = REGIONS[code]
     out.push({
       label: info.label,
-      to: '/device/nation',
+      to: '/tx/nation-standard-transmission',
       icon: 'i-lucide-globe',
       suffix: 'Region',
       description: `${info.standard}${info.encoderReady ? '' : ' · encoder pending'}`,
@@ -356,7 +356,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const option of Object.keys(OPTIONS)) {
     out.push({
       label: humanize(option),
-      to: '/compliance-security/security',
+      to: '/tx/security',
       icon: 'i-lucide-toggle-right',
       suffix: 'Firmware option',
       keywords: `option flag ${option} ${humanize(option)}`
@@ -365,7 +365,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const mode of Object.keys(TX_MODES)) {
     out.push({
       label: humanize(mode),
-      to: '/device/nation',
+      to: '/tx/nation-standard-transmission',
       icon: 'i-lucide-radio',
       suffix: 'Transmission mode',
       keywords: `tx transmission mode ${mode} ${humanize(mode)}`
@@ -373,7 +373,7 @@ export function referenceEntries(): SearchEntry[] {
   }
   out.push({
     label: 'UART baud rates',
-    to: '/device/flight-controller',
+    to: '/tx/flight-controller',
     icon: 'i-lucide-gauge',
     suffix: 'Reference',
     description: BAUD_RATES.join(' · '),
@@ -381,7 +381,7 @@ export function referenceEntries(): SearchEntry[] {
   })
   out.push({
     label: 'DroneCAN bitrates',
-    to: '/device/hardware',
+    to: '/tx/hardware',
     icon: 'i-lucide-network',
     suffix: 'Reference',
     description: `${CAN_BITRATES.map(rate => rate / 1000).join(' · ')} kbit/s`,
@@ -390,7 +390,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const card of protocolCards) {
     out.push({
       label: card.title,
-      to: '/docs/guide#protocols',
+      to: '/guide#protocols',
       icon: 'i-lucide-book-open',
       suffix: 'Protocol guide',
       description: card.text,

@@ -56,12 +56,12 @@ const applyLoaded = (cfg: Record<string, unknown>, set: (key: string, value: unk
 
 const validate = (cfg: DeviceConfig): Issue[] => validateDeviceConfig(cfg, { chip: detectChip(target.value) })
 
-const headerActions = [{ label: 'Wiki', to: '/docs/guide#protocols' }]
+const headerActions = [{ label: 'Wiki', to: '/guide#protocols' }]
 </script>
 
 <template>
   <DeviceConfigPage
-    group="device"
+    group="tx"
     description="Configure the UART link between the ESP32 and your flight controller — MAVLink for ArduPilot/PX4, MSP for Betaflight/INAV, or generic NMEA GPS."
     :sections="sections"
     :load="true"

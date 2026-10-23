@@ -8,7 +8,8 @@
 
 - Nuxt 4 + Vue 3 + Nuxt UI + Pinia, source in `OmniRID-app/app/`; dev `pnpm dev`, build `pnpm build`, lint `nuxt eslint`, typecheck `nuxt typecheck` (0 errors).
 - Device API integration **is wired**: `device/ConfigPage.vue` loads `GET api/config` (line 259) and saves with `POST api/config` (line 370) through `useEspConnection().proxyFetch` (Nitro proxy `/api/esp/**`, or direct `http://<ip>` when no proxy).
-- Pages in `pages.config.ts`: Firmware, Guide, Monitor (dashboard), OmniRID configuration (nation, identity, flight-controller, hardware, memory, security), Tools (console, presets, logging).
+- Pages in `pages.config.ts`: Firmware, Guide, Monitor (dashboard), OmniRID TX Configuration (nation, identity, flight-controller, hardware, memory, security, console, presets, logging).
+- Routing convention: one file per sidebar page, route = kebab-case of the page name (`pages/tx/console.vue` → `/tx/console`, `pages/guide.vue` → `/guide`). Old `/device/*`, `/tools/*`, `/docs/guide` and `/compliance-security/*` paths redirect to the new ones.
 - There is **no app CI**: no workflow runs `lint`, `typecheck` or a build.
 
 ---

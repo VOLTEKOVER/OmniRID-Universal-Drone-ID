@@ -93,7 +93,7 @@ const capabilities = [
                   label="Flash firmware"
                 />
                 <UButton
-                  to="/docs/guide"
+                  to="/guide"
                   color="neutral"
                   variant="outline"
                   size="lg"
@@ -218,7 +218,7 @@ const capabilities = [
                 This firmware has not been security tested yet. Development and
                 ground testing only.
                 <UButton
-                  to="/compliance-security/security"
+                  to="/tx/security"
                   color="primary"
                   variant="link"
                   size="sm"

@@ -45,13 +45,13 @@ const danger = (state: Record<string, unknown>): ConfigDanger[] => {
     out.push({
       title: 'Lock needs a public key',
       description: 'Set at least one public key before enabling lock levels 1 or 2: without keys the device becomes unreachable.',
-      link: { label: 'Security guide', to: '/docs/guide#security' }
+      link: { label: 'Security guide', to: '/guide#security' }
     })
   if (lock === 2)
     out.push({
       title: 'Lock level 2 is permanent',
       description: 'Burns the one-time programmable eFuses to enforce the lock. This cannot be undone and may brick the device if keys are lost.',
-      link: { label: 'Security guide', to: '/docs/guide#security' }
+      link: { label: 'Security guide', to: '/guide#security' }
     })
   if (state.opt_force_arm === true)
     out.push({ title: 'Force ARM OK is active', description: 'Test option, not for real flights.' })
@@ -78,7 +78,7 @@ const validate = (cfg: DeviceConfig): Issue[] => validateDeviceConfig(cfg, { chi
 
 <template>
   <DeviceConfigPage
-    group="device"
+    group="tx"
     description="Protect the configuration panel and transmitted identity data; lock the device, set startup options and authorise command signing through public keys."
     :sections="sections"
     :load="true"

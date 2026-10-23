@@ -549,7 +549,7 @@ const save = async () => {
           </UAlert>
 
           <div v-if="savable" class="flex flex-wrap items-center justify-end gap-2 border-t border-default pt-4">
-            <template v-if="group === 'device'">
+            <template v-if="group === 'tx'">
               <UButton
                 type="button"
                 color="neutral"

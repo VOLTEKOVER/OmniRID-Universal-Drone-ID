@@ -72,7 +72,7 @@ const validate = (cfg: DeviceConfig): Issue[] => validateDeviceConfig(cfg, { chi
 
 <template>
   <DeviceConfigPage
-    group="device"
+    group="tx"
     description="Enter the UAS ID, operator details and the optional second Basic ID broadcast by the drone."
     :sections="sections"
     :load="true"

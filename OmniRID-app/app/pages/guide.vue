@@ -95,7 +95,7 @@ function onBodyClick(event: MouseEvent) {
   <UDashboardPanel id="guide" class="bg-default" :ui="{ root: 'pt-16' }">
     <template #body>
       <div class="mx-auto w-full max-w-[1400px] space-y-6 px-4 pb-16 sm:px-6 lg:px-10">
-        <SectionTabs group="docs" class="mb-2" />
+        <SectionTabs group="guide" class="mb-2" />
         <PageHero
           title="OmniRID technical guide"
           description="A practical reference for installation, configuration, protocols, OTA, security and regulatory information for the OmniRID ESP32 Remote ID platform."

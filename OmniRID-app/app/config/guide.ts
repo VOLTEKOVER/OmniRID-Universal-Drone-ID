@@ -617,9 +617,9 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
 ├── OmniRID-app/                         # Ground station (Nuxt 4 SPA)
 │   ├── nuxt.config.ts
 │   ├── app/
-│   │   ├── pages.config.ts              # Navigation manifest (5 groups)
+│   │   ├── pages.config.ts              # Navigation manifest (4 groups)
 │   │   ├── layouts/ components/ composables/
-│   │   └── pages/                       # dashboard, device/*, compliance-security, tools/*, docs/guide, firmware
+│   │   └── pages/                       # dashboard, firmware, guide, tx/* (one file per sidebar page)
 │   ├── server/routes/api/esp/           # Dev/self-hosted proxy to the device
 │   └── public/                          # Static assets
 ├── docs/                                # Images only (static docs site removed)

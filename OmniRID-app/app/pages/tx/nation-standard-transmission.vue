@@ -83,7 +83,7 @@ const validate = (cfg: DeviceConfig): Issue[] => validateDeviceConfig(cfg, { chi
 
 <template>
   <DeviceConfigPage
-    group="device"
+    group="tx"
     description="Select the operating nation, Remote ID standard and transmission schedule, and check regulatory compliance."
     :sections="sections"
     :load="true"

@@ -68,7 +68,7 @@ const validate = (cfg: DeviceConfig): Issue[] => validateDeviceConfig(cfg, { chi
 
 <template>
   <DeviceConfigPage
-    group="device"
+    group="tx"
     description="Wire the pins: flight controller UART, DroneCAN, status LEDs and boot behaviour."
     :sections="sections"
     :load="true"

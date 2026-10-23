@@ -64,7 +64,7 @@ export const pageGroups: PageGroup[] = [
     icon: 'i-lucide-book-open',
     kind: 'app',
     items: [
-      { id: 'guide', to: '/docs/guide', group: 'docs', label: 'Guide', icon: 'i-lucide-book-open', kind: 'app', status: 'stable', requiresConnection: false, requiresESP: false, minLockLevel: 0, alwaysAvailable: true }
+      { id: 'guide', to: '/guide', group: 'guide', label: 'Guide', icon: 'i-lucide-book-open', kind: 'app', status: 'stable', requiresConnection: false, requiresESP: false, minLockLevel: 0, alwaysAvailable: true }
     ]
   },
   {
@@ -78,27 +78,19 @@ export const pageGroups: PageGroup[] = [
   },
   {
     id: 'device',
-    title: 'OmniRID configuration',
+    title: 'OmniRID TX Configuration',
     icon: 'i-lucide-rocket',
     kind: 'drone',
     items: [
-      { id: 'nation', to: '/device/nation', group: 'device', label: 'Nation, Standard & Transmission', icon: 'i-lucide-globe', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
-      { id: 'identity', to: '/device/identity', group: 'device', label: 'Identity', icon: 'i-lucide-user', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
-      { id: 'flight-controller', to: '/device/flight-controller', group: 'device', label: 'Flight Controller', icon: 'i-lucide-plane', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
-      { id: 'hardware', to: '/device/hardware', group: 'device', label: 'Hardware', icon: 'i-lucide-cpu', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
-      { id: 'memory', to: '/device/memory', group: 'device', label: 'Memory', icon: 'i-lucide-database', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
-      { id: 'security', to: '/compliance-security/security', group: 'device', label: 'Security', icon: 'i-lucide-shield-check', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 1 }
-    ]
-  },
-  {
-    id: 'tools',
-    title: 'Tools',
-    icon: 'i-lucide-wrench',
-    kind: 'app',
-    items: [
-      { id: 'console', to: '/tools/console', group: 'tools', label: 'Console', icon: 'i-lucide-terminal', kind: 'app', status: 'implemented', requiresConnection: true, requiresESP: false, minLockLevel: 0 },
-      { id: 'presets', to: '/tools/presets', group: 'tools', label: 'Presets', icon: 'i-lucide-list', kind: 'app', status: 'implemented', requiresConnection: true, requiresESP: false, minLockLevel: 0 },
-      { id: 'logging', to: '/tools/logging', group: 'tools', label: 'Logging', icon: 'i-lucide-file-text', kind: 'app', status: 'implemented', requiresConnection: false, requiresESP: false, minLockLevel: 0 }
+      { id: 'nation', to: '/tx/nation-standard-transmission', group: 'tx', label: 'Nation, Standard & Transmission', icon: 'i-lucide-globe', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
+      { id: 'identity', to: '/tx/identity', group: 'tx', label: 'Identity', icon: 'i-lucide-user', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
+      { id: 'flight-controller', to: '/tx/flight-controller', group: 'tx', label: 'Flight Controller', icon: 'i-lucide-plane', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
+      { id: 'hardware', to: '/tx/hardware', group: 'tx', label: 'Hardware', icon: 'i-lucide-cpu', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
+      { id: 'memory', to: '/tx/memory', group: 'tx', label: 'Memory', icon: 'i-lucide-database', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
+      { id: 'security', to: '/tx/security', group: 'tx', label: 'Security', icon: 'i-lucide-shield-check', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 1 },
+      { id: 'console', to: '/tx/console', group: 'tx', label: 'Console', icon: 'i-lucide-terminal', kind: 'app', status: 'implemented', requiresConnection: true, requiresESP: false, minLockLevel: 0 },
+      { id: 'presets', to: '/tx/presets', group: 'tx', label: 'Presets', icon: 'i-lucide-list', kind: 'app', status: 'implemented', requiresConnection: true, requiresESP: false, minLockLevel: 0 },
+      { id: 'logging', to: '/tx/logging', group: 'tx', label: 'Logging', icon: 'i-lucide-file-text', kind: 'app', status: 'implemented', requiresConnection: false, requiresESP: false, minLockLevel: 0 }
     ]
   }
 ]

@@ -31,7 +31,7 @@ const regionTone: Record<string, string> = {
   <UDashboardPanel id="device-memory" class="bg-default" :ui="{ root: 'pt-16' }">
     <template #body>
       <div class="mx-auto w-full max-w-[1400px] space-y-9 px-4 pb-16 sm:px-6 lg:px-10">
-        <SectionTabs group="device" class="mb-2" />
+        <SectionTabs group="tx" class="mb-2" />
 
         <PageHero
           :title="heroTitle"
@@ -125,7 +125,7 @@ const regionTone: Record<string, string> = {
               <code class="rounded bg-elevated px-1 font-mono text-xs">X-Signature</code> when the device is locked.
             </p>
             <UButton
-              to="/tools/console"
+              to="/tx/console"
               color="neutral"
               variant="soft"
               icon="i-lucide-terminal"

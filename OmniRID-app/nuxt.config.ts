@@ -50,12 +50,23 @@ export default defineNuxtConfig({
     '/api/**': {
       cors: true
     },
-    // Pages merged into other pages: keep old links working.
-    '/device/inputs': { redirect: '/device/flight-controller' },
-    '/device/sensors': { redirect: '/tools/logging' },
-    '/tools/sensors': { redirect: '/tools/logging' },
-    '/device/system': { redirect: '/compliance-security/security' },
-    '/compliance-security/compliance': { redirect: '/device/nation' }
+    // Legacy paths: keep old links and bookmarks working (mirrored by
+    // `app/middleware/legacy-redirect.global.ts` for static hosting).
+    '/device/inputs': { redirect: '/tx/flight-controller' },
+    '/device/sensors': { redirect: '/tx/logging' },
+    '/tools/sensors': { redirect: '/tx/logging' },
+    '/device/system': { redirect: '/tx/security' },
+    '/compliance-security/compliance': { redirect: '/tx/nation-standard-transmission' },
+    '/device/nation': { redirect: '/tx/nation-standard-transmission' },
+    '/device/identity': { redirect: '/tx/identity' },
+    '/device/flight-controller': { redirect: '/tx/flight-controller' },
+    '/device/hardware': { redirect: '/tx/hardware' },
+    '/device/memory': { redirect: '/tx/memory' },
+    '/compliance-security/security': { redirect: '/tx/security' },
+    '/tools/console': { redirect: '/tx/console' },
+    '/tools/presets': { redirect: '/tx/presets' },
+    '/tools/logging': { redirect: '/tx/logging' },
+    '/docs/guide': { redirect: '/guide' }
   },
 
   // Never ship JavaScript source maps: they make the client bundle trivial to

@@ -178,20 +178,20 @@ const complianceItems = computed(() => {
 })
 
 const complianceMeta: Record<RequiredConfigItem | RuntimeCheck, { label: string, detail: string, route: string }> = {
-  uas_id: { label: 'UAS ID', detail: 'Broadcast identifier for the aircraft.', route: '/device/identity' },
-  ua_type: { label: 'UA Type', detail: 'Aircraft category reported to receivers.', route: '/device/identity' },
-  op_id: { label: 'Operator ID', detail: 'Registration number required in this region.', route: '/device/identity' },
-  tx: { label: 'Transmission mode', detail: 'At least one broadcast link enabled.', route: '/device/nation' },
+  uas_id: { label: 'UAS ID', detail: 'Broadcast identifier for the aircraft.', route: '/tx/identity' },
+  ua_type: { label: 'UA Type', detail: 'Aircraft category reported to receivers.', route: '/tx/identity' },
+  op_id: { label: 'Operator ID', detail: 'Registration number required in this region.', route: '/tx/identity' },
+  tx: { label: 'Transmission mode', detail: 'At least one broadcast link enabled.', route: '/tx/nation-standard-transmission' },
   gps: { label: 'GPS fix', detail: 'Live position lock from the flight controller.', route: '/dashboard' },
   broadcast: { label: 'Live broadcast', detail: 'Remote ID frames seen on air.', route: '/dashboard' }
 }
 
 const configPages: { id: PageId, label: string, route: string }[] = [
-  { id: 'identity', label: 'Identity', route: '/device/identity' },
-  { id: 'nation', label: 'Nation & transmission', route: '/device/nation' },
-  { id: 'fc', label: 'Flight controller', route: '/device/flight-controller' },
-  { id: 'hardware', label: 'Hardware', route: '/device/hardware' },
-  { id: 'system', label: 'Security & options', route: '/compliance-security/security' }
+  { id: 'identity', label: 'Identity', route: '/tx/identity' },
+  { id: 'nation', label: 'Nation & transmission', route: '/tx/nation-standard-transmission' },
+  { id: 'fc', label: 'Flight controller', route: '/tx/flight-controller' },
+  { id: 'hardware', label: 'Hardware', route: '/tx/hardware' },
+  { id: 'system', label: 'Security & options', route: '/tx/security' }
 ]
 
 const configPageStatus = (id: PageId) => pageStatus(checklistIssues.value, id)
@@ -326,13 +326,13 @@ const groups = computed(() => {
         return {
           label: `${section.number}. ${section.title}`,
           icon: section.icon,
-          to: '/docs/guide',
+          to: '/guide',
           value: section.id,
           description: searchSummary(fullText),
           keywords: `guide documentation ${section.title} ${fullText}`,
           onSelect: () => {
             open.value = false
-            router.push(`/docs/guide#${section.id}`)
+            router.push(`/guide#${section.id}`)
           }
         }
       })
