@@ -236,9 +236,10 @@ onMounted(async () => {
     attributionControl: true
   })
   mapReady.value = true
-  link.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  link.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd'
   }).addTo(map)
   homeIcon = link.divIcon({
     className: 'cd-cardiv',
@@ -319,6 +320,14 @@ watch(() => props.status, applyStatus, { deep: true })
   height: 100%;
   font: inherit;
   background: #06090d;
+}
+
+[data-drone-map] .leaflet-tile-pane {
+  filter: none;
+}
+
+[data-drone-map] .leaflet-attribution-flag {
+  display: none !important;
 }
 
 [data-drone-map] .leaflet-popup-content-wrapper {
