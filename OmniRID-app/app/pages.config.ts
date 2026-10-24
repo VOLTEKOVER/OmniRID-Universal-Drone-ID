@@ -80,7 +80,7 @@ export const pageGroups: PageGroup[] = [
     icon: 'i-lucide-chart-column',
     kind: 'app',
     items: [
-      { id: 'dashboard', to: '/dashboard', group: 'monitor', label: 'Dashboard', icon: 'i-lucide-chart-column', kind: 'app', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 }
+      { id: 'dashboard', to: '/dashboard', group: 'monitor', label: 'Dashboard', icon: 'i-lucide-map', kind: 'app', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 }
     ]
   },
   {

@@ -268,7 +268,7 @@ watch(() => props.status, applyStatus, { deep: true })
 </script>
 
 <template>
-  <div class="relative w-full overflow-hidden rounded-lg bg-elevated" :class="heightClass" data-drone-map>
+  <div class="relative w-full overflow-hidden bg-elevated" :class="[heightClass, $attrs.class]" data-drone-map>
     <div ref="mapEl" class="h-full w-full" />
     <div
       v-if="loading && !loadFailed"
