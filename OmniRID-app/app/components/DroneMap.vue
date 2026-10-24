@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TelemetryStatus } from '~/composables/useTelemetry'
 import type {
-  LeafletIcon, LeafletLatLng, LeafletMap, LeafletMarker, LeafletPolyline, LeafletStatic
+  LeafletIcon, LeafletLatLng, LeafletLayer, LeafletMap, LeafletMarker, LeafletPolyline, LeafletStatic
 } from '~/types/leaflet'
 
 const props = withDefaults(defineProps<{
@@ -11,6 +11,20 @@ const props = withDefaults(defineProps<{
   status: () => ({}),
   heightClass: 'h-[55vh] min-h-[420px]'
 })
+
+const colorMode = useColorMode()
+
+const isDark = computed(() => colorMode.value === 'dark')
+
+const TILE_URLS = {
+  dark: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+  light: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
+}
+
+const TILE_ATTRIBUTION = {
+  dark: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+  light: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+}
 
 const LOCAL_JS = '/vendor/leaflet/leaflet.js'
 const LOCAL_CSS = '/vendor/leaflet/leaflet.css'
@@ -30,6 +44,7 @@ let droneMarker: LeafletMarker | null = null
 let takeoffMarker: LeafletMarker | null = null
 let homeIcon: LeafletIcon | null = null
 let pathLine: LeafletPolyline | null = null
+let tileLayer: LeafletLayer | null = null
 let hasCentered = false
 let loadPromise: Promise<LeafletStatic | null> | null = null
 const history: LeafletLatLng[] = []
@@ -224,6 +239,18 @@ const recenter = () => {
   if (pos) map.setView(pos, 16)
 }
 
+const addTileLayer = () => {
+  if (!link || !map) return
+  if (tileLayer) {
+    map.removeLayer(tileLayer)
+    tileLayer = null
+  }
+  tileLayer = link.tileLayer(TILE_URLS[isDark.value ? 'dark' : 'light'], {
+    maxZoom: 16,
+    attribution: TILE_ATTRIBUTION[isDark.value ? 'dark' : 'light']
+  }).addTo(map)
+}
+
 onMounted(async () => {
   if (import.meta.server || !mapEl.value) return
   link = await ensureLeaflet()
@@ -236,10 +263,7 @@ onMounted(async () => {
     attributionControl: true
   })
   mapReady.value = true
-  link.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 16,
-    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
-  }).addTo(map)
+  addTileLayer()
   homeIcon = link.divIcon({
     className: 'cd-cardiv',
     html: '<div class="cd-map-home">H</div>',
@@ -262,9 +286,13 @@ onBeforeUnmount(() => {
   droneMarker = null
   takeoffMarker = null
   pathLine = null
+  tileLayer = null
 })
 
 watch(() => props.status, applyStatus, { deep: true })
+watch(isDark, () => {
+  if (mapReady.value) addTileLayer()
+})
 </script>
 
 <template>
