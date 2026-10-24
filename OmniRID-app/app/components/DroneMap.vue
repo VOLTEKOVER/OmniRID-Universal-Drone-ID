@@ -4,12 +4,37 @@ import type {
   LeafletIcon, LeafletLatLng, LeafletLayer, LeafletMap, LeafletMarker, LeafletPolyline, LeafletStatic
 } from '~/types/leaflet'
 
+export interface NearbyDrone {
+  id?: string
+  uas_id?: string
+  uav_id?: string
+  serial?: string
+  lat?: number | string
+  lng?: number | string
+  lon?: number | string
+  alt?: number | string
+  altitude?: number | string
+  speed?: number | string
+  heading?: number | string
+  operator_id?: string
+  operator?: string
+  registration?: string
+  rssi?: number | string
+  last_seen?: number | string
+  source?: string
+  [key: string]: unknown
+}
+
 const props = withDefaults(defineProps<{
   status?: TelemetryStatus
   heightClass?: string
+  nearbyDrones?: NearbyDrone[]
+  showNearby?: boolean
 }>(), {
   status: () => ({}),
-  heightClass: 'h-[55vh] min-h-[420px]'
+  heightClass: 'h-[55vh] min-h-[420px]',
+  nearbyDrones: () => [],
+  showNearby: true
 })
 
 const colorMode = useColorMode()
@@ -23,7 +48,7 @@ const TILE_URLS = {
 
 const TILE_ATTRIBUTION = {
   dark: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-  light: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+  light: 'Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA'
 }
 
 const LOCAL_JS = '/vendor/leaflet/leaflet.js'
@@ -43,11 +68,42 @@ let map: LeafletMap | null = null
 let droneMarker: LeafletMarker | null = null
 let takeoffMarker: LeafletMarker | null = null
 let homeIcon: LeafletIcon | null = null
+let nearbyIcon: LeafletIcon | null = null
 let pathLine: LeafletPolyline | null = null
 let tileLayer: LeafletLayer | null = null
+const nearbyMarkers = new Map<string, LeafletMarker>()
 let hasCentered = false
 let loadPromise: Promise<LeafletStatic | null> | null = null
 const history: LeafletLatLng[] = []
+
+const showNearbyLayer = ref(true)
+const selectedDrone = ref<NearbyDrone | null>(null)
+const selectedOwn = ref(false)
+
+const toggleTheme = () => {
+  colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
+}
+
+const ownInfo = computed(() => {
+  const s = props.status ?? {}
+  const fmt = (v: unknown, digits = 1) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n.toFixed(digits) : '--'
+  }
+  return {
+    lat: Number(s.lat),
+    lng: Number(s.lon),
+    alt: fmt(s.alt),
+    speed: fmt(s.speed),
+    heading: Number(s.heading) || 0,
+    sats: Number(s.satellites) || 0,
+    fix: s.gps_valid ? 'Yes' : 'No',
+    protocol: s.protocol,
+    standard: s.standard
+  }
+})
+
+const hasOwnPos = computed(() => currentPosition() !== null)
 
 const currentPosition = (): LeafletLatLng | null => {
   const s = props.status ?? {}
@@ -123,12 +179,12 @@ const buildDronePopup = (pos: LeafletLatLng): string => {
     return Number.isFinite(n) ? n.toFixed(digits) : '--'
   }
   return [
-    '<div style="min-width:150px;font-family:ui-monospace,monospace;font-size:12px;line-height:1.5">',
-    `<b>Drone</b><br>`,
+    '<div style="min-width:150px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.5">',
+    '<b>My Drone</b><br>',
     `Lat ${pos.lat.toFixed(6)}<br>`,
     `Lon ${pos.lng.toFixed(6)}<br>`,
     `Alt ${fmt(s.alt)} m · Speed ${fmt(s.speed)} m/s<br>`,
-    `Heading ${Number(s.heading) || 0}° · Sats ${Number(s.satellites) || 0}`,
+    `Heading ${Number(s.heading) || 0}° · Sats ${Number(s.satellites) || 0} · Fix ${s.gps_valid ? 'Yes' : 'No'}`,
     '</div>'
   ].join('')
 }
@@ -156,6 +212,11 @@ const syncDrone = (pos: LeafletLatLng | null) => {
     if (!icon) return
     if (!droneMarker) {
       droneMarker = link.marker(pos, { icon }).addTo(map)
+      const dm = droneMarker as unknown as { on?: (e: string, fn: () => void) => void }
+      dm.on?.('click', () => {
+        selectedOwn.value = true
+        selectedDrone.value = null
+      })
     } else {
       droneMarker.setLatLng(pos)
       droneMarker.setIcon(icon)
@@ -178,7 +239,7 @@ const syncTakeoff = () => {
   if (captured) {
     const pos: LeafletLatLng = { lat, lng: lon }
     if (!takeoffMarker) {
-      takeoffMarker = homeIcon ? link.marker(pos, { icon: homeIcon, interactive: false }).addTo(map) : null
+      takeoffMarker = homeIcon ? link.marker(pos, { icon: homeIcon }).addTo(map) : null
       if (!takeoffMarker) return
       takeoffMarker.bindPopup(buildHomePopup(pos))
     } else {
@@ -212,6 +273,73 @@ const syncPath = () => {
   }
 }
 
+const nearbyKey = (d: NearbyDrone) => {
+  return String(d.id ?? d.uas_id ?? d.uav_id ?? d.serial ?? `${d.lat},${d.lng}`)
+}
+
+const buildNearbyPopup = (d: NearbyDrone): string => {
+  const fmt = (v: unknown, digits = 1) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n.toFixed(digits) : '--'
+  }
+  const id = d.uas_id ?? d.uav_id ?? d.serial ?? d.id ?? '--'
+  const op = d.operator_id ?? d.operator ?? '--'
+  const reg = d.registration ?? '--'
+  const alt = d.altitude ?? d.alt
+  return [
+    '<div style="min-width:160px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.5">',
+    '<b>Nearby Remote ID</b><br>',
+    `UAS ID: ${id}<br>`,
+    `Operator: ${op}<br>`,
+    `Reg: ${reg}<br>`,
+    `Alt ${fmt(alt)} m · Speed ${fmt(d.speed)} m/s<br>`,
+    `Heading ${Number(d.heading) || 0}° · RSSI ${d.rssi ?? '--'}`,
+    '</div>'
+  ].join('')
+}
+
+const syncNearby = () => {
+  if (!link || !map || !props.showNearby) return
+  const seen = new Set<string>()
+  for (const d of props.nearbyDrones) {
+    const lat = Number((d.lat as unknown) ?? (d as Record<string, unknown>).latitude)
+    const lng = Number((d.lng as unknown) ?? (d.lon as unknown) ?? (d as Record<string, unknown>).longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) continue
+    const key = nearbyKey(d)
+    seen.add(key)
+    const pos: LeafletLatLng = { lat, lng }
+    if (!nearbyIcon) {
+      nearbyIcon = link.divIcon({
+        className: 'cd-cardiv',
+        html: '<div class="cd-map-nearby"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      })
+    }
+    if (!nearbyMarkers.has(key)) {
+      const marker = link.marker(pos, { icon: nearbyIcon }).addTo(map)
+      marker.bindPopup(buildNearbyPopup(d))
+      const m = marker as unknown as { on?: (e: string, fn: () => void) => void }
+      m.on?.('click', () => {
+        selectedDrone.value = d
+        selectedOwn.value = false
+      })
+      nearbyMarkers.set(key, marker)
+    } else {
+      const marker = nearbyMarkers.get(key)!
+      const mm = marker as unknown as { setLatLng?: (p: LeafletLatLng) => void }
+      mm.setLatLng?.(pos)
+      marker.bindPopup(buildNearbyPopup(d))
+    }
+  }
+  for (const [key, marker] of nearbyMarkers.entries()) {
+    if (!seen.has(key)) {
+      map.removeLayer(marker)
+      nearbyMarkers.delete(key)
+    }
+  }
+}
+
 const applyStatus = () => {
   if (!link || !map) return
   const pos = currentPosition()
@@ -222,6 +350,7 @@ const applyStatus = () => {
   syncDrone(pos)
   syncTakeoff()
   syncPath()
+  syncNearby()
   if (pos) {
     if (!hasCentered) {
       map.setView(pos, 16)
@@ -287,9 +416,17 @@ onBeforeUnmount(() => {
   takeoffMarker = null
   pathLine = null
   tileLayer = null
+  for (const mm of nearbyMarkers.values()) {
+    const m2 = map as unknown as { removeLayer?: (l: unknown) => void } | null
+    m2?.removeLayer?.(mm)
+  }
+  nearbyMarkers.clear()
 })
 
 watch(() => props.status, applyStatus, { deep: true })
+watch(() => props.nearbyDrones, () => {
+  applyStatus()
+}, { deep: true })
 watch(isDark, () => {
   if (mapReady.value) addTileLayer()
 })
@@ -328,16 +465,182 @@ watch(isDark, () => {
         Unable to load the map. Check the connection and try again.
       </p>
     </div>
-    <button
-      v-if="!loadFailed"
-      type="button"
-      aria-label="Re-center on drone"
-      title="Re-center on drone"
-      class="pointer-events-auto absolute bottom-7 right-3 z-[1001] flex size-9 items-center justify-center rounded-md border border-default bg-default/90 text-highlighted shadow-md transition hover:bg-elevated"
-      @click="recenter"
+    <div class="pointer-events-none absolute right-3 top-3 z-[1001] flex flex-col items-end gap-2">
+      <div class="pointer-events-auto flex flex-col gap-1 rounded-lg border border-default bg-default/90 p-1 shadow-md">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          square
+          :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
+          aria-label="Toggle map theme"
+          title="Toggle map theme"
+          @click="toggleTheme"
+        />
+        <UButton
+          v-if="!loadFailed"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          square
+          icon="i-lucide-locate-fixed"
+          aria-label="Re-center on drone"
+          title="Re-center on drone"
+          @click="recenter"
+        />
+        <UButton
+          v-if="props.nearbyDrones.length"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          square
+          :icon="showNearbyLayer ? 'i-lucide-eye' : 'i-lucide-eye-off'"
+          aria-label="Toggle nearby drones"
+          title="Toggle nearby drones"
+          @click="showNearbyLayer = !showNearbyLayer"
+        />
+      </div>
+      <div
+        v-if="props.nearbyDrones.length"
+        class="pointer-events-auto rounded-lg border border-default bg-default/90 px-2 py-1 text-[11px] text-muted shadow-md"
+      >
+        {{ props.nearbyDrones.length }} nearby
+      </div>
+    </div>
+
+    <div
+      v-if="selectedOwn && hasOwnPos"
+      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(320px,calc(100vw-1.5rem))] rounded-lg border border-default bg-default/95 shadow-xl"
     >
-      <UIcon name="i-lucide-locate-fixed" class="size-4" />
-    </button>
+      <div class="flex items-center justify-between gap-2 border-b border-default px-3 py-2">
+        <div class="flex items-center gap-2">
+          <UIcon name="i-lucide-plane" class="size-4 text-primary" />
+          <p class="text-sm font-semibold text-highlighted">
+            My Drone
+          </p>
+        </div>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          icon="i-lucide-x"
+          @click="selectedOwn = false"
+        />
+      </div>
+      <div class="grid grid-cols-2 gap-2 px-3 py-2 text-xs">
+        <div>
+          <p class="text-muted">
+            Position
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ ownInfo.lat.toFixed(6) }}, {{ ownInfo.lng.toFixed(6) }}
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Altitude / Speed
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ ownInfo.alt }} m / {{ ownInfo.speed }} m/s
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Heading / Sats
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ ownInfo.heading }}° / {{ ownInfo.sats }}
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            GPS Fix
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ ownInfo.fix }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="selectedDrone"
+      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(340px,calc(100vw-1.5rem))] rounded-lg border border-default bg-default/95 shadow-xl"
+    >
+      <div class="flex items-center justify-between gap-2 border-b border-default px-3 py-2">
+        <div class="flex items-center gap-2">
+          <UIcon name="i-lucide-radio" class="size-4 text-warning" />
+          <p class="text-sm font-semibold text-highlighted">
+            Nearby Drone
+          </p>
+        </div>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          icon="i-lucide-x"
+          @click="selectedDrone = null"
+        />
+      </div>
+      <div class="grid grid-cols-2 gap-2 px-3 py-2 text-xs">
+        <div class="col-span-2">
+          <p class="text-muted">
+            UAS ID
+          </p>
+          <p class="break-all font-mono text-highlighted">
+            {{ selectedDrone.uas_id ?? selectedDrone.uav_id ?? selectedDrone.serial ?? selectedDrone.id ?? '--' }}
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Operator
+          </p>
+          <p class="break-all font-mono text-highlighted">
+            {{ selectedDrone.operator_id ?? selectedDrone.operator ?? '--' }}
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Registration
+          </p>
+          <p class="break-all font-mono text-highlighted">
+            {{ selectedDrone.registration ?? '--' }}
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Position
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ Number((selectedDrone.lat as unknown) ?? (selectedDrone as Record<string, unknown>).latitude).toFixed(5) }}, {{ Number((selectedDrone.lng as unknown) ?? (selectedDrone.lon as unknown) ?? (selectedDrone as Record<string, unknown>).longitude).toFixed(5) }}
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Alt / Speed
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ selectedDrone.altitude ?? selectedDrone.alt ?? '--' }} m / {{ selectedDrone.speed ?? '--' }} m/s
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Heading
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ selectedDrone.heading ?? '--' }}°
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            RSSI / Last seen
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ selectedDrone.rssi ?? '--' }} / {{ selectedDrone.last_seen ?? '--' }}
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -355,6 +658,16 @@ watch(isDark, () => {
 
 [data-drone-map] .leaflet-attribution-flag {
   display: none !important;
+}
+
+.cd-map-nearby {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, #f59e0b, #d97706);
+  border: 2px solid #fcd34d;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 25%), 0 1px 6px rgb(0 0 0 / 60%);
+  cursor: pointer;
 }
 
 [data-drone-map] .leaflet-popup-content-wrapper {
