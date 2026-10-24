@@ -49,3 +49,16 @@ Config read on page load + `POST /api/config` on save through `proxyFetch`; ESP 
 - [ ] **GNSS advanced options** — Expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware API.
 - [ ] **Nearby drones panel** — Enhance with filtering, sorting, distance/bearing from own drone, and auto-fit bounds.
 - [ ] **Map layers/controls** — Add scale, compass, measurement tool, offline tile fallback, and fullscreen toggle.
+
+## 7. Detections UX – Additional Dronetag-like features
+
+- [ ] **Detection detail quick actions** — Add "Export", "Delete", "Mark as seen/unseen" directly in detection detail header.
+- [ ] **Multi-source timeline** — Show combined timeline of packets per receiver (color-coded by reception tech: BLE/Wi-Fi Beacon/Wi-Fi NAN/ADS-B).
+- [ ] **Operator info panel** — Expand operator details (Operator ID, location area, if present) in detection detail.
+- [ ] **Flight context** — Display takeoff/time of day, duration, max altitude/speed, distance traveled in summary.
+- [ ] **Map clustering** — Cluster nearby detections on the main map/list map view to avoid overlap.
+- [ ] **Live detection badge** — Show "LIVE" badge for detections updated in the last 60s on the list/map.
+- [ ] **Filter persistence** — Save last used filters/search in localStorage to restore on next visit.
+- [ ] **Keyboard navigation** — Arrow keys / Enter to navigate detections in list and open detail.
+- [ ] **Responsive detail layout** — Split view on desktop, stacked view on mobile with map toggle.
+- [ ] **Shareable detection link** — Generate a local URL fragment `#rx/detections/:id` to open a specific detection directly.
