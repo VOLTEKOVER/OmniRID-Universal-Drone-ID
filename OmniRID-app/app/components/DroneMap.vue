@@ -167,8 +167,8 @@ const makeDroneIcon = (rotation: number): LeafletIcon | null => {
   return link.divIcon({
     className: 'cd-cardiv',
     html: `<div class="cd-map-drone" style="transform: rotate(${deg}deg)"></div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11]
+    iconSize: [26, 26],
+    iconAnchor: [13, 13]
   })
 }
 
@@ -260,7 +260,11 @@ const syncPath = () => {
     const points = [...history]
     if (!pathLine) {
       pathLine = link.polyline(points, {
-        color: '#4d9dff', weight: 3, opacity: 0.85, lineJoin: 'round'
+        color: '#3b82f6',
+        weight: 4,
+        opacity: 0.9,
+        lineJoin: 'round',
+        lineCap: 'round'
       }).addTo(map)
     } else {
       pathLine.setLatLngs(points)
@@ -395,9 +399,9 @@ onMounted(async () => {
   addTileLayer()
   homeIcon = link.divIcon({
     className: 'cd-cardiv',
-    html: '<div class="cd-map-home">H</div>',
-    iconSize: [26, 26],
-    iconAnchor: [13, 13]
+    html: '<div class="cd-map-home"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></div>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
   })
   map.on('dragstart', () => {
     follow.value = false
@@ -702,40 +706,51 @@ watch(isDark, () => {
 
 .cd-map-drone {
   position: relative;
-  width: 22px;
-  height: 22px;
-  border-radius: 9999px;
-  background: radial-gradient(circle at 35% 35%, #bcd8ff, #4d9dff 55%, #1c6fd6);
-  border: 2px solid #dbe9ff;
-  box-shadow: 0 0 0 4px rgb(77 157 255 / 35%), 0 2px 8px rgb(0 0 0 / 55%);
-  transition: transform 0.45s ease;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, #93c5fd 0%, #2563eb 55%, #1e40af 100%);
+  border: 2px solid #dbeafe;
+  box-shadow: 0 0 0 4px rgb(37 99 235 / 28%), 0 4px 12px rgb(15 23 42 / 70%);
+  transition: transform 0.3s ease;
+}
+
+.cd-map-drone::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -14px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: linear-gradient(180deg, #bfdbfe 0%, #2563eb 100%);
+  border-radius: 2px;
 }
 
 .cd-map-drone::after {
   content: '';
   position: absolute;
-  top: -8px;
   left: 50%;
-  margin-left: -4px;
+  top: -18px;
   width: 0;
   height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-bottom: 9px solid #dbe9ff;
+  margin-left: -5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 10px solid #bfdbfe;
+  filter: drop-shadow(0 -1px 2px rgb(37 99 235 / 40%));
 }
 
 .cd-map-home {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 9999px;
-  background: rgb(16 185 129 / 92%);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  border: 2px solid #d1fae5;
-  box-shadow: 0 0 0 4px rgb(16 185 129 / 25%), 0 2px 8px rgb(0 0 0 / 55%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, #86efac 0%, #22c55e 55%, #15803d 100%);
+  color: #f0fdf4;
+  border: 2px solid #dcfce7;
+  box-shadow: 0 0 0 4px rgb(34 197 94 / 24%), 0 4px 12px rgb(15 23 42 / 65%);
 }
 </style>
