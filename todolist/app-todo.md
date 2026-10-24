@@ -40,3 +40,12 @@
 ## 4. Verified OK (don't re-open)
 
 Config read on page load + `POST /api/config` on save through `proxyFetch`; ESP connection indicator with live `GET /api/capabilities`; address persistence in `localStorage`; notification feed driven by real events; export/import JSON (Ctrl+E/Ctrl+S); theme; mobile responsive layout; no app-side ASTM decoding / BLE capture (by design).
+
+## 5. Dashboard / Map enhancements
+
+- [ ] **Diagnostics export** — Add "Download diagnostics" (JSON/ZIP) exporting config snapshot, `/api/status`, recent logs and connection info for support.
+- [ ] **LED/status indicator** — Visual LED/state mapping from device status (WiFi/BT/TX/Errors) in header/sidebar or dashboard.
+- [ ] **Firmware update wizard** — Improve firmware page with step-by-step wizard; re-enable OTA flow when `POST /ota` is implemented.
+- [ ] **GNSS advanced options** — Expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware API.
+- [ ] **Nearby drones panel** — Enhance with filtering, sorting, distance/bearing from own drone, and auto-fit bounds.
+- [ ] **Map layers/controls** — Add scale, compass, measurement tool, offline tile fallback, and fullscreen toggle.
