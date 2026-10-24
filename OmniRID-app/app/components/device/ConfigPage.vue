@@ -419,6 +419,7 @@ const save = async () => {
           </template>
         </PageHero>
 
+        <slot name="before-form" />
         <form class="space-y-5" @submit.prevent="save">
           <ContentSection
             v-for="section in sections"
@@ -603,6 +604,14 @@ const save = async () => {
             >
           </div>
         </form>
+
+        <div v-if="$slots.extraTop" class="space-y-6 mb-6">
+          <slot name="extraTop" />
+        </div>
+
+        <div v-if="$slots.extra" class="space-y-6">
+          <slot name="extra" />
+        </div>
 
         <UModal v-model:open="isFactoryResetOpen" title="Factory reset">
           <template #body>
