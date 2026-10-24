@@ -1,0 +1,107 @@
+<template>
+  <UModal
+    v-model:open="open"
+    :dismissible="false"
+    :ui="{
+      content: 'sm:max-w-md'
+    }"
+  >
+    <template #content>
+      <div class="p-6 space-y-4">
+        <div class="flex items-start gap-3">
+          <UIcon
+            name="i-lucide-lock"
+            class="size-5 text-primary mt-0.5"
+          />
+          <div class="flex-1 space-y-1">
+            <h3 class="text-base font-semibold text-highlighted">
+              Password per configurazione
+            </h3>
+            <p class="text-sm text-muted">
+              È stata impostata una password di connessione all'app sull'ESPTX. Per accedere a configurazione, firmware, preset, console e logging è necessario inserirla correttamente.
+            </p>
+            <p class="text-xs text-muted">
+              La ricezione e la visualizzazione dei Remote ID sulla Dashboard restano sempre libere.
+            </p>
+          </div>
+        </div>
+
+        <UForm
+          :state="state"
+          class="space-y-4"
+          @submit="onSubmit"
+        >
+          <UFormField
+            label="Password"
+            name="password"
+            required
+          >
+            <UInput
+              v-model="state.password"
+              type="password"
+              autocomplete="off"
+              placeholder="Inserisci la password"
+              class="w-full"
+              :disabled="loading"
+              autofocus
+            />
+          </UFormField>
+
+          <UAlert
+            v-if="authError"
+            color="error"
+            variant="subtle"
+            :title="authError"
+            icon="i-lucide-alert-circle"
+          />
+
+          <div class="flex justify-end">
+            <UButton
+              type="submit"
+              color="primary"
+              :loading="loading"
+              :disabled="!state.password.trim()"
+              icon="i-lucide-unlock"
+            >
+              Sblocca
+            </UButton>
+          </div>
+        </UForm>
+      </div>
+    </template>
+  </UModal>
+</template>
+
+<script setup lang="ts">
+const { configAuthRequired, configAuthenticated, configAuthError, submitConfigAuth } = useEspConnection()
+
+const open = computed(() => {
+  return configAuthRequired.value && !configAuthenticated.value
+})
+
+const state = reactive({
+  password: ''
+})
+
+const loading = ref(false)
+
+watch(open, (val) => {
+  if (val) {
+    state.password = ''
+  }
+})
+
+const authError = computed(() => configAuthError.value)
+
+const onSubmit = async () => {
+  if (loading.value) return
+  loading.value = true
+  try {
+    await submitConfigAuth(state.password)
+  } catch {
+    // error is shown via configAuthError
+  } finally {
+    loading.value = false
+  }
+}
+</script>

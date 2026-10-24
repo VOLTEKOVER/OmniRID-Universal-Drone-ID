@@ -3,8 +3,11 @@ import type { ConfigSection, ConfigDanger } from '~/components/device/ConfigPage
 import { LOCK_LEVELS, OPTIONS, hasFlag, setFlag, validateConfig as validateDeviceConfig, detectChip } from '~/config/device'
 import type { DeviceConfig, Issue } from '~/config/device'
 import { useDeviceProfile } from '~/composables/useDeviceProfile'
+import ContentSection from '~/components/ContentSection.vue'
 
 const { target } = useDeviceProfile()
+const { proxyFetch, isEspConnected } = useEspConnection()
+const toast = useToast()
 
 const lockOptions = LOCK_LEVELS.map(l => ({ label: l.label, value: String(l.value) }))
 const keyOptions = [1, 2, 3, 4, 5].map(i => ({ name: `public_key_${i}`, label: `Key ${i}`, type: 'textarea' as const, value: '', placeholder: 'PEM public key or raw base64' }))
@@ -74,6 +77,92 @@ const applyLoaded = (cfg: Record<string, unknown>, set: (key: string, value: unk
 }
 
 const validate = (cfg: DeviceConfig): Issue[] => validateDeviceConfig(cfg, { chip: detectChip(target.value) })
+
+const appAuthState = reactive({
+  passwordSet: false,
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+watch(() => appAuthState.currentPassword, () => {
+  // trigger reactivity
+})
+watch(() => appAuthState.newPassword, () => {
+  // trigger reactivity
+})
+watch(() => appAuthState.confirmPassword, () => {
+  // trigger reactivity
+})
+const appAuthLoading = ref(false)
+const appAuthError = ref('')
+
+const loadAppAuthStatus = async () => {
+  if (!isEspConnected.value) return
+  try {
+    const res = await proxyFetch<Record<string, unknown>>('api/app/auth/status', { timeout: 4000 })
+    appAuthState.passwordSet = res?.passwordSet === true || res?.required === true || res?.enabled === true
+    appAuthError.value = ''
+  } catch {
+    appAuthState.passwordSet = false
+  }
+}
+
+onMounted(() => {
+  loadAppAuthStatus()
+})
+
+watch(() => isEspConnected.value, (v) => {
+  if (v) loadAppAuthStatus()
+  else {
+    appAuthState.passwordSet = false
+    appAuthState.currentPassword = ''
+    appAuthState.newPassword = ''
+    appAuthState.confirmPassword = ''
+  }
+})
+
+const canSaveAppAuth = computed(() => {
+  if (appAuthLoading.value) return false
+  if (!isEspConnected.value) return false
+  if (!appAuthState.newPassword || String(appAuthState.newPassword).length === 0) return false
+  if (appAuthState.newPassword !== appAuthState.confirmPassword) return false
+  if (appAuthState.passwordSet && (!appAuthState.currentPassword || String(appAuthState.currentPassword).trim().length === 0)) return false
+  return true
+})
+
+const saveAppAuth = async () => {
+  if (!canSaveAppAuth.value) return
+  appAuthLoading.value = true
+  appAuthError.value = ''
+  try {
+    const body: Record<string, unknown> = {
+      newPassword: appAuthState.newPassword
+    }
+    if (appAuthState.passwordSet) {
+      body.currentPassword = appAuthState.currentPassword
+    }
+    const res = await proxyFetch<Record<string, unknown>>('api/app/auth/set', {
+      method: 'POST',
+      body
+    })
+    if (res?.ok === false) {
+      appAuthError.value = (res?.error as string) || 'Impossibile impostare la password'
+      toast.add({ title: 'Errore', description: appAuthError.value, color: 'error', icon: 'i-lucide-circle-alert' })
+      return
+    }
+    toast.add({ title: 'Password aggiornata', description: 'La password per l\'accesso alla configurazione è stata salvata.', color: 'success', icon: 'i-lucide-check' })
+    appAuthState.currentPassword = ''
+    appAuthState.newPassword = ''
+    appAuthState.confirmPassword = ''
+    await loadAppAuthStatus()
+  } catch (e: any) {
+    appAuthError.value = e?.data?.error || e?.message || 'Errore durante il salvataggio'
+    toast.add({ title: 'Errore', description: appAuthError.value, color: 'error', icon: 'i-lucide-circle-alert' })
+  } finally {
+    appAuthLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -86,5 +175,91 @@ const validate = (cfg: DeviceConfig): Issue[] => validateDeviceConfig(cfg, { chi
     :map-payload="mapPayload"
     :apply-loaded="applyLoaded"
     :danger="danger"
-  />
+  >
+    <template #before-form>
+      <ContentSection
+        title="App Connection Password"
+        description="This password is used only to protect access to the ESP configuration from the app/web. It does not block viewing Remote ID data on the Dashboard."
+        heading="md"
+      >
+        <div class="space-y-4">
+          <UAlert
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-alert-triangle"
+            title="Important"
+            :description="appAuthState.passwordSet ? 'To change this password you must know the current password. If you lose it, you will need to format the ESP TX.' : 'If you lose this password, you will need to format the ESP TX.'"
+          />
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <UFormField
+              v-if="appAuthState.passwordSet"
+              label="Current password"
+              required
+            >
+              <UInput
+                v-model="appAuthState.currentPassword"
+                type="password"
+                autocomplete="off"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField
+              label="New password"
+              required
+              :class="appAuthState.passwordSet ? '' : 'md:col-span-2'"
+            >
+              <UInput
+                v-model="appAuthState.newPassword"
+                type="password"
+                autocomplete="off"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField
+              label="Confirm new password"
+              required
+              :class="appAuthState.passwordSet ? '' : 'md:col-span-2'"
+            >
+              <UInput
+                v-model="appAuthState.confirmPassword"
+                type="password"
+                autocomplete="off"
+                class="w-full"
+              />
+            </UFormField>
+          </div>
+
+          <UAlert
+            v-if="appAuthState.newPassword && appAuthState.confirmPassword && appAuthState.newPassword !== appAuthState.confirmPassword"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-circle-alert"
+            title="Passwords do not match"
+          />
+
+          <UAlert
+            v-if="appAuthError"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-circle-alert"
+            :title="appAuthError"
+          />
+
+          <div class="flex justify-end">
+            <UButton
+              color="primary"
+              icon="i-lucide-save"
+              label="Save app connection password"
+              :loading="appAuthLoading"
+              :disabled="!canSaveAppAuth"
+              @click="saveAppAuth"
+            />
+          </div>
+        </div>
+      </ContentSection>
+    </template>
+  </DeviceConfigPage>
 </template>

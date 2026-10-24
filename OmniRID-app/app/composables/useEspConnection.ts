@@ -14,6 +14,13 @@ type ProxyOptions = {
   timeout?: number
 }
 
+type PendingConfigRequest = {
+  path: string
+  options: ProxyOptions
+  resolve: (value: any) => void
+  reject: (reason?: any) => void
+}
+
 const virtualCapabilities = () => ({
   fw_version: '0.1.0-sim',
   inputs: ['AUTO', 'NMEA', 'MSP', 'MAVLink', 'DroneCAN'],
@@ -79,6 +86,13 @@ const _useEspConnection = () => {
   const lastError = ref<string | null>(null)
   const deviceInfo = ref<Record<string, unknown> | null>(null)
 
+  const configAuthRequired = useState<boolean>('omnirid-config-auth-required', () => false)
+  const configAuthenticated = useState<boolean>('omnirid-config-authenticated', () => false)
+  const configAuthError = useState<string>('omnirid-config-auth-error', () => '')
+  const configAuthChecked = useState<boolean>('omnirid-config-auth-checked', () => false)
+  const configAuthConnKey = useState<string>('omnirid-config-auth-conn-key', () => '')
+  const pendingConfigRequest = useState<PendingConfigRequest | null>('omnirid-config-auth-pending', () => null)
+
   const isSimulated = computed(() => settings.value.virtualConnection === 'wifi' || settings.value.virtualConnection === 'usb')
 
   const transport = computed<EspTransport>(() => {
@@ -93,6 +107,146 @@ const _useEspConnection = () => {
   const canOta = computed(() => isWifiTransport.value)
   const canFlashUsb = computed(() => isUsbTransport.value)
 
+  const getConnKey = () => {
+    const addr = espIp.value?.trim()
+    if (!addr) return 'none'
+    return addr.replace(/\/$/, '').toLowerCase()
+  }
+
+  const isConfigWriteTarget = (path: string) => {
+    const p = path.replace(/^\//, '')
+    if (!p) return false
+    if (p.startsWith('api/app/auth')) return false
+    if (p === 'api/status' || p.startsWith('api/status?')) return false
+    if (p === 'api/capabilities' || p.startsWith('api/capabilities?')) return false
+    if (p === 'api/logs' || p.startsWith('api/logs?')) return false
+    if (p.startsWith('api/telemetry') || p.startsWith('api/rx/') || p.startsWith('api/detections')) return false
+    return true
+  }
+
+  const requestConfigAuthModal = (path: string, options: ProxyOptions) => {
+    return new Promise<T>((resolve, reject) => {
+      pendingConfigRequest.value = {
+        path,
+        options,
+        resolve,
+        reject
+      }
+      if (import.meta.client) {
+        window.dispatchEvent(new CustomEvent('omnirid:config-auth-required'))
+      }
+    }) as Promise<T>
+  }
+
+  const checkConfigAuth = async () => {
+    if (isSimulated.value) {
+      try {
+        const res = await proxyFetch<Record<string, unknown>>('api/app/auth/status', { timeout: 2000 })
+        const required = res?.required === true || res?.enabled === true || res?.passwordSet === true || res?.authRequired === true
+        configAuthRequired.value = !!required
+        configAuthenticated.value = res?.authenticated === true
+        configAuthError.value = ''
+      } catch {
+        configAuthRequired.value = false
+        configAuthenticated.value = true
+      }
+      configAuthChecked.value = true
+      configAuthConnKey.value = getConnKey()
+      return
+    }
+    if (!isEspConnected.value || !espIp.value?.trim()) {
+      configAuthRequired.value = false
+      configAuthenticated.value = false
+      configAuthChecked.value = true
+      configAuthConnKey.value = getConnKey()
+      return
+    }
+    const key = getConnKey()
+    if (configAuthConnKey.value && configAuthConnKey.value !== key) {
+      configAuthenticated.value = false
+      configAuthRequired.value = false
+      configAuthChecked.value = false
+    }
+    configAuthConnKey.value = key
+    try {
+      const res = await $fetch<Record<string, unknown>>('/api/esp/api/app/auth/status', {
+        method: 'GET',
+        headers: { 'x-esp-ip': espIp.value },
+        timeout: 4500
+      })
+      const required = res?.required === true || res?.enabled === true || res?.passwordSet === true || res?.authRequired === true
+      configAuthRequired.value = !!required
+      configAuthenticated.value = res?.authenticated === true
+      configAuthError.value = ''
+    } catch {
+      configAuthRequired.value = false
+      configAuthenticated.value = true
+    }
+    configAuthChecked.value = true
+  }
+
+  const submitConfigAuth = async (password: string) => {
+    configAuthError.value = ''
+    const pwd = (password || '').trim()
+    if (!pwd) {
+      configAuthError.value = 'Password richiesta'
+      throw new Error('Password richiesta')
+    }
+    if (isSimulated.value) {
+      configAuthenticated.value = true
+      configAuthRequired.value = false
+      configAuthError.value = ''
+      const pending = pendingConfigRequest.value
+      if (pending) {
+        pendingConfigRequest.value = null
+        try {
+          const out = await proxyFetch(pending.path, pending.options)
+          pending.resolve(out)
+          return out
+        } catch (e) {
+          pending.reject(e)
+          throw e
+        }
+      }
+      return { ok: true }
+    }
+    try {
+      const res = await $fetch<Record<string, unknown>>('/api/esp/api/app/auth', {
+        method: 'POST',
+        headers: { 'x-esp-ip': espIp.value, 'content-type': 'application/json' },
+        body: { password: pwd },
+        timeout: 6000
+      })
+      if (res?.ok === false || res?.authenticated === false) {
+        configAuthError.value = (res?.error as string) || 'Password errata'
+        throw new Error(configAuthError.value)
+      }
+      configAuthenticated.value = true
+      if (res?.required !== false) {
+        configAuthRequired.value = configAuthRequired.value || true
+      }
+      configAuthError.value = ''
+      const pending = pendingConfigRequest.value
+      if (pending) {
+        pendingConfigRequest.value = null
+        try {
+          const out = await proxyFetch(pending.path, pending.options)
+          pending.resolve(out)
+          return out
+        } catch (e) {
+          pending.reject(e)
+          throw e
+        }
+      }
+      return res
+    } catch (e: any) {
+      if (!configAuthError.value) {
+        configAuthError.value = e?.data?.error || e?.message || 'Autenticazione fallita'
+      }
+      throw e
+    }
+  }
+
   const proxyFetch = async <T = unknown>(path: string, options: ProxyOptions = {}): Promise<T> => {
     if (isSimulated.value) {
       const method = (options.method ?? 'GET').toUpperCase()
@@ -105,16 +259,35 @@ const _useEspConnection = () => {
       return { ok: true, virtual: true } as T
     }
 
+    const method = (options.method ?? 'GET').toUpperCase()
+    const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE'
+
+    if (isWrite && isEspConnected.value && configAuthChecked.value && configAuthRequired.value && !configAuthenticated.value && isConfigWriteTarget(path)) {
+      return requestConfigAuthModal(path, options)
+    }
+
     const headers: Record<string, string> = { 'x-esp-ip': espIp.value, ...options.headers }
     const body = options.body !== undefined ? JSON.stringify(options.body) : undefined
     if (body !== undefined) headers['content-type'] = 'application/json'
 
-    return $fetch(`/api/esp/${path}`, {
-      method: options.method ?? 'GET',
-      headers,
-      body,
-      timeout: options.timeout ?? 6000
-    }) as Promise<T>
+    try {
+      return await $fetch(`/api/esp/${path}`, {
+        method: options.method ?? 'GET',
+        headers,
+        body,
+        timeout: options.timeout ?? 6000
+      }) as Promise<T>
+    } catch (e: any) {
+      const status = e?.statusCode || e?.status || e?.response?.status
+      const msg = e?.data?.message || e?.data?.error || e?.message || ''
+      if (isWrite && isEspConnected.value && (status === 401 || /app.*auth|password|unauthorized/i.test(String(msg)))) {
+        configAuthRequired.value = true
+        configAuthenticated.value = false
+        if (!configAuthChecked.value) configAuthChecked.value = true
+        return requestConfigAuthModal(path, options)
+      }
+      throw e
+    }
   }
 
   const refresh = async () => {
@@ -124,6 +297,7 @@ const _useEspConnection = () => {
       if (isSimulated.value) {
         isEspConnected.value = true
         deviceInfo.value = virtualCapabilities()
+        await checkConfigAuth()
         return
       }
       const data = await proxyFetch<unknown>('api/capabilities', { timeout: 4500 })
@@ -131,10 +305,15 @@ const _useEspConnection = () => {
       deviceInfo.value = typeof data === 'object' && data !== null
         ? data as Record<string, unknown>
         : null
+      await checkConfigAuth()
     } catch (error) {
       isEspConnected.value = false
       deviceInfo.value = null
       lastError.value = error instanceof Error ? error.message : 'ESP unreachable'
+      configAuthRequired.value = false
+      configAuthenticated.value = false
+      configAuthChecked.value = true
+      configAuthConnKey.value = getConnKey()
     } finally {
       isChecking.value = false
     }
@@ -145,6 +324,11 @@ const _useEspConnection = () => {
     if (import.meta.client) {
       localStorage.setItem(ESP_IP_KEY, address)
     }
+    configAuthenticated.value = false
+    configAuthRequired.value = false
+    configAuthChecked.value = false
+    pendingConfigRequest.value = null
+    configAuthError.value = ''
     await refresh()
   }
 
@@ -162,7 +346,31 @@ const _useEspConnection = () => {
     refresh()
   })
 
-  return { espIp, isEspConnected, isChecking, lastError, deviceInfo, isSimulated, transport, isWifiTransport, isUsbTransport, canTelemetry, canConfig, canOta, canFlashUsb, proxyFetch, refresh, connect }
+  return { 
+    espIp, 
+    isEspConnected, 
+    isChecking, 
+    lastError, 
+    deviceInfo, 
+    isSimulated, 
+    transport, 
+    isWifiTransport, 
+    isUsbTransport, 
+    canTelemetry, 
+    canConfig, 
+    canOta, 
+    canFlashUsb, 
+    proxyFetch, 
+    refresh, 
+    connect,
+    configAuthRequired,
+    configAuthenticated,
+    configAuthError,
+    configAuthChecked,
+    checkConfigAuth,
+    submitConfigAuth,
+    pendingConfigRequest
+  }
 }
 
 export const useEspConnection = createSharedComposable(_useEspConnection)

@@ -944,5 +944,6 @@ watch(searchTerm, (term) => {
     <slot />
     <NotificationsSlideover />
     <AppSettingsSlideover v-if="isMobileNav" />
+    <ConfigAuthModal />
   </UDashboardGroup>
 </template>
