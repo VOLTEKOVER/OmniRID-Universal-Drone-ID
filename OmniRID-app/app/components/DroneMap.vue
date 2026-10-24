@@ -79,27 +79,43 @@ const history: LeafletLatLng[] = []
 const showNearbyLayer = ref(true)
 const selectedDrone = ref<NearbyDrone | null>(null)
 const selectedOwn = ref(false)
+const showPath = ref(true)
 
 const toggleTheme = () => {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
 }
 
+const fmtNum = (v: unknown, digits = 1) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n.toFixed(digits) : '--'
+}
+
+const fmtInt = (v: unknown) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.round(n).toString() : '--'
+}
+
 const ownInfo = computed(() => {
   const s = props.status ?? {}
-  const fmt = (v: unknown, digits = 1) => {
-    const n = Number(v)
-    return Number.isFinite(n) ? n.toFixed(digits) : '--'
-  }
+  const pos = currentPosition()
   return {
-    lat: Number(s.lat),
-    lng: Number(s.lon),
-    alt: fmt(s.alt),
-    speed: fmt(s.speed),
+    lat: pos?.lat ?? Number(s.lat),
+    lng: pos?.lng ?? Number(s.lon),
+    alt: fmtNum(s.alt),
+    altMsl: fmtNum(s.alt_msl ?? s.altitude_msl),
+    speed: fmtNum(s.speed),
+    vSpeed: fmtNum(s.speed_vertical ?? s.climb_rate),
     heading: Number(s.heading) || 0,
     sats: Number(s.satellites) || 0,
     fix: s.gps_valid ? 'Yes' : 'No',
-    protocol: s.protocol,
-    standard: s.standard
+    fixType: s.fix_type ?? '--',
+    protocol: s.protocol ?? '--',
+    standard: s.standard ?? '--',
+    fw: s.fw_version ?? '--',
+    uptime: s.uptime_ms ? `${Math.round(Number(s.uptime_ms) / 1000)}s` : '--',
+    txTotal: fmtInt(s.tx_total),
+    latRaw: Number(s.lat),
+    lonRaw: Number(s.lon)
   }
 })
 
@@ -347,13 +363,17 @@ const syncNearby = () => {
 const applyStatus = () => {
   if (!link || !map) return
   const pos = currentPosition()
-  if (pos) {
+  if (pos && showPath.value) {
     history.push(pos)
     if (history.length > MAX_HISTORY) history.shift()
   }
   syncDrone(pos)
   syncTakeoff()
-  syncPath()
+  if (showPath.value) syncPath()
+  else if (pathLine) {
+    map.removeLayer(pathLine)
+    pathLine = null
+  }
   syncNearby()
   if (pos) {
     if (!hasCentered) {
@@ -493,12 +513,22 @@ watch(isDark, () => {
           @click="recenter"
         />
         <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          square
+          :icon="showPath ? 'i-lucide-route' : 'i-lucide-route-off'"
+          aria-label="Toggle flight path"
+          title="Toggle flight path"
+          @click="showPath = !showPath; applyStatus()"
+        />
+        <UButton
           v-if="props.nearbyDrones.length"
           color="neutral"
           variant="ghost"
           size="xs"
           square
-          :icon="showNearbyLayer ? 'i-lucide-eye' : 'i-lucide-eye-off'"
+          :icon="showNearbyLayer ? 'i-lucide-radar' : 'i-lucide-radar-off'"
           aria-label="Toggle nearby drones"
           title="Toggle nearby drones"
           @click="showNearbyLayer = !showNearbyLayer"
@@ -514,7 +544,7 @@ watch(isDark, () => {
 
     <div
       v-if="selectedOwn && hasOwnPos"
-      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(320px,calc(100vw-1.5rem))] rounded-lg border border-default bg-default/95 shadow-xl"
+      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(360px,calc(100vw-1.5rem))] rounded-lg border border-default bg-default/95 shadow-xl"
     >
       <div class="flex items-center justify-between gap-2 border-b border-default px-3 py-2">
         <div class="flex items-center gap-2">
@@ -522,6 +552,12 @@ watch(isDark, () => {
           <p class="text-sm font-semibold text-highlighted">
             My Drone
           </p>
+          <UBadge
+            size="xs"
+            variant="subtle"
+            color="neutral"
+            :label="String(ownInfo.standard)"
+          />
         </div>
         <UButton
           color="neutral"
@@ -532,9 +568,9 @@ watch(isDark, () => {
         />
       </div>
       <div class="grid grid-cols-2 gap-2 px-3 py-2 text-xs">
-        <div>
+        <div class="col-span-2">
           <p class="text-muted">
-            Position
+            Position (lat, lon)
           </p>
           <p class="font-mono text-highlighted">
             {{ ownInfo.lat.toFixed(6) }}, {{ ownInfo.lng.toFixed(6) }}
@@ -542,10 +578,18 @@ watch(isDark, () => {
         </div>
         <div>
           <p class="text-muted">
-            Altitude / Speed
+            Altitude
           </p>
           <p class="font-mono text-highlighted">
-            {{ ownInfo.alt }} m / {{ ownInfo.speed }} m/s
+            {{ ownInfo.alt }} m (MSL: {{ ownInfo.altMsl }})
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Speed
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ ownInfo.speed }} m/s · V/S {{ ownInfo.vSpeed }}
           </p>
         </div>
         <div>
@@ -561,7 +605,23 @@ watch(isDark, () => {
             GPS Fix
           </p>
           <p class="font-mono text-highlighted">
-            {{ ownInfo.fix }}
+            {{ ownInfo.fix }} ({{ ownInfo.fixType }})
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Protocol / FW
+          </p>
+          <p class="truncate font-mono text-highlighted" :title="String(ownInfo.fw)">
+            {{ ownInfo.protocol }} · {{ ownInfo.fw }}
+          </p>
+        </div>
+        <div>
+          <p class="text-muted">
+            Uptime / TX
+          </p>
+          <p class="font-mono text-highlighted">
+            {{ ownInfo.uptime }} · {{ ownInfo.txTotal }}
           </p>
         </div>
       </div>
