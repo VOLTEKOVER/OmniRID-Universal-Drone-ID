@@ -6,7 +6,7 @@ on:
       - omnirid-webapp-pwa
     paths:
       - 'OmniRID-app/**'
-      - '.github/workflows/deploy-omnirid-app.yml'
+      - '.github/workflows/Deploy-OmniRID-app-to-GitHub-Pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -46,6 +46,8 @@ jobs:
 
       - name: Build static app
         working-directory: OmniRID-app
+        env:
+          NODE_ENV: production
         run: pnpm build
 
       - name: Upload GitHub Pages artifact
