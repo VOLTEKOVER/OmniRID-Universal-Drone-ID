@@ -15,17 +15,16 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
-    name: Build OmniRID app
     runs-on: ubuntu-latest
     env:
       NUXT_APP_BASE_URL: /OmniRID-Universal-Drone-ID/
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
@@ -33,36 +32,36 @@ jobs:
         with:
           version: 12.4.1
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
           cache-dependency-path: OmniRID-app/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install app dependencies
         working-directory: OmniRID-app
         run: pnpm install --frozen-lockfile
 
-      - name: Build static app
+      - name: Build Nuxt app
         working-directory: OmniRID-app
         env:
           NODE_ENV: production
         run: pnpm build
 
-      - name: Upload GitHub Pages artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: OmniRID-app/.output/public
 
   deploy:
-    name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
-      - name: Deploy Pages artifact
+      - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
