@@ -1201,6 +1201,34 @@ watch(isDark, () => {
                 </p>
               </div>
             </div>
+            <div class="flex flex-wrap items-center gap-1.5 pt-1">
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="soft"
+                icon="i-lucide-download"
+                @click="() => {
+                  if (!selectedDrone) return
+                  try {
+                    const blob = new Blob([JSON.stringify(selectedDrone, null, 2)], { type: 'application/json' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    const id = selectedDrone.uas_id || selectedDrone.serial_number || selectedDrone.id || 'detection'
+                    a.download = `omnirid-detection-${id}.json`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  } catch {}
+                }"
+              >Export JSON</UButton>
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-eye"
+                @click="selectedDrone = null"
+              >Mark seen</UButton>
+            </div>
           </div>
         </div>
       </div>
