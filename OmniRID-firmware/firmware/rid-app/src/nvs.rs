@@ -101,6 +101,13 @@ pub fn save(cfg: &BspConfig, nvs: &mut impl NvsStore) {
     // Auth private key (persisted so it survives reboot).
     nvs.set_blob("auth_key", &cfg.auth_private_key);
 
+    // App panel password.
+    if !cfg.app_password.is_empty() {
+        nvs.set_str("app_pass", cstr(&cfg.app_password));
+    } else {
+        nvs.set_str("app_pass", "");
+    }
+
     // Startup delay.
     nvs.set_u32("start_delay", cfg.start_delay_ms);
 
@@ -222,6 +229,7 @@ pub fn load(cfg: &mut BspConfig, nvs: &mut impl NvsStore) {
         cfg.ota_trigger_gpio = v;
     }
 
+    load_str(nvs, "app_pass", &mut cfg.app_password, "");
     if let Some(v) = nvs.get_u32("start_delay") {
         cfg.start_delay_ms = v;
     }
@@ -622,7 +630,13 @@ mod tests {
         load(&mut cfg, &mut nvs);
         // MAX_STR_LEN bytes + NUL.
         assert_eq!(cfg.uas_id.len(), rid_interface::MAX_STR_LEN + 1);
-        assert_eq!(&cfg.uas_id[..32], b"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-        assert_eq!(cfg.uas_id[32], 0);
+        let limit = rid_interface::MAX_STR_LEN;
+        assert!(limit >= 32);
+        let mut expected = [0u8; 64];
+        for b in expected.iter_mut().take(limit) {
+            *b = b'X';
+        }
+        assert_eq!(&cfg.uas_id[..limit], &expected[..limit]);
+        assert_eq!(cfg.uas_id[limit], 0);
     }
 }

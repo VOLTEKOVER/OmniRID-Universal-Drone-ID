@@ -106,14 +106,14 @@ const restartDevice = async () => {
     })
     return
   }
-  if (lockLevel.value >= 1) {
+  if (!isAuthorized.value) {
     toast.add({
-      title: `Device locked (level ${lockLevel.value})`,
-      description: 'Restart/reset require an X-Signature when locked. Use the Console (/tx/console).',
-      icon: 'i-lucide-shield-alert',
-      color: 'error'
+      title: 'Authentication required',
+      description: 'Sign in to the device before restarting or resetting it.',
+      icon: 'i-lucide-lock',
+      color: 'warning'
     })
-    notifyError('Device locked', 'Use Console with X-Signature to restart/reset.')
+    notifyWarning('Authentication required', 'Sign in to the device to restart or reset it.')
     return
   }
   try {
@@ -149,14 +149,14 @@ const performFactoryReset = async () => {
     })
     return
   }
-  if (lockLevel.value >= 1) {
+  if (!isAuthorized.value) {
     toast.add({
-      title: `Device locked (level ${lockLevel.value})`,
-      description: 'Restart/reset require an X-Signature when locked. Use the Console (/tx/console).',
-      icon: 'i-lucide-shield-alert',
-      color: 'error'
+      title: 'Authentication required',
+      description: 'Sign in to the device before restarting or resetting it.',
+      icon: 'i-lucide-lock',
+      color: 'warning'
     })
-    notifyError('Device locked', 'Use Console with X-Signature to restart/reset.')
+    notifyWarning('Authentication required', 'Sign in to the device to restart or reset it.')
     return
   }
   try {
@@ -288,11 +288,19 @@ const validateCompatibility = () => {
   return valid
 }
 
-const { isEspConnected, canConfig, lastError, proxyFetch } = useEspConnection()
+const { isEspConnected, canConfig, lastError, proxyFetch, configAuthRequired, configAuthenticated } = useEspConnection()
 import { useSecurityConfirm } from '~/composables/useSecurityConfirm'
 const { confirm: securityConfirm } = useSecurityConfirm()
 
 const loadedSnapshot = ref<Record<string, unknown> | null>(null)
+// True once `GET /api/config` succeeded after connect/auth: saving before that
+// could overwrite fields the user never saw, so it is blocked.
+const configLoaded = ref(false)
+
+// Authorized to write: an app session satisfies the firmware when locked.
+const isAuthorized = computed(() =>
+  !configAuthRequired.value || configAuthenticated.value
+)
 
 const isDisabled = (field: ConfigField) => props.readonly || field.disabled
 
@@ -330,34 +338,52 @@ const setValue = (key: string, value: unknown) => {
   state[key] = value
 }
 
-onMounted(async () => {
-  if (!props.load) return
-  if (canConfig.value) {
-    try {
-      const cfg = await proxyFetch<Record<string, unknown>>('api/config', { timeout: 4500 })
-      loadedSnapshot.value = JSON.parse(JSON.stringify(cfg))
-      if (props.applyLoaded) props.applyLoaded(cfg, setValue)
-      else {
-        for (const field of fieldsFor(props.sections)) {
-          if (cfg[field.name] !== undefined) state[field.name] = cfg[field.name]
-        }
-      }
-    } catch (error) {
-      /* Device offline: the connection watcher already flags it. Only warn when
-         the device is reachable but refused/errored on the config request. */
-      if (isEspConnected.value) {
-        const message = lastError.value ?? (error instanceof Error ? error.message : 'The device did not return its configuration.')
-        toast.add({
-          title: 'Configuration not loaded',
-          description: message,
-          icon: 'i-lucide-circle-alert',
-          color: 'warning'
-        })
-        notifyWarning('Configuration not loaded', message)
+const loadConfig = async () => {
+  if (!props.load || !canConfig.value) return
+  try {
+    const cfg = await proxyFetch<Record<string, unknown>>('api/config', { timeout: 4500 })
+    loadedSnapshot.value = JSON.parse(JSON.stringify(cfg))
+    configLoaded.value = true
+    if (props.applyLoaded) props.applyLoaded(cfg, setValue)
+    else {
+      for (const field of fieldsFor(props.sections)) {
+        if (cfg[field.name] !== undefined) state[field.name] = cfg[field.name]
       }
     }
+    validateSchema()
+  } catch (error) {
+    configLoaded.value = false
+    /* Device offline: the connection watcher already flags it. Only warn when
+       the device is reachable but refused/errored on the config request. */
+    if (isEspConnected.value) {
+      const message = lastError.value ?? (error instanceof Error ? error.message : 'The device did not return its configuration.')
+      toast.add({
+        title: 'Configuration not loaded',
+        description: message,
+        icon: 'i-lucide-circle-alert',
+        color: 'warning'
+      })
+      notifyWarning('Configuration not loaded', message)
+    }
   }
-  validateSchema()
+}
+
+onMounted(async () => {
+  if (!props.load) {
+    validateSchema()
+    return
+  }
+  await loadConfig()
+})
+
+// Re-load once the device becomes reachable (page opened while disconnected)
+// and again after authentication, so the form always mirrors the device.
+watch([canConfig, configAuthenticated], async ([connected, authenticated], previous) => {
+  if (!props.load || !connected) return
+  const [wasConnected, wasAuthenticated] = previous ?? [false, false]
+  if (connected && (!wasConnected || (authenticated && !wasAuthenticated))) {
+    await loadConfig()
+  }
 })
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -433,14 +459,24 @@ onBeforeUnmount(() => {
 const save = async () => {
   if (!canConfig.value) return
   if (isSaving.value) return
-  if (lockLevel.value >= 1) {
+  if (!configLoaded.value) {
     toast.add({
-      title: `Device locked (level ${lockLevel.value})`,
-      description: 'Unsigned POST /api/config is rejected. Use the Console (/tx/console) with an X-Signature or lower the lock level.',
-      icon: 'i-lucide-shield-alert',
+      title: 'Configuration not loaded',
+      description: 'Read the current configuration from the device before saving.',
+      icon: 'i-lucide-circle-alert',
       color: 'error'
     })
-    notifyError('Device locked', 'Use Console with X-Signature to apply changes.')
+    notifyError('Configuration not loaded', 'Reload from the device before saving.')
+    return
+  }
+  if (!isAuthorized.value) {
+    toast.add({
+      title: 'Authentication required',
+      description: 'Sign in to the device to change its configuration.',
+      icon: 'i-lucide-lock',
+      color: 'warning'
+    })
+    notifyWarning('Authentication required', 'Sign in to the device to change its configuration.')
     return
   }
   const compatible = validateCompatibility()
@@ -471,26 +507,29 @@ const save = async () => {
     if ((payload as any).lock_level !== undefined && (payload as any).lock_level !== (loadedSnapshot.value as any).lock_level) {
       const newLock = Number((payload as any).lock_level)
       if (newLock >= 1) {
-        const ok = await securityConfirm(`You are about to change lock_level to ${newLock}.\n\nAt lock level 1+ configuration changes require signed requests (X-Signature). If you lose your keys you may lose access to the device.\n\nLock level 2 is PERMANENT and irreversible.\n\nContinue?`)
+        const ok = await securityConfirm(`You are about to change lock_level to ${newLock}.\n\nAt lock level 1+ configuration changes require an authenticated app session (password). Lock level 2 is PERMANENT and irreversible.\n\nContinue?`)
         if (!ok) return
       }
     }
   } else if ((payload as any).lock_level !== undefined && Number((payload as any).lock_level) >= 1) {
     const newLock = Number((payload as any).lock_level)
-    const ok = await securityConfirm(`You are setting lock_level to ${newLock}.\n\nAt lock level 1+ configuration changes require signed requests (X-Signature). If you lose your keys you may lose access to the device.\n\nLock level 2 is PERMANENT and irreversible.\n\nContinue?`)
+    const ok = await securityConfirm(`You are setting lock_level to ${newLock}.\n\nAt lock level 1+ configuration changes require an authenticated app session (password). Lock level 2 is PERMANENT and irreversible.\n\nContinue?`)
     if (!ok) return
   }
 
   try {
     isSaving.value = true
-    await proxyFetch('api/config', { method: 'POST', body: payload })
+    const res = await proxyFetch<Record<string, unknown>>('api/config', { method: 'POST', body: payload })
+    if (res && (res as any).ok === false) {
+      throw new Error((res as any).error as string || 'The device rejected the configuration.')
+    }
     toast.add({
       title: `${heroTitle.value} saved`,
-      description: 'Configuration sent to the ESP.',
+      description: 'The device applied and stored the configuration.',
       icon: 'i-lucide-check',
       color: 'success'
     })
-    notifyInfo(`${heroTitle.value} saved`, 'Configuration sent to the ESP.')
+    notifyInfo(`${heroTitle.value} saved`, 'The device applied and stored the configuration.')
     if (loadedSnapshot.value) {
       for (const k of Object.keys(payload)) (loadedSnapshot.value as any)[k] = (payload as any)[k]
     }
@@ -650,17 +689,47 @@ const save = async () => {
           </div>
 
           <UAlert
-            v-if="lockLevel >= 1"
+            v-if="!configLoaded && canConfig"
             color="warning"
-            icon="i-lucide-shield-alert"
+            icon="i-lucide-cloud-off"
             variant="soft"
             class="rounded-lg"
           >
             <template #title>
-              Device locked (lock level {{ lockLevel }})
+              Configuration not loaded from the device
             </template>
             <template #description>
-              Saving configuration via this page sends unsigned JSON. At lock level 1+, the device rejects unsigned POSTs to /api/config — use the Console (manual X-Signature) or the CLI to apply changes.
+              Saving is disabled until the current configuration is read from the ESP32, so you never overwrite values you did not see.
+            </template>
+          </UAlert>
+
+          <UAlert
+            v-if="lockLevel >= 1 && !isAuthorized"
+            color="warning"
+            icon="i-lucide-lock"
+            variant="soft"
+            class="rounded-lg"
+          >
+            <template #title>
+              Device protected (lock level {{ lockLevel }})
+            </template>
+            <template #description>
+              Sign in to the device to change its configuration. The password unlocks both the panel and configuration writes.
+            </template>
+          </UAlert>
+
+          <UAlert
+            v-else-if="lockLevel >= 1"
+            color="info"
+            icon="i-lucide-shield-check"
+            variant="soft"
+            class="rounded-lg"
+          >
+            <template #title>
+              Device protected (lock level {{ lockLevel }}) — signed in
+            </template>
+            <template #description>
+              Changes are authorized by your app session. The lock level only gates who may write, not a manual signature.
             </template>
           </UAlert>
 
@@ -691,7 +760,7 @@ const save = async () => {
                 variant="soft"
                 icon="i-lucide-rotate-ccw"
                 label="Restart device"
-                :disabled="!canConfig || lockLevel >= 1"
+                :disabled="!canConfig || !isAuthorized"
                 @click="restartDevice"
               />
               <UButton
@@ -700,7 +769,7 @@ const save = async () => {
                 variant="soft"
                 icon="i-lucide-alert-triangle"
                 label="Factory reset"
-                :disabled="!canConfig || lockLevel >= 1"
+                :disabled="!canConfig || !isAuthorized"
                 @click="isFactoryResetOpen = true"
               />
             </template>
@@ -726,7 +795,7 @@ const save = async () => {
               icon="i-lucide-save"
               label="Save configuration"
               :loading="isSaving"
-              :disabled="!canConfig || lockLevel >= 1"
+              :disabled="!canConfig || !configLoaded || !isAuthorized"
             />
             <input
               ref="fileInput"
@@ -749,8 +818,8 @@ const save = async () => {
 
         <UModal v-model:open="isFactoryResetOpen" title="Factory reset">
           <template #body>
-            <p v-if="lockLevel >= 1" class="text-sm text-warning">
-              Device is locked (level {{ lockLevel }}). Restart/reset require an X-Signature — use the Console (/tx/console).
+            <p v-if="!isAuthorized" class="text-sm text-warning">
+              Sign in to the device before resetting it.
             </p>
             <p class="text-sm text-muted">
               This erases the device configuration and restores factory defaults. The action cannot be undone.
@@ -770,7 +839,7 @@ const save = async () => {
                 size="sm"
                 icon="i-lucide-alert-triangle"
                 label="Reset device"
-                :disabled="lockLevel >= 1"
+                :disabled="!isAuthorized"
                 @click="performFactoryReset"
               />
             </div>

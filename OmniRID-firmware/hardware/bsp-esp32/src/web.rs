@@ -121,22 +121,32 @@ fn lock_and_keys(
     )
 }
 
-/// Signed-action gate for a config write or factory reset. At lock level >= 1
-/// this requires a valid `X-Signature` over `body` and honours the failure
-/// rate limiter; below that it always passes (see `rid_app::web_config`).
-fn write_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>) -> ConfigWrite {
-    let (level, keys) = lock_and_keys(state);
-    let mut rate = state.sig_rate.lock();
-    signed_action_decision(level, body, sig, &keys, &mut rate, now_ms())
+fn app_session_valid(state: &SharedState, token: Option<&str>) -> bool {
+    if let Some(t) = token {
+        if t.is_empty() {
+            return false;
+        }
+        let mut auth = state.app_auth.lock();
+        return auth.is_valid(t, now_ms() as u64);
+    }
+    false
 }
 
-/// Signed-command gate for `/api/command`. At lock level >= 1 restart/reset
-/// commands require a valid `X-Signature` and now honour the same failure
-/// rate limiter as config writes (`dataflow.md` #11).
-fn command_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>) -> CommandOutcome {
+/// Signed-action gate for a config write or factory reset. At lock level >= 1
+/// prefer valid app session; otherwise fall back to `X-Signature`.
+fn write_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>, app_token: Option<&str>) -> ConfigWrite {
     let (level, keys) = lock_and_keys(state);
     let mut rate = state.sig_rate.lock();
-    handle_command(level, body, sig, &keys, &mut rate, now_ms())
+    let session_ok = app_session_valid(state, app_token);
+    signed_action_decision(level, body, sig, &keys, &mut rate, now_ms(), session_ok)
+}
+
+/// Command gate for `/api/command`. Prefer app session; fall back to signature.
+fn command_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>, app_token: Option<&str>) -> CommandOutcome {
+    let (level, keys) = lock_and_keys(state);
+    let mut rate = state.sig_rate.lock();
+    let session_ok = app_session_valid(state, app_token);
+    handle_command(level, body, sig, &keys, &mut rate, now_ms(), session_ok)
 }
 
 /// Register an OPTIONS preflight handler for a path.
@@ -176,6 +186,9 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
         "/api/reset",
         "/api/logs",
         "/api/command",
+        "/api/app/auth/status",
+        "/api/app/auth",
+        "/api/app/auth/set",
         "/ota",
     ] {
         add_cors_preflight(&mut server, path)?;
@@ -197,6 +210,229 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
             .expect("register handler");
     }
 
+    // GET /api/app/auth/status
+    {
+        let state = state.clone();
+        server
+            .fn_handler(
+                "/api/app/auth/status",
+                Method::Get,
+                move |req| -> Result<(), EspIOError> {
+                    let ctl = state.ctl.lock();
+                    let has_pass = {
+                        let p = &ctl.bsp_config.app_password;
+                        p[0] != 0
+                    };
+                    let token = req.header("X-App-Token").or_else(|| req.header("x-app-token"));
+                    let authed = if let Some(t) = token {
+                        let mut auth = state.app_auth.lock();
+                        auth.is_valid(t.as_bytes(), now_ms() as u64)
+                    } else {
+                        false
+                    };
+                    let json = if has_pass {
+                        if authed {
+                            r#"{"required":true,"enabled":true,"passwordSet":true,"authenticated":true}"#
+                        } else {
+                            r#"{"required":true,"enabled":true,"passwordSet":true,"authenticated":false}"#
+                        }
+                    } else {
+                        r#"{"required":false,"enabled":false,"passwordSet":false,"authenticated":true}"#
+                    };
+                    send_json(req, 200, json)?;
+                    Ok(())
+                },
+            )
+            .expect("register handler");
+    }
+
+    // POST /api/app/auth
+    {
+        let state = state.clone();
+        server
+            .fn_handler(
+                "/api/app/auth",
+                Method::Post,
+                move |mut req| -> Result<(), EspIOError> {
+                    let Some(body) = read_body(&mut req, MAX_CMD_BODY)? else {
+                        send_json(req, 413, r#"{"error":"payload too large"}"#)?;
+                        return Ok(());
+                    };
+                    // simple JSON parse for {"password":"..."}
+                    let s = alloc::str::from_utf8(&body).unwrap_or("");
+                    // naive extract
+                    let mut pwd = alloc::string::String::new();
+                    if let Some(i) = s.find("\"password\"") {
+                        let rest = &s[i..];
+                        if let Some(c1) = rest.find(':') {
+                            let rest2 = &rest[c1 + 1..];
+                            // skip spaces
+                            let mut j = 0;
+                            let bytes = rest2.as_bytes();
+                            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'"') {
+                                j += 1;
+                            }
+                            let mut k = j;
+                            while k < bytes.len() && bytes[k] != b'"' && bytes[k] != b',' && bytes[k] != b'}' {
+                                k += 1;
+                            }
+                            if k > j {
+                                pwd.push_str(&rest2[j..k]);
+                            }
+                        }
+                    }
+                    let ctl = state.ctl.lock();
+                    let stored = &ctl.bsp_config.app_password;
+                    // compare
+                    let mut ok = false;
+                    if stored[0] == 0 {
+                        ok = true; // no password set
+                    } else {
+                        let mut m = 0;
+                        let pbytes = pwd.as_bytes();
+                        while m < 32 && stored[m] != 0 && pbytes.get(m) == Some(&stored[m]) {
+                            m += 1;
+                        }
+                        if m > 0 && stored[m] == 0 && pbytes.len() == m {
+                            ok = true;
+                        } else if stored[0] == 0 {
+                            ok = true;
+                        }
+                    }
+                    drop(ctl);
+                    if !ok {
+                        send_json(req, 401, r#"{"ok":false,"authenticated":false,"error":"invalid password"}"#)?;
+                        return Ok(());
+                    }
+                    let token = {
+                        let mut auth = state.app_auth.lock();
+                        auth.create_session(now_ms() as u64, 3600_000)
+                    };
+                    let resp = alloc::format!(r#"{{"ok":true,"authenticated":true,"token":"{}"}}"#, token);
+                    send_json(req, 200, &resp)?;
+                    Ok(())
+                },
+            )
+            .expect("register handler");
+    }
+
+    // POST /api/app/auth/set
+    {
+        let state = state.clone();
+        server
+            .fn_handler(
+                "/api/app/auth/set",
+                Method::Post,
+                move |mut req| -> Result<(), EspIOError> {
+                    let Some(body) = read_body(&mut req, MAX_CMD_BODY)? else {
+                        send_json(req, 413, r#"{"error":"payload too large"}"#)?;
+                        return Ok(());
+                    };
+                    let s = alloc::str::from_utf8(&body).unwrap_or("");
+                    let mut new_pwd = alloc::string::String::new();
+                    let mut cur_pwd = alloc::string::String::new();
+                    // naive extract newPassword/currentPassword
+                    if let Some(i) = s.find("\"newPassword\"") {
+                        let rest = &s[i..];
+                        if let Some(c1) = rest.find(':') {
+                            let rest2 = &rest[c1 + 1..];
+                            let mut j = 0;
+                            let bytes = rest2.as_bytes();
+                            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'"') {
+                                j += 1;
+                            }
+                            let mut k = j;
+                            while k < bytes.len() && bytes[k] != b'"' {
+                                k += 1;
+                            }
+                            if k > j {
+                                new_pwd.push_str(&rest2[j..k]);
+                            }
+                        }
+                    }
+                    if let Some(i) = s.find("\"currentPassword\"") {
+                        let rest = &s[i..];
+                        if let Some(c1) = rest.find(':') {
+                            let rest2 = &rest[c1 + 1..];
+                            let mut j = 0;
+                            let bytes = rest2.as_bytes();
+                            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'"') {
+                                j += 1;
+                            }
+                            let mut k = j;
+                            while k < bytes.len() && bytes[k] != b'"' {
+                                k += 1;
+                            }
+                            if k > j {
+                                cur_pwd.push_str(&rest2[j..k]);
+                            }
+                        }
+                    }
+                    let (level, _keys) = lock_and_keys(&state);
+                    let app_token = req.header("X-App-Token").or_else(|| req.header("x-app-token")).map(|s| s.as_str());
+                    let session_ok = app_session_valid(&state, app_token);
+                    if level >= 1 && !session_ok {
+                        send_json(req, 401, r#"{"ok":false,"error":"unauthorized"}"#)?;
+                        return Ok(());
+                    }
+                    // if password currently set, require current password or valid session
+                    {
+                        let ctl = state.ctl.lock();
+                        let stored = &ctl.bsp_config.app_password;
+                        if stored[0] != 0 {
+                            // verify current if provided, else rely on session
+                            if !cur_pwd.is_empty() {
+                                let mut m = 0;
+                                let pbytes = cur_pwd.as_bytes();
+                                let mut match_cur = true;
+                                while m < 32 {
+                                    let sb = stored[m];
+                                    let cb = pbytes.get(m).copied().unwrap_or(0);
+                                    if sb == 0 && cb == 0 { break; }
+                                    if sb != cb { match_cur = false; break; }
+                                    m += 1;
+                                    if sb == 0 { break; }
+                                }
+                                if !match_cur {
+                                    send_json(req, 401, r#"{"ok":false,"error":"invalid current password"}"#)?;
+                                    return Ok(());
+                                }
+                            } else if !session_ok {
+                                send_json(req, 401, r#"{"ok":false,"error":"invalid current password"}"#)?;
+                                return Ok(());
+                            }
+                        }
+                    }
+                    if new_pwd.is_empty() {
+                        send_json(req, 400, r#"{"ok":false,"error":"new password required"}"#)?;
+                        return Ok(());
+                    }
+                    if new_pwd.len() > 32 {
+                        send_json(req, 400, r#"{"ok":false,"error":"password too long"}"#)?;
+                        return Ok(());
+                    }
+                    {
+                        let mut ctl = state.ctl.lock();
+                        let mut buf = [0u8; 33];
+                        let nb = new_pwd.as_bytes();
+                        let n = nb.len().min(32);
+                        buf[..n].copy_from_slice(&nb[..n]);
+                        buf[n] = 0;
+                        ctl.bsp_config.app_password = buf;
+                        // persist
+                        super::nvs_save(&ctl.bsp_config);
+                    }
+                    {
+                        let mut auth = state.app_auth.lock();
+                        auth.revoke_all();
+                    }
+                    send_json(req, 200, r#"{"ok":true}"#)?;
+                    Ok(())
+                },
+            )
+            .expect("register handler");
+    }
+
     // POST /api/config
     {
         let state = state.clone();
@@ -211,7 +447,8 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                     };
                     let json_str = alloc::str::from_utf8(&body).unwrap_or("{}");
                     let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                    match write_decision(&state, &body, sig.as_deref()) {
+                    let app_token = req.header("X-App-Token").or_else(|| req.header("x-app-token")).map(|s| s.as_str());
+                    match write_decision(&state, &body, sig.as_deref(), app_token) {
                         ConfigWrite::RateLimited => {
                             send_json(
                                 req,
@@ -297,7 +534,8 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         return Ok(());
                     };
                     let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                    match write_decision(&state, &body, sig.as_deref()) {
+                    let app_token = req.header("X-App-Token").or_else(|| req.header("x-app-token")).map(|s| s.as_str());
+                    match write_decision(&state, &body, sig.as_deref(), app_token) {
                         ConfigWrite::RateLimited => {
                             send_json(
                                 req,
@@ -308,6 +546,10 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         }
                         ConfigWrite::InvalidSignature => {
                             send_json(req, 401, r#"{"error":"invalid or missing signature"}"#)?;
+                            return Ok(());
+                        }
+                        ConfigWrite::Unauthorized => {
+                            send_json(req, 401, r#"{"error":"unauthorized"}"#)?;
                             return Ok(());
                         }
                         ConfigWrite::Ok => {}
@@ -363,7 +605,8 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         return Ok(());
                     };
                     let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                    match command_decision(&state, &body, sig.as_deref()) {
+                    let app_token = req.header("X-App-Token").or_else(|| req.header("x-app-token")).map(|s| s.as_str());
+                    match command_decision(&state, &body, sig.as_deref(), app_token) {
                         CommandOutcome::RateLimited => {
                             send_json(
                                 req,

@@ -12,23 +12,24 @@ use rid_interface::{FixedKeyStr, NUM_KEYS};
 
 use crate::web::SigRate;
 
-/// Outcome of a signed config write or factory reset, in C decision order.
+/// Outcome of a signed/config write or factory reset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigWrite {
     /// Accepted (and, for config, to be applied and saved).
     Ok,
     /// Too many signature failures in the window.
     RateLimited,
-    /// Signature missing or invalid.
+    /// Signature missing or invalid / not authorized.
     InvalidSignature,
+    /// App session required but missing/invalid.
+    Unauthorized,
 }
 
-/// Decision shared by `handle_post_config` and `handle_factory_reset`:
-/// at `lock_level >= 1` a valid `X-Signature` over `body` is required, gated
-/// by the `SigRate` window; below that the action always passes.
-///
-/// Mirrors the C order: rate check first, then signature verification (a
-/// failure records the timestamp for the rate limiter).
+/// Decision shared by `handle_post_config` and `handle_factory_reset`.
+/// When `lock_level >= 1`, authorization is granted if a valid app session
+/// is provided (via `app_session_valid`). If no app session is present,
+/// fall back to legacy Ed25519 `X-Signature` verification for backward
+/// compatibility; otherwise require signature.
 pub fn signed_action_decision(
     lock_level: u8,
     body: &[u8],
@@ -36,18 +37,22 @@ pub fn signed_action_decision(
     keys: &[FixedKeyStr; NUM_KEYS],
     rate: &mut SigRate,
     now_ms: u32,
+    app_session_valid: bool,
 ) -> ConfigWrite {
     if lock_level >= 1 {
+        if app_session_valid {
+            return ConfigWrite::Ok;
+        }
         if !rate.check(now_ms) {
             return ConfigWrite::RateLimited;
         }
         // The C body is a NUL-terminated string; a signature over a shorter
         // (NUL-truncated) body must still verify.
-        let body = match body.iter().position(|&b| b == 0) {
+        let body_trim = match body.iter().position(|&b| b == 0) {
             Some(i) => &body[..i],
             None => body,
         };
-        if !verify_signed_body(body, signature.unwrap_or(&[]), keys) {
+        if !verify_signed_body(body_trim, signature.unwrap_or(&[]), keys) {
             rate.record_fail(now_ms);
             return ConfigWrite::InvalidSignature;
         }
@@ -114,10 +119,8 @@ pub fn command_needs_auth(kind: CommandKind) -> bool {
 }
 
 /// Auth gate of `handle_post_command`: at `lock_level >= 1` restart/reset
-/// commands need a valid `X-Signature` over the normalized command bytes.
-/// Unlike config writes, the command path previously had no rate limiter in C.
-/// With `rate`/`now_ms` provided, the same sliding-window failure rate limit
-/// as config writes is applied (closes `dataflow.md` #11).
+/// commands need authorization. Prefer valid app session; fall back to
+/// Ed25519 signature.
 pub fn handle_command(
     lock_level: u8,
     raw: &[u8],
@@ -125,10 +128,14 @@ pub fn handle_command(
     keys: &[FixedKeyStr; NUM_KEYS],
     rate: &mut SigRate,
     now_ms: u32,
+    app_session_valid: bool,
 ) -> CommandOutcome {
     let cmd = normalize_command(raw);
     let kind = command_kind(cmd);
     if lock_level >= 1 && command_needs_auth(kind) {
+        if app_session_valid {
+            return CommandOutcome::Ok(kind);
+        }
         if !rate.check(now_ms) {
             return CommandOutcome::RateLimited;
         }
@@ -174,7 +181,7 @@ mod tests {
     fn unlocked_config_write_always_passes() {
         let mut rate = SigRate::new();
         assert_eq!(
-            signed_action_decision(0, b"{\"locked\":1}", None, keys(), &mut rate, 1000),
+            signed_action_decision(0, b"{\"locked\":1}", None, keys(), &mut rate, 1000, false),
             ConfigWrite::Ok
         );
     }
@@ -185,7 +192,17 @@ mod tests {
         let body = b"{\"locked\":1}";
         let sig = sign(body);
         assert_eq!(
-            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 1000),
+            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 1000, false),
+            ConfigWrite::Ok
+        );
+    }
+
+    #[test]
+    fn locked_config_write_with_app_session() {
+        let mut rate = SigRate::new();
+        let body = b"{\"locked\":1}";
+        assert_eq!(
+            signed_action_decision(1, body, None, keys(), &mut rate, 1000, true),
             ConfigWrite::Ok
         );
     }
@@ -195,7 +212,7 @@ mod tests {
         let mut rate = SigRate::new();
         let body = b"{\"locked\":1}";
         assert_eq!(
-            signed_action_decision(1, body, None, keys(), &mut rate, 1000),
+            signed_action_decision(1, body, None, keys(), &mut rate, 1000, false),
             ConfigWrite::InvalidSignature
         );
         assert_eq!(rate.count(), 1, "failure recorded for the rate limiter");
@@ -207,7 +224,7 @@ mod tests {
         let body = b"{\"locked\":1}";
         let bad = sign(b"other");
         assert_eq!(
-            signed_action_decision(1, body, Some(bad.as_bytes()), keys(), &mut rate, 1000),
+            signed_action_decision(1, body, Some(bad.as_bytes()), keys(), &mut rate, 1000, false),
             ConfigWrite::InvalidSignature
         );
         assert_eq!(rate.count(), 1);
@@ -223,7 +240,7 @@ mod tests {
         let body = b"{\"locked\":1}";
         let sig = sign(body);
         assert_eq!(
-            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 5000),
+            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 5000, false),
             ConfigWrite::RateLimited
         );
     }
@@ -239,7 +256,7 @@ mod tests {
         let after = 1000 + crate::web::SIG_RATE_WINDOW_MS;
         // A valid signature is accepted once the window has elapsed.
         assert_eq!(
-            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, after),
+            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, after, false),
             ConfigWrite::Ok
         );
     }
@@ -255,7 +272,8 @@ mod tests {
                 Some(sig.as_bytes()),
                 keys(),
                 &mut rate,
-                1000
+                1000,
+                false
             ),
             ConfigWrite::Ok
         );
@@ -268,7 +286,8 @@ mod tests {
                 Some(other.as_bytes()),
                 keys(),
                 &mut rate,
-                1000
+                1000,
+                false
             ),
             ConfigWrite::InvalidSignature
         );
@@ -280,7 +299,7 @@ mod tests {
         let body = b"{\"locked\":1}\0junk";
         let sig = sign(b"{\"locked\":1}");
         assert_eq!(
-            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 1000),
+            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 1000, false),
             ConfigWrite::Ok
         );
     }
@@ -324,11 +343,11 @@ mod tests {
     fn unlocked_commands_need_no_signature() {
         let mut rate = SigRate::new();
         assert_eq!(
-            handle_command(0, b"restart", None, keys(), &mut rate, 1000),
+            handle_command(0, b"restart", None, keys(), &mut rate, 1000, false),
             CommandOutcome::Ok(CommandKind::Restart)
         );
         assert_eq!(
-            handle_command(0, b"\"status\"", None, keys(), &mut rate, 1000),
+            handle_command(0, b"\"status\"", None, keys(), &mut rate, 1000, false),
             CommandOutcome::Ok(CommandKind::Status)
         );
     }
@@ -338,17 +357,26 @@ mod tests {
         let mut rate = SigRate::new();
         let sig = sign(b"restart");
         assert_eq!(
-            handle_command(1, b"restart", Some(sig.as_bytes()), keys(), &mut rate, 1000),
+            handle_command(1, b"restart", Some(sig.as_bytes()), keys(), &mut rate, 1000, false),
             CommandOutcome::Ok(CommandKind::Restart)
         );
         assert_eq!(
-            handle_command(1, b"restart", None, keys(), &mut rate, 1000),
+            handle_command(1, b"restart", None, keys(), &mut rate, 1000, false),
             CommandOutcome::InvalidSignature
         );
         let bad = sign(b"reset");
         assert_eq!(
-            handle_command(1, b"restart", Some(bad.as_bytes()), keys(), &mut rate, 1000),
+            handle_command(1, b"restart", Some(bad.as_bytes()), keys(), &mut rate, 1000, false),
             CommandOutcome::InvalidSignature
+        );
+    }
+
+    #[test]
+    fn locked_restart_with_app_session() {
+        let mut rate = SigRate::new();
+        assert_eq!(
+            handle_command(1, b"restart", None, keys(), &mut rate, 1000, true),
+            CommandOutcome::Ok(CommandKind::Restart)
         );
     }
 
@@ -356,11 +384,11 @@ mod tests {
     fn locked_status_and_unknown_need_no_signature() {
         let mut rate = SigRate::new();
         assert_eq!(
-            handle_command(1, b"status", None, keys(), &mut rate, 1000),
+            handle_command(1, b"status", None, keys(), &mut rate, 1000, false),
             CommandOutcome::Ok(CommandKind::Status)
         );
         assert_eq!(
-            handle_command(1, b"frobnicate", None, keys(), &mut rate, 1000),
+            handle_command(1, b"frobnicate", None, keys(), &mut rate, 1000, false),
             CommandOutcome::Ok(CommandKind::Unknown)
         );
     }
@@ -378,7 +406,8 @@ mod tests {
                 Some(sig.as_bytes()),
                 keys(),
                 &mut rate,
-                1000
+                1000,
+                false
             ),
             CommandOutcome::Ok(CommandKind::Restart)
         );
@@ -395,7 +424,7 @@ mod tests {
         let sig = sign(b"restart");
         // Even a valid signature is rejected while rate-limited.
         assert_eq!(
-            handle_command(1, b"restart", Some(sig.as_bytes()), keys(), &mut rate, 5000),
+            handle_command(1, b"restart", Some(sig.as_bytes()), keys(), &mut rate, 5000, false),
             CommandOutcome::RateLimited
         );
         // After the window elapses a valid signature passes again.
@@ -407,7 +436,8 @@ mod tests {
                 Some(sig.as_bytes()),
                 keys(),
                 &mut rate,
-                after
+                after,
+                false
             ),
             CommandOutcome::Ok(CommandKind::Restart)
         );

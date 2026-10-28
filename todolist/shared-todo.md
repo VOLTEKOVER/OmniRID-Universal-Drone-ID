@@ -21,15 +21,15 @@
 
 ## 1. App ↔ firmware contract (both sides)
 
-- [ ] **Signing at lock ≥ 1.** The device correctly rejects unsigned
-  `POST /api/config`, `/api/reset`, `/api/command`. The PWA cannot produce an
-  Ed25519 signature, so a locked device is only configurable via the CLI or the
-  Console's manual `X-Signature`. Decide the product flow.
-- [ ] **OTA end-to-end.** Firmware `POST /ota` = `501` stub; the app's Firmware
-  page advertises an upload flow that cannot work. Implement the endpoint or
-  mark the page "USB/serial only".
-- [ ] **WiFi credential length.** Firmware stores `wifi_ssid`/`wifi_password`
-  with `MAX_STR_LEN = 32`; the app accepts up to 63 (WPA2 max). Align both.
+- [ ] **Unify authentication/authorization (A and C together).** Treat "app user login" and "device authorization for config changes" as the same mechanism. The password must be verified by the ESP32 (source of truth), not only by the PWA middleware/UI. Do **not** require the user to manually paste an `X-Signature` in the Console for normal PWA operation.
+- [ ] **Implement firmware-side app auth.** Add `GET /api/app/auth/status` and `POST /api/app/auth` on the ESP32 (`bsp-esp32/src/web.rs`). Store the app password in NVS, issue/validate a session (e.g. `X-App-Token` header or session cookie), and forward/accept it via the Nitro proxy unchanged. Remove/replace the current "failure => auth not required" fallback that makes the UI appear authenticated while writes are still rejected.
+- [ ] **Enforce session auth on writes.** When the device is in protected mode (e.g. `lock_level >= 1`), `POST /api/config`, `POST /api/reset`, `POST /api/command` (restart/reset) must be authorized by a valid app session. Update `rid-app/src/web_config.rs` / `bsp-esp32/src/web.rs` so that a logged-in, authorized user does not need an Ed25519 `X-Signature`. Keep Ed25519 as an optional/advanced mechanism only if strictly required (CLI/hard-lock), not the default PWA flow.
+- [ ] **Redefine `lock_level`.** Clarify semantics: `lock_level == 0` = open; `lock_level >= 1` = protected by app user authentication (session). Do not conflate this with mandatory cryptographic request signing for the normal web UI.
+- [ ] **Config loading orchestration (pull model).** After connection + (optional) auth, the app must explicitly `GET /api/config` (via proxy) and populate TX/RX forms from the device's current configuration (source of truth). Avoid relying on cached/default values. Handle load failures (show error, prevent accidental partial saves).
+- [ ] **Firmware config auth vs image verification (separate).** Keep firmware image authenticity/integrity (OTA/cable flashing, Secure Boot/signature verification of the binary) completely independent from user login/app-session auth. Do not merge these concepts.
+- [ ] **Signing at lock ≥ 1 (to be replaced).** The device currently rejects unsigned `POST /api/config`, `/api/reset`, `/api/command` at lock≥1. Replace this with unified app-session authorization; if kept, it must be non-blocking for normal authenticated PWA use.
+- [ ] **OTA end-to-end.** Firmware `POST /ota` is implemented, but the app's Firmware page currently marks/disables OTA ("not implemented"/USB-only). Align UI and behavior (enable OTA path if intended, or explicitly document "USB/serial only"). Ensure `X-Expected-SHA256` and `X-Signature` forwarding remain correct via proxy.
+- [ ] **WiFi credential length.** Firmware stores `wifi_ssid`/`wifi_password` with `MAX_STR_LEN = 63` (updated); the app currently limits to 32/32. Decide and align: either raise app limits to 63 or enforce 32 on both sides with clear validation.
 - [x] Config read (`GET /api/config`) + save (`POST /api/config`) through the
   proxy/direct fetch — verified in `device/ConfigPage.vue`.
 - [x] `GET /api/capabilities` used for the live connection indicator.

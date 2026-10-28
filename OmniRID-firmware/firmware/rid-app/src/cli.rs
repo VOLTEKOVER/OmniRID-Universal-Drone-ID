@@ -422,7 +422,7 @@ mod tests {
 
         let long = "x".repeat(50);
         assert_eq!(config_set_field(&mut c, "operator_id", &long), Ok(()));
-        assert_eq!(crate::config::cstr(&c.operator_id), "x".repeat(32));
+        assert_eq!(crate::config::cstr(&c.operator_id), "x".repeat(50));
     }
 
     #[test]

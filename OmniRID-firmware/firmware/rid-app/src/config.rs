@@ -75,6 +75,8 @@ pub struct BspConfig {
 
     /// Authentication private key PEM.
     pub auth_private_key: [u8; AUTH_KEY_MAX_LEN],
+    /// App panel password (NUL-terminated).
+    pub app_password: [u8; 33],
 
     /// Startup delay before transmission (ms).
     pub start_delay_ms: u32,
@@ -142,6 +144,7 @@ impl Default for BspConfig {
             ota_trigger_gpio: -1,
 
             auth_private_key: [0; AUTH_KEY_MAX_LEN],
+            app_password: [0; 33],
 
             start_delay_ms: 10000,
 

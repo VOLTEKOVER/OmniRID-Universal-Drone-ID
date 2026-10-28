@@ -57,6 +57,7 @@ pub struct SharedState {
     pub ctl: Mutex<Controller>,
     pub log_ring: Mutex<rid_app::LogRing>,
     pub sig_rate: Mutex<rid_app::SigRate>,
+    pub app_auth: Mutex<rid_app::AppAuthState>,
 }
 
 #[cfg(feature = "hardware")]
@@ -66,6 +67,7 @@ impl SharedState {
             ctl: Mutex::new(Controller::new()),
             log_ring: Mutex::new(rid_app::LogRing::new()),
             sig_rate: Mutex::new(rid_app::SigRate::new()),
+            app_auth: Mutex::new(rid_app::AppAuthState::new()),
         })
     }
 }

@@ -105,8 +105,13 @@ export default defineEventHandler(async (event) => {
     // Forward the Ed25519 signature required by locked devices.
     const signature = getHeader(event, 'x-signature')
     if (signature) headers['x-signature'] = signature
+    // Forward the app session token (unifies user auth with device authorization).
+    const appToken = getHeader(event, 'x-app-token') || getHeader(event, 'X-App-Token')
+    if (appToken) headers['x-app-token'] = appToken
   } else {
     headers.accept = 'application/json, text/plain, */*'
+    const appToken = getHeader(event, 'x-app-token') || getHeader(event, 'X-App-Token')
+    if (appToken) headers['x-app-token'] = appToken
   }
 
   const controller = new AbortController()

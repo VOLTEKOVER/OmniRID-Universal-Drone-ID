@@ -4,6 +4,7 @@ import { DEFAULTS, TX_MODES } from '~/config/device'
 import { useAppSettings } from '~/composables/useAppSettings'
 
 const ESP_IP_KEY = 'omnirid:esp-ip'
+const APP_AUTH_TOKEN_KEY = 'omnirid:app-auth-token'
 
 export type EspTransport = 'wifi' | 'usb' | 'none'
 
@@ -137,6 +138,7 @@ const _useEspConnection = () => {
   const configAuthChecked = useState<boolean>('omnirid-config-auth-checked', () => false)
   const configAuthConnKey = useState<string>('omnirid-config-auth-conn-key', () => '')
   const pendingConfigRequest = useState<PendingConfigRequest | null>('omnirid-config-auth-pending', () => null)
+  const appAuthToken = useState<string>('omnirid-app-auth-token', () => '')
 
   const isSimulated = computed(() => settings.value.virtualConnection === 'wifi' || settings.value.virtualConnection === 'usb')
 
@@ -183,6 +185,28 @@ const _useEspConnection = () => {
     })
   }
 
+  const tokenStorageKey = (key: string) => `${APP_AUTH_TOKEN_KEY}:${key}`
+
+  const loadStoredToken = (key: string) => {
+    if (!import.meta.client) return ''
+    try {
+      return window.localStorage.getItem(tokenStorageKey(key)) || ''
+    } catch {
+      return ''
+    }
+  }
+
+  const storeToken = (key: string, token: string) => {
+    appAuthToken.value = token
+    if (!import.meta.client) return
+    try {
+      if (token) window.localStorage.setItem(tokenStorageKey(key), token)
+      else window.localStorage.removeItem(tokenStorageKey(key))
+    } catch {
+      // ignore storage errors (private mode/quota)
+    }
+  }
+
   const checkConfigAuth = async () => {
     if (isSimulated.value) {
       try {
@@ -193,7 +217,7 @@ const _useEspConnection = () => {
         configAuthError.value = ''
       } catch {
         configAuthRequired.value = false
-        configAuthenticated.value = true
+        configAuthenticated.value = false
       }
       configAuthChecked.value = true
       configAuthConnKey.value = getConnKey()
@@ -211,21 +235,37 @@ const _useEspConnection = () => {
       configAuthenticated.value = false
       configAuthRequired.value = false
       configAuthChecked.value = false
+      appAuthToken.value = ''
     }
     configAuthConnKey.value = key
+    // Restore a session token issued for this device earlier.
+    if (!appAuthToken.value) {
+      const stored = loadStoredToken(key)
+      if (stored) appAuthToken.value = stored
+    }
     try {
+      const headers: Record<string, string> = { 'x-esp-ip': espIp.value }
+      if (appAuthToken.value) headers['X-App-Token'] = appAuthToken.value
       const res = await $fetch<Record<string, unknown>>('/api/esp/api/app/auth/status', {
         method: 'GET',
-        headers: { 'x-esp-ip': espIp.value },
+        headers,
         timeout: 4500
       })
       const required = res?.required === true || res?.enabled === true || res?.passwordSet === true || res?.authRequired === true
       configAuthRequired.value = !!required
       configAuthenticated.value = res?.authenticated === true
+      if (!configAuthenticated.value && appAuthToken.value) {
+        // Stored token was rejected/expired: drop it.
+        storeToken(key, '')
+      }
       configAuthError.value = ''
     } catch {
+      // The device did not answer the auth probe: never treat this as
+      // "authenticated". Writes remain governed by the firmware (and may be
+      // rejected) until a session is established.
       configAuthRequired.value = false
-      configAuthenticated.value = true
+      configAuthenticated.value = false
+      configAuthError.value = ''
     }
     configAuthChecked.value = true
   }
@@ -266,6 +306,8 @@ const _useEspConnection = () => {
         configAuthError.value = (res?.error as string) || 'Password errata'
         throw new Error(configAuthError.value)
       }
+      const token = typeof res?.token === 'string' ? res.token : ''
+      if (token) storeToken(getConnKey(), token)
       configAuthenticated.value = true
       if (res?.required !== false) {
         configAuthRequired.value = configAuthRequired.value || true
@@ -312,6 +354,11 @@ const _useEspConnection = () => {
     }
 
     const headers: Record<string, string> = { 'x-esp-ip': espIp.value, ...options.headers }
+    // Attach the app session token (if any): the firmware authorises config
+    // writes with it, so a logged-in user does not need an Ed25519 signature.
+    if (appAuthToken.value && !headers['X-App-Token'] && !headers['x-app-token']) {
+      headers['X-App-Token'] = appAuthToken.value
+    }
     const body = options.body !== undefined ? JSON.stringify(options.body) : undefined
     if (body !== undefined) headers['content-type'] = 'application/json'
 
@@ -383,6 +430,13 @@ const _useEspConnection = () => {
     }
   }
 
+  const logout = () => {
+    storeToken(getConnKey(), '')
+    appAuthToken.value = ''
+    configAuthenticated.value = false
+    configAuthError.value = ''
+  }
+
   const connect = async (address: string) => {
     espIp.value = address
     if (import.meta.client) {
@@ -433,6 +487,7 @@ const _useEspConnection = () => {
     configAuthChecked,
     checkConfigAuth,
     submitConfigAuth,
+    logout,
     pendingConfigRequest
   } as any
 }

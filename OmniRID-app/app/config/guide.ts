@@ -975,7 +975,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
         type: 'callout',
         tone: 'info',
         title: 'Status',
-        html: 'All three lock levels are implemented. Level 2 burns "RID!" magic to EFUSE_BLK3 and is one-time irreversible. Level 1 enforces Ed25519 signature verification via the <code>X-Signature</code> header. Shared verification logic is in <code>rid-core::security</code> (SHA-256 + Ed25519 + hex utilities). Rate limiting protects against brute-force attacks (10 fails per 60s sliding window).'
+        html: 'All three lock levels are implemented. Level 2 burns "RID!" magic to EFUSE_BLK3 and is one-time irreversible. Level 1 requires an authenticated app session (password) to authorize configuration writes; Ed25519 <code>X-Signature</code> remains available as an advanced fallback. Shared verification logic is in <code>rid-core::security</code>. Rate limiting protects against brute-force attacks (10 fails per 60s sliding window).'
       },
       {
         type: 'h',
@@ -990,7 +990,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
         cols: ['Level', 'Name', 'Effect'],
         rows: [
           ['0', 'Normal', 'All configuration changes are allowed via the app and REST API. No authentication required.'],
-          ['1', 'Locked', 'Configuration changes require Ed25519-signed commands authenticated with a configured public key. Unsigned POST requests to <code>/api/config</code> are rejected. OTA updates require <code>X-Signature</code> header.'],
+          ['1', 'Locked', 'Configuration changes require an authenticated app session (password). Sign in to the app/device to authorize writes; Ed25519 signatures are optional/advanced. OTA updates may require <code>X-Signature</code> depending on policy.'],
           ['2', 'eFuse Permanent', 'Same as Level 1, but the lock level is burned into eFuse and cannot be changed. This is an <b>irreversible</b> operation. Only use when the device is in its final deployment configuration.']
         ]
       },
@@ -1012,7 +1012,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
           ['PSA Crypto init', '<code>app::main</code>', '<code>psa_crypto_init()</code> called at boot for ESP-IDF v5+ crypto API'],
           ['Shared module', '<code>rid-core::security</code>', '<code>verify_sha256()</code>, <code>verify_signed_body()</code>, <code>bytes_to_hex()</code>, <code>hex_to_bytes()</code>'],
           ['Ed25519 bit check', '<code>rid-core::auth</code>', 'Validates signature length is exactly 256 bits (32 bytes)'],
-          ['OTA SHA-256', '<code>rid-app::ota</code>', 'SHA-256 hash mandatory, Ed25519 signature required when lock level ≥ 1']
+          ['OTA SHA-256', '<code>rid-app::ota</code>', 'SHA-256 hash mandatory; Ed25519 signature may be required by policy when locked']
         ]
       },
       {
@@ -1021,7 +1021,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
       },
       {
         type: 'p',
-        html: 'Up to 5 public keys can be configured (in PEM or raw base64 format). These keys are used to verify Ed25519-signed configuration commands when lock level 1 or 2 is active.'
+        html: 'Up to 5 public keys can be configured (in PEM or raw base64 format). These keys are used for Ed25519-signed configuration commands as an advanced fallback when lock level 1 or 2 is active.'
       },
       {
         type: 'p',
@@ -1044,13 +1044,13 @@ cat public.pem`
       },
       {
         type: 'p',
-        html: 'When lock level ≥ 1, any POST to <code>/api/config</code> must include a signature header:'
+        html: 'When lock level ≥ 1, the app uses an authenticated session (<code>X-App-Token</code>). For advanced use (CLI/manual), a POST to <code>/api/config</code> can include an Ed25519 signature header:'
       },
       {
         type: 'code',
         code: `curl -X POST http://192.168.4.1/api/config \\
   -H "Content-Type: application/json" \\
-  -H "X-Signature: <base64-ed25519-signature>" \\
+  -H "X-App-Token: <session-token>" \\
   -d '{"uas_id":"RID-12345678"}'`
       },
       {
