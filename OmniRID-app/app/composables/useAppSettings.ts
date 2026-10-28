@@ -6,6 +6,7 @@ export type VirtualConnection = 'wifi' | 'usb' | 'off'
 
 export type AppSettings = {
   virtualConnection: VirtualConnection
+  virtualNearbyDrones: boolean
   expertMode: boolean
   reopenLastTab: boolean
   disableInternet: boolean
@@ -17,6 +18,7 @@ export type AppSettings = {
 
 export const defaults: AppSettings = {
   virtualConnection: 'off',
+  virtualNearbyDrones: true,
   expertMode: false,
   reopenLastTab: false,
   disableInternet: false,

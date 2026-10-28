@@ -46,12 +46,27 @@ const virtualConfig = () => ({
 
 let simEpoch = 0
 
+let simOwnState = { lat: 41.9028, lon: 12.4964, vx: 0.00001, vy: 0.000007 }
+
 const virtualTelemetry = (): Record<string, unknown> => {
   const now = Date.now()
   if (!simEpoch) simEpoch = now
   const t = (now - simEpoch) / 1000
-  const lat = 41.9028 + Math.sin(t / 25) * 0.003
-  const lon = 12.4964 + Math.cos(t / 25) * 0.003
+  simOwnState.lat += simOwnState.vx
+  simOwnState.lon += simOwnState.vy
+  if (simOwnState.lat > 41.9045 || simOwnState.lat < 41.901) simOwnState.vx *= -1
+  if (simOwnState.lon > 12.498 || simOwnState.lon < 12.4945) simOwnState.vy *= -1
+  simOwnState.vx = Math.max(-0.000012, Math.min(0.000012, simOwnState.vx + (Math.random() - 0.5) * 0.0000004))
+  simOwnState.vy = Math.max(-0.000012, Math.min(0.000012, simOwnState.vy + (Math.random() - 0.5) * 0.0000004))
+  const lat = simOwnState.lat
+  const lon = simOwnState.lon
+  const durationSec = Math.floor(t)
+  const duration = `${String(Math.floor(durationSec / 60)).padStart(2, '0')}:${String(durationSec % 60).padStart(2, '0')}`
+  const totalDistance = (durationSec * 2).toFixed(0)
+  const maxHeight = (80 + 15).toFixed(0)
+  const maxSpeed = (9).toFixed(0)
+  const speed = Math.sqrt(simOwnState.vx * simOwnState.vx + simOwnState.vy * simOwnState.vy) * 111000
+  const heading = Math.round(((Math.atan2(simOwnState.vy, simOwnState.vx) * 180 / Math.PI) % 360 + 360) % 360)
   return {
     fw_version: '0.1.0-sim',
     protocol: 1,
@@ -61,8 +76,8 @@ const virtualTelemetry = (): Record<string, unknown> => {
     standard: 'ASTM F3411-22a',
     standard_fallback: false,
     alt: 80 + Math.sin(t / 6) * 15,
-    speed: Math.abs(Math.cos(t / 5)) * 9,
-    heading: Math.round((t * 8) % 360),
+    speed,
+    heading,
     satellites: 14,
     fix_type: 3,
     tx_total: Math.floor(t * 2),
@@ -74,7 +89,38 @@ const virtualTelemetry = (): Record<string, unknown> => {
     takeoff_lat: 41.9028,
     takeoff_lon: 12.4964,
     takeoff_alt: 30,
-    uptime_ms: Math.floor(t * 1000)
+    uptime_ms: Math.floor(t * 1000),
+    detection_detail: 'DJI Mavic 3 Classic',
+    aircraft_manufacturer: 'DJI',
+    aircraft_model_name: 'Mavic 3 Classic',
+    serial_number: '1581F67PB229G0010A8F',
+    sn: '1581F67PB229G0010A8F',
+    uas_operator_id: '—',
+    operator_id: '—',
+    label_and_display_color: '—',
+    first_seen: '7 Apr, 2026, 11:33:17',
+    last_seen: '7 Apr, 2026, 11:48:30',
+    detected_at: 'Tuesday April 7, 2026 at 11:33',
+    detected_time: 'Tuesday April 7, 2026 at 11:33',
+    duration,
+    flight_duration: duration,
+    total_distance: `${totalDistance} m`,
+    distance_total: `${totalDistance} m`,
+    max_height_ato: `${maxHeight} m`,
+    height_ato: `${maxHeight} m`,
+    max_height: `${maxHeight} m`,
+    max_speed: `${maxSpeed} m/s`,
+    max_ua_operator_distance: '5 m',
+    max_ua_operator_dist: '5 m',
+    ua_operator_distance: '5 m',
+    max_ua_sensor_distance: '9.72 km',
+    max_ua_sensor_dist: '9.72 km',
+    ua_sensor_distance: '9.72 km',
+    transmission_technology: 'Wi-Fi Beacon',
+    protocol: 'Wi-Fi Beacon',
+    tech: 'Wi-Fi Beacon',
+    information_source: '1596F27A7982C4E02992 (RID Receiver)',
+    sources: ['1596F27A7982C4E02992 (RID Receiver)', '1596F276A9DEA5C15A15 (RID Receiver)']
   }
 }
 

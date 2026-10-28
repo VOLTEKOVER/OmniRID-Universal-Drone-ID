@@ -9,19 +9,57 @@ export interface NearbyDrone {
   uas_id?: string
   uav_id?: string
   serial?: string
+  serial_number?: string
+  sn?: string
   lat?: number | string
   lng?: number | string
   lon?: number | string
+  latitude?: number | string
+  longitude?: number | string
   alt?: number | string
   altitude?: number | string
   speed?: number | string
   heading?: number | string
   operator_id?: string
+  uas_operator_id?: string
   operator?: string
   registration?: string
   rssi?: number | string
   last_seen?: number | string
+  first_seen?: number | string
   source?: string
+  sources?: Array<string | Record<string, unknown>>
+  information_source?: string | Array<string | Record<string, unknown>>
+  transmission_technology?: string
+  protocol?: string
+  tech?: string
+  detection_detail?: string
+  aircraft_model?: string
+  aircraft_model_name?: string
+  aircraft_manufacturer?: string
+  manufacturer?: string
+  model?: string
+  detected_at?: string | number
+  detected?: string
+  detected_time?: string
+  duration?: string
+  flight_duration?: string
+  total_distance?: string | number
+  distance_total?: string | number
+  max_height_ato?: string | number
+  max_height?: string | number
+  height_ato?: string | number
+  max_speed?: string | number
+  max_ua_operator_dist?: string | number
+  max_ua_operator_distance?: string | number
+  ua_operator_distance?: string | number
+  max_ua_sensor_dist?: string | number
+  max_ua_sensor_distance?: string | number
+  ua_sensor_distance?: string | number
+  label?: string
+  label_and_display_color?: string
+  display_color?: string
+  color?: string
   [key: string]: unknown
 }
 
@@ -72,9 +110,11 @@ let nearbyIcon: LeafletIcon | null = null
 let pathLine: LeafletPolyline | null = null
 let tileLayer: LeafletLayer | null = null
 const nearbyMarkers = new Map<string, LeafletMarker>()
+const nearbyPaths = new Map<string, LeafletPolyline>()
 let hasCentered = false
 let loadPromise: Promise<LeafletStatic | null> | null = null
 const history: LeafletLatLng[] = []
+const nearbyHistory = new Map<string, LeafletLatLng[]>()
 
 const showNearbyLayer = ref(true)
 const selectedDrone = ref<NearbyDrone | null>(null)
@@ -302,14 +342,18 @@ const buildNearbyPopup = (d: NearbyDrone): string => {
     const n = Number(v)
     return Number.isFinite(n) ? n.toFixed(digits) : '--'
   }
-  const id = d.uas_id ?? d.uav_id ?? d.serial ?? d.id ?? '--'
-  const op = d.operator_id ?? d.operator ?? '--'
+  const id = d.uas_id ?? d.uav_id ?? d.serial ?? d.serial_number ?? d.sn ?? d.id ?? '--'
+  const op = d.uas_operator_id ?? d.operator_id ?? d.operator ?? '--'
   const reg = d.registration ?? '--'
   const alt = d.altitude ?? d.alt
+  const model = d.aircraft_model_name ?? d.aircraft_model ?? d.model ?? '--'
+  const manu = d.aircraft_manufacturer ?? d.manufacturer ?? '--'
+  const det = d.detection_detail ?? `${manu} ${model}`.trim()
   return [
-    '<div style="min-width:160px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.5">',
+    '<div style="min-width:200px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.5">',
     '<b>Nearby Remote ID</b><br>',
-    `UAS ID: ${id}<br>`,
+    det !== '--' ? `Detection: ${det}<br>` : '',
+    `UAS ID/SN: ${id}<br>`,
     `Operator: ${op}<br>`,
     `Reg: ${reg}<br>`,
     `Alt ${fmt(alt)} m · Speed ${fmt(d.speed)} m/s<br>`,
@@ -318,16 +362,24 @@ const buildNearbyPopup = (d: NearbyDrone): string => {
   ].join('')
 }
 
+const nearbyColors = ['#f59e0b', '#22d3ee', '#a78bfa', '#f43f5e', '#34d399', '#f59e0b']
+
 const syncNearby = () => {
   if (!link || !map || !props.showNearby) return
   const seen = new Set<string>()
-  for (const d of props.nearbyDrones) {
+  const nowIndex = 0
+  for (let i = 0; i < props.nearbyDrones.length; i++) {
+    const d = props.nearbyDrones[i]
     const lat = Number((d.lat as unknown) ?? (d as Record<string, unknown>).latitude)
     const lng = Number((d.lng as unknown) ?? (d.lon as unknown) ?? (d as Record<string, unknown>).longitude)
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) continue
     const key = nearbyKey(d)
     seen.add(key)
     const pos: LeafletLatLng = { lat, lng }
+    if (!nearbyHistory.has(key)) nearbyHistory.set(key, [])
+    const hist = nearbyHistory.get(key)!
+    hist.push(pos)
+    if (hist.length > MAX_HISTORY) hist.shift()
     if (!nearbyIcon) {
       nearbyIcon = link.divIcon({
         className: 'cd-cardiv',
@@ -351,12 +403,39 @@ const syncNearby = () => {
       mm.setLatLng?.(pos)
       marker.bindPopup(buildNearbyPopup(d))
     }
+    if (showPath.value && hist.length >= 2) {
+      const color = nearbyColors[i % nearbyColors.length]
+      if (!nearbyPaths.has(key)) {
+        nearbyPaths.set(key, link.polyline(hist, {
+          color,
+          weight: 3,
+          opacity: 0.9,
+          lineJoin: 'round',
+          lineCap: 'round'
+        }).addTo(map))
+      } else {
+        nearbyPaths.get(key)!.setLatLngs(hist)
+        nearbyPaths.get(key)!.setStyle({ color, weight: 3, opacity: 0.9 })
+      }
+    } else if (nearbyPaths.has(key)) {
+      map.removeLayer(nearbyPaths.get(key)!)
+      nearbyPaths.delete(key)
+    }
   }
   for (const [key, marker] of nearbyMarkers.entries()) {
     if (!seen.has(key)) {
       map.removeLayer(marker)
       nearbyMarkers.delete(key)
     }
+  }
+  for (const [key, path] of nearbyPaths.entries()) {
+    if (!seen.has(key)) {
+      map.removeLayer(path)
+      nearbyPaths.delete(key)
+    }
+  }
+  for (const key of Array.from(nearbyHistory.keys())) {
+    if (!seen.has(key)) nearbyHistory.delete(key)
   }
 }
 
@@ -544,7 +623,7 @@ watch(isDark, () => {
 
     <div
       v-if="selectedOwn && hasOwnPos"
-      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(360px,calc(100vw-1.5rem))] rounded-lg border border-default bg-default/95 shadow-xl"
+      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(380px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto rounded-lg border border-default bg-default/95 shadow-xl"
     >
       <div class="flex items-center justify-between gap-2 border-b border-default px-3 py-2">
         <div class="flex items-center gap-2">
@@ -556,7 +635,7 @@ watch(isDark, () => {
             size="xs"
             variant="subtle"
             color="neutral"
-            :label="String(ownInfo.standard)"
+            :label="String(ownInfo.standard || '--')"
           />
         </div>
         <UButton
@@ -567,69 +646,291 @@ watch(isDark, () => {
           @click="selectedOwn = false"
         />
       </div>
-      <div class="grid grid-cols-2 gap-2 px-3 py-2 text-xs">
-        <div class="col-span-2">
-          <p class="text-muted">
-            Position (lat, lon)
-          </p>
-          <p class="font-mono text-highlighted">
-            {{ ownInfo.lat.toFixed(6) }}, {{ ownInfo.lng.toFixed(6) }}
-          </p>
-        </div>
+      <div class="space-y-3 px-3 py-2 text-xs">
         <div>
-          <p class="text-muted">
-            Altitude
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Testazione e Dati Principali
           </p>
-          <p class="font-mono text-highlighted">
-            {{ ownInfo.alt }} m (MSL: {{ ownInfo.altMsl }})
-          </p>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="col-span-2">
+              <p class="text-muted">
+                Detection detail
+              </p>
+              <p class="font-semibold text-highlighted">
+                {{ (status as Record<string, unknown>).detection_detail || `${(status as Record<string, unknown>).aircraft_manufacturer ?? (status as Record<string, unknown>).manufacturer ?? ''} ${(status as Record<string, unknown>).aircraft_model_name ?? (status as Record<string, unknown>).aircraft_model ?? (status as Record<string, unknown>).model ?? ''}`.trim() || '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Aircraft Manufacturer
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).aircraft_manufacturer ?? (status as Record<string, unknown>).manufacturer ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Aircraft Model Name
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).aircraft_model_name ?? (status as Record<string, unknown>).aircraft_model ?? (status as Record<string, unknown>).model ?? '--' }}
+              </p>
+            </div>
+            <div class="col-span-2">
+              <p class="text-muted">
+                Serial Number (SN)
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).serial_number ?? (status as Record<string, unknown>).sn ?? (status as Record<string, unknown>).uas_id ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                UAS Operator ID
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).uas_operator_id ?? (status as Record<string, unknown>).operator_id ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Detected
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).detected_at ?? (status as Record<string, unknown>).detected_time ?? '--' }}
+              </p>
+            </div>
+            <div class="col-span-2">
+              <p class="text-muted">
+                Label and Display Color
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).label_and_display_color ?? (status as Record<string, unknown>).label ?? (status as Record<string, unknown>).display_color ?? '—' }}
+              </p>
+            </div>
+          </div>
         </div>
-        <div>
-          <p class="text-muted">
-            Speed
+
+        <div class="border-t border-default pt-2">
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Statistiche di Volo
           </p>
-          <p class="font-mono text-highlighted">
-            {{ ownInfo.speed }} m/s · V/S {{ ownInfo.vSpeed }}
-          </p>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <p class="text-muted">
+                Duration
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).duration ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Total distance
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).total_distance ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Max. height (ATO)
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).max_height_ato ?? ownInfo.alt }} m
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Max. speed
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).max_speed ?? ownInfo.speed }} m/s
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Max. UA-Operator distance
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).max_ua_operator_distance ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Max. UA-Sensor distance
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).max_ua_sensor_distance ?? '--' }}
+              </p>
+            </div>
+          </div>
         </div>
-        <div>
-          <p class="text-muted">
-            Heading / Sats
+
+        <div class="border-t border-default pt-2">
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Azioni Rapide
           </p>
-          <p class="font-mono text-highlighted">
-            {{ ownInfo.heading }}° / {{ ownInfo.sats }}
-          </p>
+          <div class="flex flex-wrap gap-2">
+            <UButton size="xs" color="primary" variant="solid" icon="i-lucide-play-circle">
+              Replay
+            </UButton>
+            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-download">
+              Export
+            </UButton>
+            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2">
+              Delete
+            </UButton>
+          </div>
         </div>
-        <div>
-          <p class="text-muted">
-            GPS Fix
+
+        <div class="border-t border-default pt-2">
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Informazioni di Dettaglio
           </p>
-          <p class="font-mono text-highlighted">
-            {{ ownInfo.fix }} ({{ ownInfo.fixType }})
-          </p>
-        </div>
-        <div>
-          <p class="text-muted">
-            Protocol / FW
-          </p>
-          <p class="truncate font-mono text-highlighted" :title="String(ownInfo.fw)">
-            {{ ownInfo.protocol }} · {{ ownInfo.fw }}
-          </p>
-        </div>
-        <div>
-          <p class="text-muted">
-            Uptime / TX
-          </p>
-          <p class="font-mono text-highlighted">
-            {{ ownInfo.uptime }} · {{ ownInfo.txTotal }}
-          </p>
+          <div class="space-y-2">
+            <div>
+              <p class="text-muted">
+                Serial Number
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).serial_number ?? (status as Record<string, unknown>).sn ?? (status as Record<string, unknown>).uas_id ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                UAS Operator ID
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).uas_operator_id ?? (status as Record<string, unknown>).operator_id ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Label and Display Color
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).label_and_display_color ?? (status as Record<string, unknown>).label ?? (status as Record<string, unknown>).display_color ?? '—' }}
+              </p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <p class="text-muted">
+                  First Seen
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ (status as Record<string, unknown>).first_seen ?? '--' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Last Seen
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ (status as Record<string, unknown>).last_seen ?? '--' }}
+                </p>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <p class="text-muted">
+                  Aircraft Manufacturer
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ (status as Record<string, unknown>).aircraft_manufacturer ?? (status as Record<string, unknown>).manufacturer ?? '--' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Aircraft Model Name
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ (status as Record<string, unknown>).aircraft_model_name ?? (status as Record<string, unknown>).aircraft_model ?? (status as Record<string, unknown>).model ?? '--' }}
+                </p>
+              </div>
+            </div>
+            <div>
+              <p class="text-muted">
+                Information Source
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).information_source ?? (status as Record<string, unknown>).source ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Transmission Technology
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ (status as Record<string, unknown>).transmission_technology ?? ownInfo.protocol ?? '--' }}
+              </p>
+            </div>
+            <div class="col-span-2">
+              <p class="text-muted">
+                Position (lat, lon)
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ ownInfo.lat.toFixed(6) }}, {{ ownInfo.lng.toFixed(6) }}
+              </p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <p class="text-muted">
+                  Altitude
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ ownInfo.alt }} m (MSL: {{ ownInfo.altMsl }})
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Speed
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ ownInfo.speed }} m/s · V/S {{ ownInfo.vSpeed }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Heading / Sats
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ ownInfo.heading }}° / {{ ownInfo.sats }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  GPS Fix
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ ownInfo.fix }} ({{ ownInfo.fixType }})
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Protocol / FW
+                </p>
+                <p class="truncate font-mono text-highlighted" :title="String(ownInfo.fw)">
+                  {{ ownInfo.protocol }} · {{ ownInfo.fw }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Uptime / TX
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ ownInfo.uptime }} · {{ ownInfo.txTotal }}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <div
       v-if="selectedDrone"
-      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(340px,calc(100vw-1.5rem))] rounded-lg border border-default bg-default/95 shadow-xl"
+      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(380px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto rounded-lg border border-default bg-default/95 shadow-xl"
     >
       <div class="flex items-center justify-between gap-2 border-b border-default px-3 py-2">
         <div class="flex items-center gap-2">
@@ -646,62 +947,252 @@ watch(isDark, () => {
           @click="selectedDrone = null"
         />
       </div>
-      <div class="grid grid-cols-2 gap-2 px-3 py-2 text-xs">
-        <div class="col-span-2">
-          <p class="text-muted">
-            UAS ID
-          </p>
-          <p class="break-all font-mono text-highlighted">
-            {{ selectedDrone.uas_id ?? selectedDrone.uav_id ?? selectedDrone.serial ?? selectedDrone.id ?? '--' }}
-          </p>
-        </div>
+      <div class="space-y-3 px-3 py-2 text-xs">
         <div>
-          <p class="text-muted">
-            Operator
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Dati Principali
           </p>
-          <p class="break-all font-mono text-highlighted">
-            {{ selectedDrone.operator_id ?? selectedDrone.operator ?? '--' }}
-          </p>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="col-span-2">
+              <p class="text-muted">
+                Detection detail
+              </p>
+              <p class="font-semibold text-highlighted">
+                {{ selectedDrone.detection_detail || ((selectedDrone.aircraft_manufacturer ?? selectedDrone.manufacturer ?? '') + ' ' + (selectedDrone.aircraft_model_name ?? selectedDrone.aircraft_model ?? selectedDrone.model ?? '')).trim() || '--' }}
+              </p>
+            </div>
+            <div class="col-span-2">
+              <p class="text-muted">
+                Serial Number
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ selectedDrone.serial_number ?? selectedDrone.sn ?? selectedDrone.uas_id ?? selectedDrone.uav_id ?? selectedDrone.serial ?? selectedDrone.id ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Detected
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ selectedDrone.detected ?? selectedDrone.detected_at ?? selectedDrone.detected_time ?? selectedDrone.first_seen ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                UAS Operator ID
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ selectedDrone.uas_operator_id ?? selectedDrone.operator_id ?? selectedDrone.operator ?? '--' }}
+              </p>
+            </div>
+
+          </div>
         </div>
-        <div>
-          <p class="text-muted">
-            Registration
+
+        <div class="border-t border-default pt-2">
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Statistiche di Volo
           </p>
-          <p class="break-all font-mono text-highlighted">
-            {{ selectedDrone.registration ?? '--' }}
-          </p>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <p class="text-muted">
+                Duration
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ selectedDrone.duration ?? selectedDrone.flight_duration ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Total distance
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ selectedDrone.total_distance ?? selectedDrone.distance_total ?? '--' }}{{ typeof (selectedDrone.total_distance ?? selectedDrone.distance_total) === 'number' ? ' m' : '' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Max. height (ATO)
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ selectedDrone.max_height_ato ?? selectedDrone.height_ato ?? selectedDrone.max_height ?? '--' }}{{ typeof (selectedDrone.max_height_ato ?? selectedDrone.height_ato ?? selectedDrone.max_height) === 'number' ? ' m' : '' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Max. speed
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ selectedDrone.max_speed ?? selectedDrone.speed ?? '--' }}{{ typeof (selectedDrone.max_speed ?? selectedDrone.speed) === 'number' ? ' m/s' : '' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Max. UA-Operator distance
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ selectedDrone.max_ua_operator_dist ?? selectedDrone.max_ua_operator_distance ?? selectedDrone.ua_operator_distance ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                Max. UA-Sensor distance
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ selectedDrone.max_ua_sensor_dist ?? selectedDrone.max_ua_sensor_distance ?? selectedDrone.ua_sensor_distance ?? '--' }}
+              </p>
+            </div>
+          </div>
         </div>
-        <div>
-          <p class="text-muted">
-            Position
+
+        <div class="border-t border-default pt-2">
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Azioni Rapide
           </p>
-          <p class="font-mono text-highlighted">
-            {{ Number((selectedDrone.lat as unknown) ?? (selectedDrone as Record<string, unknown>).latitude).toFixed(5) }}, {{ Number((selectedDrone.lng as unknown) ?? (selectedDrone.lon as unknown) ?? (selectedDrone as Record<string, unknown>).longitude).toFixed(5) }}
-          </p>
+          <div class="flex flex-wrap gap-2">
+            <UButton size="xs" color="primary" variant="solid" icon="i-lucide-play-circle">
+              Replay
+            </UButton>
+            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-download">
+              Export
+            </UButton>
+            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2">
+              Delete
+            </UButton>
+          </div>
         </div>
-        <div>
-          <p class="text-muted">
-            Alt / Speed
+
+        <div class="border-t border-default pt-2">
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            Informazioni di Dettaglio
           </p>
-          <p class="font-mono text-highlighted">
-            {{ selectedDrone.altitude ?? selectedDrone.alt ?? '--' }} m / {{ selectedDrone.speed ?? '--' }} m/s
-          </p>
-        </div>
-        <div>
-          <p class="text-muted">
-            Heading
-          </p>
-          <p class="font-mono text-highlighted">
-            {{ selectedDrone.heading ?? '--' }}°
-          </p>
-        </div>
-        <div>
-          <p class="text-muted">
-            RSSI / Last seen
-          </p>
-          <p class="font-mono text-highlighted">
-            {{ selectedDrone.rssi ?? '--' }} / {{ selectedDrone.last_seen ?? '--' }}
-          </p>
+          <div class="space-y-2">
+            <div>
+              <p class="text-muted">
+                Serial Number
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ selectedDrone.serial_number ?? selectedDrone.sn ?? selectedDrone.uas_id ?? selectedDrone.uav_id ?? selectedDrone.serial ?? selectedDrone.id ?? '--' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted">
+                UAS Operator ID
+              </p>
+              <p class="break-all font-mono text-highlighted">
+                {{ selectedDrone.uas_operator_id ?? selectedDrone.operator_id ?? selectedDrone.operator ?? '--' }}
+              </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <p class="text-muted">
+                  First Seen
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ selectedDrone.first_seen ?? selectedDrone.detected_at ?? selectedDrone.detected_time ?? '--' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Last Seen
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ selectedDrone.last_seen ?? '--' }}
+                </p>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <p class="text-muted">
+                  Aircraft Manufacturer
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ selectedDrone.aircraft_manufacturer ?? selectedDrone.manufacturer ?? '--' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Aircraft Model Name
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ selectedDrone.aircraft_model_name ?? selectedDrone.aircraft_model ?? selectedDrone.model ?? '--' }}
+                </p>
+              </div>
+            </div>
+            <div>
+              <p class="text-muted">
+                Information Source
+              </p>
+              <div class="space-y-1">
+                <template v-if="Array.isArray(selectedDrone.sources) && selectedDrone.sources.length > 0">
+                  <p
+                    v-for="(src, idx) in selectedDrone.sources"
+                    :key="idx"
+                    class="break-all font-mono text-highlighted"
+                  >
+                    <template v-if="typeof src === 'string'">
+                      {{ src }}
+                    </template>
+                    <template v-else-if="src && typeof src === 'object'">
+                      {{ (src as Record<string, unknown>).id ?? (src as Record<string, unknown>).name ?? (src as Record<string, unknown>).source ?? JSON.stringify(src) }}
+                    </template>
+                    <template v-else>
+                      --
+                    </template>
+                  </p>
+                </template>
+                <p v-else-if="typeof selectedDrone.information_source === 'string'" class="break-all font-mono text-highlighted">
+                  {{ selectedDrone.information_source }}
+                </p>
+                <p v-else class="break-all font-mono text-highlighted">
+                  {{ selectedDrone.source ?? '--' }}
+                </p>
+              </div>
+            </div>
+            <div>
+              <p class="text-muted">
+                Transmission Technology
+              </p>
+              <p class="font-mono text-highlighted">
+                {{ selectedDrone.transmission_technology ?? selectedDrone.protocol ?? selectedDrone.tech ?? '--' }}
+              </p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <p class="text-muted">
+                  Position
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ Number((selectedDrone.lat as unknown) ?? (selectedDrone as Record<string, unknown>).latitude).toFixed(5) }}, {{ Number((selectedDrone.lng as unknown) ?? (selectedDrone.lon as unknown) ?? (selectedDrone as Record<string, unknown>).longitude).toFixed(5) }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Alt / Speed
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ selectedDrone.altitude ?? selectedDrone.alt ?? '--' }} m / {{ selectedDrone.speed ?? '--' }} m/s
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  Heading
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ selectedDrone.heading ?? '--' }}°
+                </p>
+              </div>
+              <div>
+                <p class="text-muted">
+                  RSSI / Last seen
+                </p>
+                <p class="font-mono text-highlighted">
+                  {{ selectedDrone.rssi ?? '--' }} / {{ selectedDrone.last_seen ?? '--' }}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

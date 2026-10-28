@@ -171,6 +171,17 @@ const resetSettings = () => {
               </button>
             </div>
           </div>
+          <div class="flex items-start justify-between gap-4 py-3">
+            <div>
+              <p class="text-sm font-medium text-highlighted">
+                Virtual nearby drones
+              </p>
+              <p class="mt-0.5 text-xs text-muted">
+                Generate simulated nearby Remote ID drones around your virtual position for testing.
+              </p>
+            </div>
+            <USwitch v-model="settings.virtualNearbyDrones" :disabled="settings.virtualConnection === 'off'" />
+          </div>
         </div>
       </section>
 
