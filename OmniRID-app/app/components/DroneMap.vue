@@ -686,6 +686,11 @@ onMounted(async () => {
     zoomControl: true,
     attributionControl: true
   })
+  try {
+    if ((link as any).control && (link as any).control.scale) {
+      (link as any).control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map)
+    }
+  } catch {}
   mapReady.value = true
   addTileLayer()
   homeIcon = link.divIcon({
