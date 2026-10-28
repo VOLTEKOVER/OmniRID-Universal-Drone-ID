@@ -4,10 +4,13 @@ import { LOCK_LEVELS, OPTIONS, hasFlag, setFlag, validateConfig as validateDevic
 import type { DeviceConfig, Issue } from '~/config/device'
 import { useDeviceProfile } from '~/composables/useDeviceProfile'
 import ContentSection from '~/components/ContentSection.vue'
+import { useSecurityConfirm } from '~/composables/useSecurityConfirm'
 
 const { target } = useDeviceProfile()
 const { proxyFetch, isEspConnected } = useEspConnection()
 const toast = useToast()
+const lockLevelState = useState<number>('omnirid-device-lock-level', () => 0)
+const { confirm: securityConfirm } = useSecurityConfirm()
 
 const lockOptions = LOCK_LEVELS.map(l => ({ label: l.label, value: String(l.value) }))
 const keyOptions = [1, 2, 3, 4, 5].map(i => ({ name: `public_key_${i}`, label: `Key ${i}`, type: 'textarea' as const, value: '', placeholder: 'PEM public key or raw base64' }))
@@ -70,7 +73,9 @@ const mapPayload = (state: Record<string, unknown>): Record<string, unknown> => 
 }
 
 const applyLoaded = (cfg: Record<string, unknown>, set: (key: string, value: unknown) => void) => {
-  set('lock_level', String(Number(cfg.lock_level ?? 0)))
+  const lock = Number(cfg.lock_level ?? 0)
+  set('lock_level', String(lock))
+  lockLevelState.value = Number.isFinite(lock) ? lock : 0
   const options = Number(cfg.options ?? 0)
   for (const t of OPTION_TOGGLES) set(t.name, hasFlag(options, t.flag))
   for (let i = 1; i <= 5; i++) set(`public_key_${i}`, String(cfg[`public_key_${i}`] ?? ''))
@@ -133,6 +138,8 @@ const canSaveAppAuth = computed(() => {
 
 const saveAppAuth = async () => {
   if (!canSaveAppAuth.value) return
+  const ok = await securityConfirm('You are about to change the app connection password.\n\nThis protects access to the ESP configuration from this app. Make sure you remember the new password.\n\nContinue?')
+  if (!ok) return
   appAuthLoading.value = true
   appAuthError.value = ''
   try {
@@ -176,7 +183,33 @@ const saveAppAuth = async () => {
     :apply-loaded="applyLoaded"
     :danger="danger"
   >
+    <template #extraTop>
+      <UAlert
+        v-if="lockLevelState >= 1"
+        color="warning"
+        icon="i-lucide-shield-alert"
+        variant="soft"
+        title="Device locked"
+      >
+        <template #description>
+          Lock level {{ lockLevelState }} requires signed requests for config/commands. Use the Console (/tx/console) with X-Signature to apply changes.
+        </template>
+      </UAlert>
+    </template>
     <template #before-form>
+      <ContentSection
+        title="Device lock status"
+        description="Current lock level from the device."
+        heading="md"
+      >
+        <div class="flex items-center gap-3">
+          <UBadge :color="lockLevelState >= 2 ? 'error' : lockLevelState >= 1 ? 'warning' : 'success'" variant="subtle">
+            Lock level {{ lockLevelState }}
+          </UBadge>
+          <span class="text-sm text-muted">0=Normal, 1=Signed commands only, 2=eFuse permanent</span>
+        </div>
+      </ContentSection>
+
       <ContentSection
         title="App Connection Password"
         description="This password is used only to protect access to the ESP configuration from the app/web. It does not block viewing Remote ID data on the Dashboard."

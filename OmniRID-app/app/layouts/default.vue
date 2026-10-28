@@ -402,6 +402,8 @@ watch(searchTerm, (term) => {
           />
         </UTooltip>
 
+        <DeviceStatusIndicator class="hidden shrink-0 md:flex" />
+
         <UButton
           color="neutral"
           variant="ghost"
@@ -945,5 +947,7 @@ watch(searchTerm, (term) => {
     <NotificationsSlideover />
     <AppSettingsSlideover v-if="isMobileNav" />
     <ConfigAuthModal />
+    <SecurityConfirmModal />
+    <PwaInstallBanner />
   </UDashboardGroup>
 </template>

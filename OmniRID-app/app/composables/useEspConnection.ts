@@ -117,7 +117,6 @@ const virtualTelemetry = (): Record<string, unknown> => {
     max_ua_sensor_dist: '9.72 km',
     ua_sensor_distance: '9.72 km',
     transmission_technology: 'Wi-Fi Beacon',
-    protocol: 'Wi-Fi Beacon',
     tech: 'Wi-Fi Beacon',
     information_source: '1596F27A7982C4E02992 (RID Receiver)',
     sources: ['1596F27A7982C4E02992 (RID Receiver)', '1596F276A9DEA5C15A15 (RID Receiver)']
@@ -170,18 +169,18 @@ const _useEspConnection = () => {
     return true
   }
 
-  const requestConfigAuthModal = (path: string, options: ProxyOptions) => {
+  const requestConfigAuthModal = <T = unknown>(path: string, options: ProxyOptions) => {
     return new Promise<T>((resolve, reject) => {
       pendingConfigRequest.value = {
         path,
         options,
         resolve,
         reject
-      }
+      } as any
       if (import.meta.client) {
         window.dispatchEvent(new CustomEvent('omnirid:config-auth-required'))
       }
-    }) as Promise<T>
+    })
   }
 
   const checkConfigAuth = async () => {
@@ -330,7 +329,7 @@ const _useEspConnection = () => {
         configAuthRequired.value = true
         configAuthenticated.value = false
         if (!configAuthChecked.value) configAuthChecked.value = true
-        return requestConfigAuthModal(path, options)
+        return requestConfigAuthModal<T>(path, options)
       }
       throw e
     }
@@ -343,14 +342,32 @@ const _useEspConnection = () => {
       if (isSimulated.value) {
         isEspConnected.value = true
         deviceInfo.value = virtualCapabilities()
+        useState<number>('omnirid-device-lock-level').value = 0
         await checkConfigAuth()
         return
       }
       const data = await proxyFetch<unknown>('api/capabilities', { timeout: 4500 })
       isEspConnected.value = true
-      deviceInfo.value = typeof data === 'object' && data !== null
-        ? data as Record<string, unknown>
-        : null
+      const info = typeof data === 'object' && data !== null ? data as Record<string, unknown> : null
+      deviceInfo.value = info
+      if (info && typeof (info as any).lock_level === 'number') {
+        useState<number>('omnirid-device-lock-level').value = (info as any).lock_level
+      } else if (info && typeof (info as any).lockLevel === 'number') {
+        useState<number>('omnirid-device-lock-level').value = (info as any).lockLevel
+      } else {
+        try {
+          const cfg = await proxyFetch<Record<string, unknown>>('api/config', { timeout: 3000 }).catch(() => null)
+          if (cfg && typeof cfg.lock_level === 'number') {
+            useState<number>('omnirid-device-lock-level').value = cfg.lock_level as number
+          } else if (cfg && typeof cfg.lockLevel === 'number') {
+            useState<number>('omnirid-device-lock-level').value = cfg.lockLevel as number
+          } else {
+            useState<number>('omnirid-device-lock-level').value = 0
+          }
+        } catch {
+          useState<number>('omnirid-device-lock-level').value = 0
+        }
+      }
       await checkConfigAuth()
     } catch (error) {
       isEspConnected.value = false
@@ -360,6 +377,7 @@ const _useEspConnection = () => {
       configAuthenticated.value = false
       configAuthChecked.value = true
       configAuthConnKey.value = getConnKey()
+      useState<number>('omnirid-device-lock-level').value = 0
     } finally {
       isChecking.value = false
     }
@@ -416,7 +434,7 @@ const _useEspConnection = () => {
     checkConfigAuth,
     submitConfigAuth,
     pendingConfigRequest
-  }
+  } as any
 }
 
 export const useEspConnection = createSharedComposable(_useEspConnection)

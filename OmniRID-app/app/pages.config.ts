@@ -94,7 +94,7 @@ export const pageGroups: PageGroup[] = [
       { id: 'flight-controller', to: '/tx/flight-controller', group: 'tx', label: 'Flight Controller', icon: 'i-lucide-plane', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
       { id: 'hardware', to: '/tx/hardware', group: 'tx', label: 'Hardware', icon: 'i-lucide-cpu', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
       { id: 'memory', to: '/tx/memory', group: 'tx', label: 'Memory', icon: 'i-lucide-database', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
-      { id: 'security', to: '/tx/security', group: 'tx', label: 'Security', icon: 'i-lucide-shield-check', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 1 },
+      { id: 'security', to: '/tx/security', group: 'tx', label: 'Security', icon: 'i-lucide-shield-check', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
       { id: 'console', to: '/tx/console', group: 'tx', label: 'Console', icon: 'i-lucide-terminal', kind: 'app', status: 'implemented', requiresConnection: true, requiresESP: false, minLockLevel: 0 },
       { id: 'presets', to: '/tx/presets', group: 'tx', label: 'Presets', icon: 'i-lucide-list', kind: 'app', status: 'implemented', requiresConnection: true, requiresESP: false, minLockLevel: 0 },
       { id: 'logging', to: '/tx/logging', group: 'tx', label: 'Logging', icon: 'i-lucide-file-text', kind: 'app', status: 'implemented', requiresConnection: false, requiresESP: false, minLockLevel: 0 }

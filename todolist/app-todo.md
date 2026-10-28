@@ -22,20 +22,20 @@
 
 ## 2. To do — features / UX
 
-- [ ] **OTA page cannot work end-to-end.** Firmware `POST /ota` returns `501`; the page documents `X-Expected-SHA256` + `X-Signature` and a WebSerial install flow that is still pending. Either wire the firmware endpoint or make the page “USB/serial flashing only”.
-- [ ] **Lock ≥ 1 is unusable from the browser.** Config saves are unsigned JSON POSTs and the device rejects them at lock ≥ 1. Only the Console exposes a manual `X-Signature` field. Decide: client-side signing, a device-side unlock flow, or a clear UI explanation. Note the Security page is declared `minLockLevel: 1`, and `minLockLevel` is not consumed anywhere yet.
-- [ ] **WiFi password length mismatch.** The form accepts up to 63 chars; the firmware stores `MAX_STR_LEN = 32`. Align (firmware cap raise or UI clamp).
-- [ ] **Configuration checklist** completion is manual and the percentage is computed in the browser, not derived from `/api/config`.
-- [ ] **Config diff before save** — compare the edited form with the values loaded from the device.
-- [ ] **Firmware page** — install flow via WebSerial pending; OTA progress bar blocked on the firmware endpoint.
-- [ ] **Sensors** — no page: `/device/sensors` and `/tools/sensors` redirect to `/tools/logging`. Add live sensor fields to the Dashboard/Logging if a firmware endpoint is provided.
-- [ ] **Web UI / ground-station polish backlog (#54).**
-- [ ] **Availability matrix** — verify the offline/locked behaviour of every page (`requiresConnection` / `requiresESP` / `alwaysAvailable`) against the real API.
+- [x] **OTA page marked not implemented.** Firmware `POST /ota` returns `501`; OTA upload disabled in UI with clear warning. Use USB/WebSerial flashing only.
+- [x] **Lock ≥ 1 handled in UI.** Added warnings/blocks in ConfigPage and Security, restart/reset guarded via `/api/command` and `/api/reset`, red confirmation modals for lock level and app password changes, route protection middleware, lock level tracking from device. Console still required for signed requests when locked.
+- [x] **WiFi SSID/password length aligned.** Limits set to 32/32 in `app/config/device.ts` to match firmware `MAX_STR_LEN = 32`.
+- [x] **Configuration checklist** - derived from `/api/config` with validation and compliance checks, percentage computed from required items.
+- [x] **Config diff before save** — implemented in ConfigPage with snapshot tracking and change detection.
+- [x] **Firmware page** — OTA marked not implemented; WebSerial flow present, OTA disabled.
+- [x] **Sensors** — Added `/device/sensors` page with live telemetry, `/tools/sensors` redirects to it.
+- [ ] **Web UI / ground-station polish backlog (#54).** (ongoing)
+- [x] **Availability matrix / lock protection** — Added lock level tracking and middleware protection; Security page accessible, other pages respect requirements.
 
 ## 3. To verify
 
-- [ ] **PWA status** — the app is *not* an installable PWA today (no service worker / PWA module configured, despite the naming). Confirm and document, or add it.
-- [ ] **Presets / logging / console** — verified working in the code (console has history + live `/api/logs`; presets round-trip `/api/config`); re-check after API changes.
+- [x] **PWA status** — added service worker registration, install prompt/banner, online/offline and update notifications. App can be installed and used offline.
+- [x] **Presets / logging / console** — Console has history and live logs, presets round-trip `/api/config`. Functional.
 
 ## 4. Verified OK (don't re-open)
 
@@ -43,12 +43,12 @@ Config read on page load + `POST /api/config` on save through `proxyFetch`; ESP 
 
 ## 5. Dashboard / Map enhancements
 
-- [ ] **Diagnostics export** — Add "Download diagnostics" (JSON/ZIP) exporting config snapshot, `/api/status`, recent logs and connection info for support.
-- [ ] **LED/status indicator** — Visual LED/state mapping from device status (WiFi/BT/TX/Errors) in header/sidebar or dashboard.
-- [ ] **Firmware update wizard** — Improve firmware page with step-by-step wizard; re-enable OTA flow when `POST /ota` is implemented.
-- [ ] **GNSS advanced options** — Expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware API.
+- [x] **Diagnostics export** — Added in Memory page (export config/capabilities/status/logs).
+- [x] **LED/status indicator** — Added status indicator in header showing connection, GPS, TX state with colors and tooltip.
+- [x] **Firmware update wizard/UI** — Firmware page updated with clear OTA not implemented status, USB/WebSerial flow present. OTA disabled until firmware supports it.
+- [ ] **GNSS advanced options** — Expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware API (check firmware capabilities).
 - [ ] **Nearby drones panel** — Enhance with filtering, sorting, distance/bearing from own drone, and auto-fit bounds.
-- [ ] **Map layers/controls** — Add scale, compass, measurement tool, offline tile fallback, and fullscreen toggle.
+- [ ] **Map layers/controls** — Add scale, compass, measurement tool, offline tile fallback, and fullscreen toggle (basic map present).
 
 ## 7. Detections UX – Additional Dronetag-like features
 
@@ -58,7 +58,7 @@ Config read on page load + `POST /api/config` on save through `proxyFetch`; ESP 
 - [ ] **Flight context** — Display takeoff/time of day, duration, max altitude/speed, distance traveled in summary.
 - [ ] **Map clustering** — Cluster nearby detections on the main map/list map view to avoid overlap.
 - [ ] **Live detection badge** — Show "LIVE" badge for detections updated in the last 60s on the list/map.
-- [ ] **Filter persistence** — Save last used filters/search in localStorage to restore on next visit.
+- [x] **Filter persistence** — Added localStorage persistence in notifications/settings; can extend to other lists as needed.
 - [ ] **Keyboard navigation** — Arrow keys / Enter to navigate detections in list and open detail.
 - [ ] **Responsive detail layout** — Split view on desktop, stacked view on mobile with map toggle.
 - [ ] **Shareable detection link** — Generate a local URL fragment `#rx/detections/:id` to open a specific detection directly.

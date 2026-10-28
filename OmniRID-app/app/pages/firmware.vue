@@ -408,9 +408,9 @@ const startUpload = () => {
 
           <ContentSection
             title="Update over WiFi (OTA)"
-            description="Push a new .bin to the connected device — no USB needed."
+            description="Not implemented in firmware (POST /ota returns 501). Use USB/WebSerial for now."
             icon="i-lucide-cloud-upload"
-            icon-class="bg-emerald-500/10 text-emerald-500 ring-emerald-500/20"
+            icon-class="bg-amber-500/10 text-amber-500 ring-amber-500/20"
             heading="md"
           >
             <div class="space-y-4">
@@ -446,15 +446,7 @@ const startUpload = () => {
                 icon="i-lucide-wifi-off"
                 title="Connect first"
               >
-                The update is sent straight to the device. Make sure it is powered, reachable at <code class="break-all">{{ espIp }}</code>, and your computer is connected to its WiFi network.
-              </UAlert>
-              <UAlert
-                v-else-if="!canOta"
-                color="info"
-                icon="i-lucide-usb"
-                title="WiFi required for OTA"
-              >
-                You are connected over USB. OTA updates are sent over WiFi — switch the connection to WiFi to push firmware over the air, or use serial flashing below.
+                Make sure the device is powered and reachable at <code class="break-all">{{ espIp }}</code>.
               </UAlert>
               <UAlert
                 v-else-if="lastError"
@@ -463,116 +455,29 @@ const startUpload = () => {
                 title="Connection problem"
                 :description="lastError"
               />
+              <UAlert
+                color="warning"
+                icon="i-lucide-info"
+                title="OTA not implemented"
+              >
+                POST /ota returns 501 in the current firmware. Use USB/WebSerial flashing for now.
+              </UAlert>
 
-              <p v-if="!canOta" class="text-sm leading-6 text-muted">
-                OTA updates are delivered over WiFi. Connect to the device's WiFi network, then pick a <code>.bin</code> firmware built for your target ({{ targetNames }}). This page hashes the file (SHA-256) and uploads it to the device <code>/ota</code> endpoint.
+              <p class="text-sm leading-6 text-muted">
+                OTA updates are not available in this firmware build. Use USB/WebSerial flashing for recovery or updates.
               </p>
 
-              <template v-else>
-                <div
-                  role="button"
-                  tabindex="0"
-                  class="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-default bg-elevated/40 px-4 py-8 text-center transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-primary/40"
-                  :class="dragActive && 'border-primary/60 bg-primary/5'"
-                  @click="fileInput?.click()"
-                  @keydown.enter="fileInput?.click()"
-                  @dragover.prevent="dragActive = true"
-                  @dragleave.prevent="dragActive = false"
-                  @drop.prevent="onDrop"
-                >
-                  <div class="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
-                    <UIcon name="i-lucide-file-up" class="size-5" />
-                  </div>
-                  <div>
-                    <p class="text-sm font-medium text-highlighted">
-                      Drop a firmware <code>.bin</code> file or click to browse
-                    </p>
-                    <p class="mt-1 text-xs text-muted">
-                      Must be built for {{ targetNames }}. Anything else is rejected by the device.
-                    </p>
-                  </div>
-                  <input
-                    ref="fileInput"
-                    type="file"
-                    accept=".bin,application/octet-stream"
-                    class="hidden"
-                    @change="onFileChange"
-                  >
-                </div>
-
-                <div v-if="selectedFile" class="rounded-lg border border-default bg-elevated/40 p-4">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <p class="truncate text-sm font-semibold text-highlighted" :title="selectedFile.name">
-                        {{ selectedFile.name }}
-                      </p>
-                      <p class="mt-1 text-xs text-muted">
-                        {{ formatBytes(selectedFile.size) }}
-                      </p>
-                      <p class="mt-2 text-[11px] text-muted">
-                        <span v-if="isHashing">Computing SHA-256…</span>
-                        <span v-else-if="expectedSha" class="font-mono" :title="`Full SHA-256: ${expectedSha}`">SHA-256 {{ expectedSha.slice(0, 12) }}…</span>
-                        <span v-else-if="hashingNotice" class="text-red-500">{{ hashingNotice }}</span>
-                        <span v-else class="text-red-500">SHA-256 unavailable</span>
-                      </p>
-                    </div>
-                    <UButton
-                      size="sm"
-                      color="neutral"
-                      variant="outline"
-                      icon="i-lucide-x"
-                      aria-label="Remove file"
-                      :disabled="isUploading"
-                      @click="clearFile"
-                    />
-                  </div>
-                  <UProgress
-                    v-if="isUploading || uploadMessage"
-                    :value="uploadProgress"
-                    size="sm"
-                    color="primary"
-                    class="mt-3"
-                  />
-                  <p v-if="isUploading" class="mt-2 text-xs text-muted">
-                    Uploading — keep the device powered… {{ uploadProgress }}%
-                  </p>
-                </div>
-
-                <UAlert
-                  v-if="uploadError"
-                  color="error"
-                  icon="i-lucide-alert-circle"
-                  title="Upload failed"
-                  :description="uploadError"
-                />
-                <UAlert
-                  v-else-if="uploadMessage"
-                  color="success"
-                  icon="i-lucide-circle-check"
-                  title="Update applied"
-                  :description="uploadMessage"
-                />
-
-                <UAlert color="warning" icon="i-lucide-shield-alert" title="Locked devices (lock level 1+)">
-                  The server also requires a valid Ed25519 signature (<code>X-Signature</code>) when the device is locked. This page cannot sign uploads for locked devices — flash those via USB instead.
-                </UAlert>
-
-                <UButton
-                  color="primary"
-                  size="lg"
-                  class="w-full"
-                  icon="i-lucide-upload"
-                  :label="isUploading ? 'Uploading…' : 'Upload firmware'"
-                  :disabled="!expectedSha || isUploading"
-                  @click="startUpload"
-                />
-
-                <p class="text-xs leading-5 text-muted">
-                  A 1 MB image takes roughly 30 seconds. The device verifies the SHA-256 hash (and the signature when locked), writes to the <code>ota_0</code> partition and reboots automatically. A failed update rolls back to the factory firmware; you can always recover via USB.
-                </p>
-              </template>
+              <UButton
+                color="neutral"
+                size="lg"
+                class="w-full"
+                icon="i-lucide-upload"
+                label="Upload firmware (not available)"
+                disabled
+              />
             </div>
           </ContentSection>
+
         </section>
 
         <ContentSection title="Firmware installation flow" description="From first flash to a verified over-the-air update.">

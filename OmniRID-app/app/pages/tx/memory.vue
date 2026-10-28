@@ -7,11 +7,15 @@ import {
   nvsGroups,
   runtimeOnly
 } from '~/config/storage'
+import { useEspConnection } from '~/composables/useEspConnection'
+import { useNotifications } from '~/composables/useNotifications'
 
 const route = useRoute()
 const page = computed(() => pageForRoute(route.path))
 const heroTitle = computed(() => page.value?.label ?? 'Memory')
 const heroStatus = computed(() => page.value ? pageStatusMeta(page.value.status) : undefined)
+const { isEspConnected, proxyFetch } = useEspConnection()
+const { notifyInfo, notifyError } = useNotifications()
 
 const summary = computed(() => [
   { label: 'NVS namespace', value: NVS_NAMESPACE },
@@ -19,6 +23,35 @@ const summary = computed(() => [
   { label: 'Runtime-only', value: String(runtimeOnly.length) },
   { label: 'Flash regions', value: String(flashRegions.length) }
 ])
+
+const downloadDiagnostics = async () => {
+  try {
+    const [config, capabilities, status, logs] = await Promise.all([
+      isEspConnected.value ? proxyFetch('api/config').catch(() => null) : Promise.resolve(null),
+      isEspConnected.value ? proxyFetch('api/capabilities').catch(() => null) : Promise.resolve(null),
+      isEspConnected.value ? proxyFetch('api/status').catch(() => null) : Promise.resolve(null),
+      isEspConnected.value ? proxyFetch('api/logs').catch(() => null) : Promise.resolve(null)
+    ])
+    const snapshot = {
+      generatedAt: new Date().toISOString(),
+      connected: isEspConnected.value,
+      config,
+      capabilities,
+      status,
+      logs
+    }
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `omnirid-diagnostics-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    notifyInfo('Diagnostics exported', 'Downloaded diagnostics snapshot as JSON.')
+  } catch (e: any) {
+    notifyError('Diagnostics export failed', e?.message || 'Failed to export diagnostics')
+  }
+}
 
 const regionTone: Record<string, string> = {
   factory: 'text-muted',
@@ -110,6 +143,23 @@ const regionTone: Record<string, string> = {
             >
               {{ item }}
             </span>
+          </div>
+        </ContentSection>
+
+        <!-- Diagnostics -->
+        <ContentSection title="Diagnostics" description="Export device configuration and status for support.">
+          <div class="flex flex-wrap items-center gap-3 rounded-lg border border-default bg-elevated/40 p-4">
+            <UIcon name="i-lucide-file-down" class="size-5 shrink-0 text-primary" />
+            <p class="min-w-0 flex-1 text-sm leading-6 text-muted">
+              Download a diagnostics snapshot (config, capabilities, status, recent logs) as JSON for troubleshooting.
+            </p>
+            <UButton
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-download"
+              label="Download diagnostics"
+              @click="downloadDiagnostics"
+            />
           </div>
         </ContentSection>
 

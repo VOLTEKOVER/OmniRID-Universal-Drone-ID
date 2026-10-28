@@ -120,7 +120,7 @@ simulates a GPS patrol.
 |---|---|
 | **Framework** | Nuxt 4 / Vue 3 (Vite + Nitro static) |
 | **UI** | Nuxt UI (@nuxt/ui) — pannelli configurazione device, checklist, notifiche |
-| **PWA** | Nuxt 4 static generate (`nuxt generate`) — no service worker yet, not installable |
+| **PWA** | Nuxt 4 static generate (`nuxt generate`) — service worker + web manifest present (installable when served over HTTPS with correct scope) |
 | **State** | Pinia + composables — stato configurazione e shell dashboard |
 | **Server API** | `OmniRID-app/server/routes/api/esp/[...path].ts` — dev/self-hosted proxy to the device (absent in the static build) |
 

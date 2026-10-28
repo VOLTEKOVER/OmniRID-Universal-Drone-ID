@@ -69,6 +69,12 @@ const pageId = computed<PageId | undefined>(() => {
   return segment ? map[segment] : undefined
 })
 
+const lockLevel = computed(() => {
+  const v = (state as any).lock_level
+  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : 0
+  return Number.isFinite(n) ? n : 0
+})
+
 const issues = ref<Issue[]>([])
 const dangerItems = computed(() => props.danger ? props.danger({ ...state }) : [])
 const schemaStatus = computed(() => {
@@ -88,22 +94,90 @@ const heroStatus = computed(() => props.status
       : undefined)
 
 const isFactoryResetOpen = ref(false)
-const restartDevice = () => {
-  toast.add({
-    title: 'Restart device',
-    description: 'Restart action ready to be sent to the ESP.',
-    icon: 'i-lucide-rotate-ccw',
-    color: 'warning'
-  })
+const restartDevice = async () => {
+  if (!canConfig.value) {
+    toast.add({
+      title: 'ESP unreachable',
+      description: !isEspConnected.value
+        ? 'The device is not connected. Set the ESP address from the header.'
+        : lastError.value ?? 'The device is not reachable.',
+      icon: 'i-lucide-circle-alert',
+      color: 'error'
+    })
+    return
+  }
+  if (lockLevel.value >= 1) {
+    toast.add({
+      title: `Device locked (level ${lockLevel.value})`,
+      description: 'Restart/reset require an X-Signature when locked. Use the Console (/tx/console).',
+      icon: 'i-lucide-shield-alert',
+      color: 'error'
+    })
+    notifyError('Device locked', 'Use Console with X-Signature to restart/reset.')
+    return
+  }
+  try {
+    await proxyFetch('api/command', { method: 'POST', body: 'restart', timeout: 5000 })
+    toast.add({
+      title: 'Restarting device',
+      description: 'The device will reboot shortly.',
+      icon: 'i-lucide-rotate-ccw',
+      color: 'warning'
+    })
+    notifyWarning('Restarting device', 'The device will reboot shortly.')
+  } catch (error: any) {
+    const msg = error?.data?.error || error?.message || 'Failed to restart device.'
+    toast.add({
+      title: 'Restart failed',
+      description: msg,
+      icon: 'i-lucide-circle-alert',
+      color: 'error'
+    })
+    notifyError('Restart failed', msg)
+  }
 }
-const performFactoryReset = () => {
+const performFactoryReset = async () => {
   isFactoryResetOpen.value = false
-  toast.add({
-    title: 'Factory reset',
-    description: 'Reset action ready to be sent to the ESP.',
-    icon: 'i-lucide-alert-triangle',
-    color: 'error'
-  })
+  if (!canConfig.value) {
+    toast.add({
+      title: 'ESP unreachable',
+      description: !isEspConnected.value
+        ? 'The device is not connected. Set the ESP address from the header.'
+        : lastError.value ?? 'The device is not reachable.',
+      icon: 'i-lucide-circle-alert',
+      color: 'error'
+    })
+    return
+  }
+  if (lockLevel.value >= 1) {
+    toast.add({
+      title: `Device locked (level ${lockLevel.value})`,
+      description: 'Restart/reset require an X-Signature when locked. Use the Console (/tx/console).',
+      icon: 'i-lucide-shield-alert',
+      color: 'error'
+    })
+    notifyError('Device locked', 'Use Console with X-Signature to restart/reset.')
+    return
+  }
+  try {
+    await proxyFetch('api/reset', { method: 'POST', body: '{}', timeout: 5000 })
+    toast.add({
+      title: 'Factory reset',
+      description: 'Device configuration reset to defaults.',
+      icon: 'i-lucide-alert-triangle',
+      color: 'warning'
+    })
+    notifyWarning('Factory reset', 'Device configuration reset to defaults.')
+  } catch (error: any) {
+    const msg = error?.data?.error || error?.message || 'Failed to factory reset device.'
+    toast.add({
+      title: 'Factory reset failed',
+      description: msg,
+      icon: 'i-lucide-circle-alert',
+      color: 'error'
+    })
+    notifyError('Factory reset failed', msg)
+  }
 }
 
 const fieldsFor = (sections: ConfigSection[]) => sections.flatMap(section => section.fields)
@@ -215,6 +289,10 @@ const validateCompatibility = () => {
 }
 
 const { isEspConnected, canConfig, lastError, proxyFetch } = useEspConnection()
+import { useSecurityConfirm } from '~/composables/useSecurityConfirm'
+const { confirm: securityConfirm } = useSecurityConfirm()
+
+const loadedSnapshot = ref<Record<string, unknown> | null>(null)
 
 const isDisabled = (field: ConfigField) => props.readonly || field.disabled
 
@@ -257,6 +335,7 @@ onMounted(async () => {
   if (canConfig.value) {
     try {
       const cfg = await proxyFetch<Record<string, unknown>>('api/config', { timeout: 4500 })
+      loadedSnapshot.value = JSON.parse(JSON.stringify(cfg))
       if (props.applyLoaded) props.applyLoaded(cfg, setValue)
       else {
         for (const field of fieldsFor(props.sections)) {
@@ -349,9 +428,21 @@ onBeforeUnmount(() => {
   configActions.off(handleConfigAction)
 })
 
+
+
 const save = async () => {
   if (!canConfig.value) return
   if (isSaving.value) return
+  if (lockLevel.value >= 1) {
+    toast.add({
+      title: `Device locked (level ${lockLevel.value})`,
+      description: 'Unsigned POST /api/config is rejected. Use the Console (/tx/console) with an X-Signature or lower the lock level.',
+      icon: 'i-lucide-shield-alert',
+      color: 'error'
+    })
+    notifyError('Device locked', 'Use Console with X-Signature to apply changes.')
+    return
+  }
   const compatible = validateCompatibility()
   validateSchema()
   if (!compatible || issues.value.some(issue => issue.severity === 'error')) {
@@ -365,9 +456,34 @@ const save = async () => {
     return
   }
 
+  const payload = buildPayload()
+  if (loadedSnapshot.value) {
+    const changed: string[] = []
+    for (const k of Object.keys(payload)) {
+      const a = (payload as any)[k]
+      const b = (loadedSnapshot.value as any)[k]
+      if (JSON.stringify(a) !== JSON.stringify(b)) changed.push(k)
+    }
+    if (changed.length === 0) {
+      toast.add({ title: 'No changes', description: 'Configuration is already up to date.', icon: 'i-lucide-info', color: 'neutral' })
+      return
+    }
+    if ((payload as any).lock_level !== undefined && (payload as any).lock_level !== (loadedSnapshot.value as any).lock_level) {
+      const newLock = Number((payload as any).lock_level)
+      if (newLock >= 1) {
+        const ok = await securityConfirm(`You are about to change lock_level to ${newLock}.\n\nAt lock level 1+ configuration changes require signed requests (X-Signature). If you lose your keys you may lose access to the device.\n\nLock level 2 is PERMANENT and irreversible.\n\nContinue?`)
+        if (!ok) return
+      }
+    }
+  } else if ((payload as any).lock_level !== undefined && Number((payload as any).lock_level) >= 1) {
+    const newLock = Number((payload as any).lock_level)
+    const ok = await securityConfirm(`You are setting lock_level to ${newLock}.\n\nAt lock level 1+ configuration changes require signed requests (X-Signature). If you lose your keys you may lose access to the device.\n\nLock level 2 is PERMANENT and irreversible.\n\nContinue?`)
+    if (!ok) return
+  }
+
   try {
     isSaving.value = true
-    await proxyFetch('api/config', { method: 'POST', body: buildPayload() })
+    await proxyFetch('api/config', { method: 'POST', body: payload })
     toast.add({
       title: `${heroTitle.value} saved`,
       description: 'Configuration sent to the ESP.',
@@ -375,6 +491,9 @@ const save = async () => {
       color: 'success'
     })
     notifyInfo(`${heroTitle.value} saved`, 'Configuration sent to the ESP.')
+    if (loadedSnapshot.value) {
+      for (const k of Object.keys(payload)) (loadedSnapshot.value as any)[k] = (payload as any)[k]
+    }
   } catch {
     toast.add({
       title: 'ESP unreachable',
@@ -531,6 +650,21 @@ const save = async () => {
           </div>
 
           <UAlert
+            v-if="lockLevel >= 1"
+            color="warning"
+            icon="i-lucide-shield-alert"
+            variant="soft"
+            class="rounded-lg"
+          >
+            <template #title>
+              Device locked (lock level {{ lockLevel }})
+            </template>
+            <template #description>
+              Saving configuration via this page sends unsigned JSON. At lock level 1+, the device rejects unsigned POSTs to /api/config — use the Console (manual X-Signature) or the CLI to apply changes.
+            </template>
+          </UAlert>
+
+          <UAlert
             v-if="issues.length"
             color="warning"
             icon="i-lucide-circle-alert"
@@ -557,7 +691,7 @@ const save = async () => {
                 variant="soft"
                 icon="i-lucide-rotate-ccw"
                 label="Restart device"
-                :disabled="!canConfig"
+                :disabled="!canConfig || lockLevel >= 1"
                 @click="restartDevice"
               />
               <UButton
@@ -566,7 +700,7 @@ const save = async () => {
                 variant="soft"
                 icon="i-lucide-alert-triangle"
                 label="Factory reset"
-                :disabled="!canConfig"
+                :disabled="!canConfig || lockLevel >= 1"
                 @click="isFactoryResetOpen = true"
               />
             </template>
@@ -592,7 +726,7 @@ const save = async () => {
               icon="i-lucide-save"
               label="Save configuration"
               :loading="isSaving"
-              :disabled="!canConfig"
+              :disabled="!canConfig || lockLevel >= 1"
             />
             <input
               ref="fileInput"
@@ -615,6 +749,9 @@ const save = async () => {
 
         <UModal v-model:open="isFactoryResetOpen" title="Factory reset">
           <template #body>
+            <p v-if="lockLevel >= 1" class="text-sm text-warning">
+              Device is locked (level {{ lockLevel }}). Restart/reset require an X-Signature — use the Console (/tx/console).
+            </p>
             <p class="text-sm text-muted">
               This erases the device configuration and restores factory defaults. The action cannot be undone.
             </p>
@@ -633,6 +770,7 @@ const save = async () => {
                 size="sm"
                 icon="i-lucide-alert-triangle"
                 label="Reset device"
+                :disabled="lockLevel >= 1"
                 @click="performFactoryReset"
               />
             </div>

@@ -8,7 +8,7 @@ use crate::region::Region;
 use crate::region::Standard;
 
 /// `ESP_RID_MAX_STR_LEN` from the C header.
-pub const MAX_STR_LEN: usize = 32;
+pub const MAX_STR_LEN: usize = 63;
 /// `ESP_RID_MAX_KEY_LEN` from the C header.
 pub const MAX_KEY_LEN: usize = 256;
 /// `ESP_RID_NUM_KEYS` from the C header.

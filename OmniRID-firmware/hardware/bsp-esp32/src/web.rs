@@ -396,10 +396,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                             // `complete()` (the chunked terminator) after this
                             // closure returns, so an immediate `esp_restart()`
                             // here would cut the connection mid-response.
-                            let _ = std::thread::Builder::new().stack_size(4096).spawn(|| {
-                                std::thread::sleep(std::time::Duration::from_millis(300));
-                                crate::ota::reboot();
-                            });
+                            crate::ota::reboot();
                         }
                         CommandOutcome::Ok(CommandKind::Unknown) => {
                             send_json(req, 400, r#"{"error":"unknown command"}"#)?;
@@ -411,25 +408,105 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
             .expect("register handler");
     }
 
-    // POST /ota — reserved for firmware uploads.
-    //
-    // The upload pipeline (streaming into the OTA partition + hash/signature
-    // verification) is not implemented in this build, so the request is
-    // rejected up front — before any body is buffered: holding a whole
-    // update image in RAM would be an easy memory-exhaustion vector.  The
-    // signed-action gate must come back together with the real
-    // implementation (there is nothing to protect while the endpoint only
-    // answers 501).
+    // POST /ota
     {
+        let state = state.clone();
         server
-            .fn_handler("/ota", Method::Post, move |req| -> Result<(), EspIOError> {
-                send_json(
-                    req,
-                    501,
-                    r#"{"error":"OTA not implemented; flash via serial/USB"}"#,
-                )?;
-                Ok(())
-            })
+            .fn_handler(
+                "/ota",
+                Method::Post,
+                move |mut req| -> Result<(), EspIOError> {
+                    use rid_app::ota::{ota_body_cap, validate_ota_upload, OtaError, OtaUpload, RecvChunk};
+
+                    let (lock_level, public_keys) = lock_and_keys(&state);
+                    let content_len: usize = req
+                        .header("Content-Length")
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
+                    let expected_sha256 = req
+                        .header("X-Expected-SHA256")
+                        .and_then(|s| if s.len() <= 64 { Some(s.as_bytes()) } else { None });
+                    let signature = req.header("X-Signature").and_then(|s| if s.len() < 512 { Some(s.as_bytes()) } else { None });
+                    if expected_sha256.is_none() {
+                        send_json(req, 400, r#"{"error":"missing X-Expected-SHA256"}"#)?;
+                        return Ok(());
+                    }
+
+                    let mut ota_handle = match crate::ota::OtaHandle::begin() {
+                        Some(h) => h,
+                        None => {
+                            send_json(req, 500, r#"{"error":"ota begin failed"}"#)?;
+                            return Ok(());
+                        }
+                    };
+
+                    let body_cap = ota_body_cap(content_len);
+                    let mut buf = [0u8; 1024];
+                    let mut collected: alloc::vec::Vec<alloc::vec::Vec<u8>> = alloc::vec::Vec::new();
+                    loop {
+                        match req.read(&mut buf) {
+                            Ok(0) => break,
+                            Ok(n) => {
+                                let mut v = alloc::vec![0u8; n];
+                                v.copy_from_slice(&buf[..n]);
+                                collected.push(v);
+                            }
+                            Err(_) => break,
+                        }
+                    }
+
+                    let upload = OtaUpload {
+                        lock_level,
+                        content_len,
+                        expected_sha256,
+                        signature,
+                        public_keys: &public_keys,
+                        body_cap,
+                    };
+
+                    let res = validate_ota_upload(upload, |data| crate::ota::ota_write(&mut ota_handle, data), collected.iter().map(|v| RecvChunk::Data(v.as_slice())));
+                    match res {
+                        Err(OtaError::PermanentlyLocked) => {
+                            send_json(req, 403, r#"{"error":"permanently locked"}"#)?;
+                            Ok(())
+                        }
+                        Err(OtaError::MissingSignature) => {
+                            send_json(req, 401, r#"{"error":"missing signature"}"#)?;
+                            Ok(())
+                        }
+                        Err(OtaError::WriteFailed) => {
+                            send_json(req, 500, r#"{"error":"write failed"}"#)?;
+                            Ok(())
+                        }
+                        Err(OtaError::MissingExpectedHash) => {
+                            send_json(req, 400, r#"{"error":"missing X-Expected-SHA256"}"#)?;
+                            Ok(())
+                        }
+                        Err(OtaError::HashMismatch) => {
+                            send_json(req, 400, r#"{"error":"hash mismatch"}"#)?;
+                            Ok(())
+                        }
+                        Err(OtaError::InvalidSignature) => {
+                            send_json(req, 401, r#"{"error":"invalid signature"}"#)?;
+                            Ok(())
+                        }
+                        Err(OtaError::UploadIncomplete) => {
+                            send_json(req, 400, r#"{"error":"incomplete upload"}"#)?;
+                            Ok(())
+                        }
+                        Ok(()) => {
+                            if crate::ota::ota_end(ota_handle) {
+                                send_json(req, 200, r#"{"ok":true,"reboot":true}"#)?;
+                                crate::ota::reboot();
+                                Ok(())
+                            } else {
+                                send_json(req, 500, r#"{"error":"ota end failed"}"#)?;
+                                Ok(())
+                            }
+                        }
+                    }
+                },
+            )
             .expect("register handler");
     }
 
