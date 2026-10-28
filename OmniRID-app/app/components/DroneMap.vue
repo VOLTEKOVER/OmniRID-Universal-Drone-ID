@@ -712,6 +712,33 @@ onMounted(async () => {
       (link as any).control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map)
     }
   } catch {}
+  try {
+    if (!(link as any).MeasureControl) {
+      const head = document.head
+      const l = document.createElement('link'); l.rel='stylesheet'; l.href='/vendor/leaflet/measure/leaflet-measure.css'; head.appendChild(l)
+      await new Promise(r=>{ const s=document.createElement('script'); s.src='/vendor/leaflet/measure/leaflet-measure.js'; s.onload=r; s.onerror=r; head.appendChild(s) })
+    }
+    if ((link as any).control && (link as any).control.polylineMeasure) {
+      (link as any).control.polylineMeasure({ position: 'topleft' }).addTo(map)
+    } else if ((link as any).MeasureControl) {
+      const measureControl = new (link as any).MeasureControl({ position: 'topleft', primaryLengthUnit: 'meters', secondaryLengthUnit: 'kilometers', primaryAreaUnit: 'sqmeters', activeColor: '#FF0000', completedColor: '#CC0000' })
+      map.addControl(measureControl)
+    }
+  } catch {}
+  // Measurement tool (optional)
+  try {
+    if (!(link as any).MeasureControl) {
+      const head = document.head
+      const l = document.createElement('link'); l.rel='stylesheet'; l.href='/vendor/leaflet/measure/leaflet-measure.css'; head.appendChild(l)
+      await new Promise(r=>{ const s=document.createElement('script'); s.src='/vendor/leaflet/measure/leaflet-measure.js'; s.onload=r; s.onerror=r; head.appendChild(s) })
+    }
+    if ((link as any).control && (link as any).control.polylineMeasure) {
+      (link as any).control.polylineMeasure({ position: 'topleft' }).addTo(map)
+    } else if ((link as any).MeasureControl) {
+      const measureControl = new (link as any).MeasureControl({ position: 'topleft', primaryLengthUnit: 'meters', secondaryLengthUnit: 'kilometers', primaryAreaUnit: 'sqmeters', activeColor: '#FF0000', completedColor: '#CC0000' })
+      map.addControl(measureControl)
+    }
+  } catch {}
   mapReady.value = true
   addTileLayer()
   homeIcon = link.divIcon({
