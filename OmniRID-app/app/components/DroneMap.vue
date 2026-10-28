@@ -26,6 +26,7 @@ export interface NearbyDrone {
   registration?: string
   rssi?: number | string
   last_seen?: number | string
+  last_seen_ts?: number | string
   first_seen?: number | string
   source?: string
   sources?: Array<string | Record<string, unknown>>
@@ -1097,9 +1098,17 @@ watch(isDark, () => {
                 <p class="text-muted">
                   Last Seen
                 </p>
-                <p class="font-mono text-highlighted">
-                  {{ selectedDrone.last_seen ?? '--' }}
-                </p>
+                <div class="flex items-center gap-1.5">
+                  <UBadge
+                    v-if="(() => { const raw = selectedDrone.last_seen_ts ?? selectedDrone.last_seen; let ts: any = raw; if (typeof ts === 'string') { const p = Date.parse(ts); if (!Number.isNaN(p)) ts = p; } ts = Number(ts); if (Number.isFinite(ts)) { const diff = Date.now() - ts; if (diff >= 0 && diff < 60000) return true; } return false })()"
+                    color="success"
+                    variant="soft"
+                    size="xs"
+                  >LIVE</UBadge>
+                  <p class="font-mono text-highlighted">
+                    {{ selectedDrone.last_seen ?? '--' }}
+                  </p>
+                </div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2">
