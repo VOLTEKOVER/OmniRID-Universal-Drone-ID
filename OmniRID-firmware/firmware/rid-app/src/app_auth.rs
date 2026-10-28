@@ -42,7 +42,7 @@ impl AppAuthState {
             // simple pseudo-random-ish; replace with better if needed
         }
         // mix in counter
-        let ts = now_ms as u64;
+        let ts = now_ms;
         token_bytes[0] ^= ((ts >> 24) & 0xff) as u8;
         token_bytes[1] ^= ((ts >> 16) & 0xff) as u8;
         token_bytes[2] ^= ((ts >> 8) & 0xff) as u8;
