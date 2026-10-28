@@ -111,6 +111,7 @@ let nearbyIcon: LeafletIcon | null = null
 let pathLine: LeafletPolyline | null = null
 let tileLayer: LeafletLayer | null = null
 const nearbyMarkers = new Map<string, LeafletMarker>()
+let nearbyCluster: any = null
 const nearbyPaths = new Map<string, LeafletPolyline>()
 let hasCentered = false
 let loadPromise: Promise<LeafletStatic | null> | null = null
@@ -228,7 +229,18 @@ const injectScript = (src: string): Promise<boolean> => new Promise((resolve) =>
 
 const ensureLeaflet = (): Promise<LeafletStatic | null> => {
   if (typeof window === 'undefined') return Promise.resolve(null)
-  if (window.L) return Promise.resolve(window.L)
+  if (window.L) {
+    // Try to load marker cluster if not present
+    if (!(window.L as any).MarkerClusterGroup) {
+      try {
+        const head = document.head
+        const l1 = document.createElement('link'); l1.rel='stylesheet'; l1.href='/vendor/leaflet/cluster/MarkerCluster.css'; head.appendChild(l1)
+        const l2 = document.createElement('link'); l2.rel='stylesheet'; l2.href='/vendor/leaflet/cluster/MarkerCluster.Default.css'; head.appendChild(l2)
+        const s = document.createElement('script'); s.src='/vendor/leaflet/cluster/leaflet.markercluster.js'; head.appendChild(s)
+      } catch {}
+    }
+    return Promise.resolve(window.L)
+  }
   if (!loadPromise) {
     loadPromise = (async () => {
       const w = window as Window & typeof globalThis
@@ -251,6 +263,13 @@ const ensureLeaflet = (): Promise<LeafletStatic | null> => {
           loading.value = false
           return null
         }
+        // Load marker cluster
+        try {
+          const head = document.head
+          const l1 = document.createElement('link'); l1.rel='stylesheet'; l1.href='/vendor/leaflet/cluster/MarkerCluster.css'; head.appendChild(l1)
+          const l2 = document.createElement('link'); l2.rel='stylesheet'; l2.href='/vendor/leaflet/cluster/MarkerCluster.Default.css'; head.appendChild(l2)
+          await new Promise(r=>{ const s=document.createElement('script'); s.src='/vendor/leaflet/cluster/leaflet.markercluster.js'; s.onload=r; s.onerror=r; head.appendChild(s) })
+        } catch {}
         loading.value = false
         return w.L
       } catch {
@@ -454,9 +473,53 @@ const nearbyColors = ['#f59e0b', '#22d3ee', '#a78bfa', '#f43f5e', '#34d399', '#f
 const syncNearby = () => {
   if (!link || !map || !props.showNearby) return
   const seen = new Set<string>()
-  const nowIndex = 0
-  for (let i = 0; i < props.nearbyDrones.length; i++) {
-    const d = props.nearbyDrones[i]
+  const list = sortedFilteredNearby.value
+  if ((link as any).MarkerClusterGroup && !nearbyCluster) {
+    try {
+      nearbyCluster = (link as any).markerClusterGroup({ disableClusteringAtZoom: 16 })
+      if (map) map.addLayer(nearbyCluster)
+    } catch {}
+  }
+  if (nearbyCluster && (link as any).MarkerClusterGroup) {
+    try {
+      nearbyCluster.clearLayers()
+      for (let i = 0; i < list.length; i++) {
+        const d = list[i]
+        const lat = Number((d.lat as unknown) ?? (d as Record<string, unknown>).latitude)
+        const lon = Number((d.lng as unknown) ?? (d.lon as unknown) ?? (d as Record<string, unknown>).longitude)
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+        const key = nearbyKey(d)
+        seen.add(key)
+        let marker = nearbyMarkers.get(key)
+        if (!marker) {
+          marker = link.marker([lat, lon], { icon: nearbyIcon ?? undefined })
+          marker.on('click', () => { selectedDrone.value = d })
+          marker.bindPopup(buildNearbyPopup(d))
+          nearbyMarkers.set(key, marker)
+        } else {
+          marker.setLatLng([lat, lon])
+          marker.setPopupContent(buildNearbyPopup(d))
+          marker.on('click', () => { selectedDrone.value = d })
+        }
+        nearbyCluster.addLayer(marker)
+      }
+      // ensure on map
+      try {
+        if (map && !map.hasLayer(nearbyCluster)) map.addLayer(nearbyCluster)
+      } catch {}
+      // cleanup removed
+      for (const [k, m] of nearbyMarkers.entries()) {
+        if (!seen.has(k)) {
+          try { nearbyCluster.removeLayer(m) } catch {}
+          try { if (map) map.removeLayer(m) } catch {}
+          nearbyMarkers.delete(k)
+        }
+      }
+      return
+    } catch {}
+  }
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i]
     const lat = Number((d.lat as unknown) ?? (d as Record<string, unknown>).latitude)
     const lng = Number((d.lng as unknown) ?? (d.lon as unknown) ?? (d as Record<string, unknown>).longitude)
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) continue
