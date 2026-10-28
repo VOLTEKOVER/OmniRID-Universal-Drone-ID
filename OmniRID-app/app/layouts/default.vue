@@ -840,8 +840,9 @@ watch(searchTerm, (term) => {
       v-model:open="open"
       :collapsible="true"
       resizable
+      :default-size="18"
       class="border-e border-default bg-elevated/20 pt-16"
-      :ui="{ root: 'pt-16' }"
+      :ui="{ root: 'pt-16', base: 'min-w-[16rem]' }"
     >
       <template #default="{ collapsed }">
         <div class="flex h-full flex-col gap-3 px-2 pb-2">
