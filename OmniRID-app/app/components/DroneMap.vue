@@ -118,6 +118,8 @@ const history: LeafletLatLng[] = []
 const nearbyHistory = new Map<string, LeafletLatLng[]>()
 
 const showNearbyLayer = ref(true)
+const nearbyFilter = ref<'all' | 'live' | 'unseen'>('all')
+const nearbySort = ref<'last_seen' | 'rssi'>('last_seen')
 const selectedDrone = ref<NearbyDrone | null>(null)
 const seenKey = 'omnirid:nearby-seen'
 const seenSet = ref<Set<string>>(new Set())
@@ -378,8 +380,43 @@ const syncPath = () => {
 }
 
 const nearbyKey = (d: NearbyDrone) => {
-  return String(d.id ?? d.uas_id ?? d.uav_id ?? d.serial ?? `${d.lat},${d.lng}`)
+  return String(d.id ?? d.uas_id ?? d.uav_id ?? d.serial ?? d.serial_number ?? d.sn ?? `${d.lat},${d.lng}`)
 }
+
+const isLiveDrone = (d: NearbyDrone) => {
+  const raw = (d as any).last_seen_ts ?? d.last_seen
+  let ts: any = raw
+  if (typeof ts === 'string') { const p = Date.parse(ts); if (!Number.isNaN(p)) ts = p }
+  ts = Number(ts)
+  if (!Number.isFinite(ts)) return false
+  const diff = Date.now() - ts
+  return diff >= 0 && diff < 60000
+}
+
+const sortedFilteredNearby = computed(() => {
+  let list = (props.nearbyDrones || []).slice()
+  if (nearbyFilter.value === 'live') list = list.filter(d => isLiveDrone(d))
+  if (nearbyFilter.value === 'unseen') list = list.filter(d => !isSeen(d))
+  list.sort((a, b) => {
+    if (nearbySort.value === 'rssi') {
+      const ra = Number((a as any).rssi)
+      const rb = Number((b as any).rssi)
+      const na = Number.isFinite(ra) ? ra : -999
+      const nb = Number.isFinite(rb) ? rb : -999
+      return nb - na
+    }
+    const rawA = (a as any).last_seen_ts ?? a.last_seen
+    const rawB = (b as any).last_seen_ts ?? b.last_seen
+    let ta: any = rawA, tb: any = rawB
+    if (typeof ta === 'string') { const p = Date.parse(ta); if (!Number.isNaN(p)) ta = p }
+    if (typeof tb === 'string') { const p = Date.parse(tb); if (!Number.isNaN(p)) tb = p }
+    ta = Number(ta); tb = Number(tb)
+    const na = Number.isFinite(ta) ? ta : 0
+    const nb = Number.isFinite(tb) ? tb : 0
+    return nb - na
+  })
+  return list
+})
 
 const buildNearbyPopup = (d: NearbyDrone): string => {
   const seen = isSeen(d)
@@ -652,7 +689,7 @@ watch(isDark, () => {
           @click="showPath = !showPath; applyStatus()"
         />
         <UButton
-          v-if="props.nearbyDrones.length"
+          v-if="(props.nearbyDrones?.length || 0) > 0"
           color="neutral"
           variant="ghost"
           size="xs"
@@ -664,10 +701,10 @@ watch(isDark, () => {
         />
       </div>
       <div
-        v-if="props.nearbyDrones.length"
+        v-if="(props.nearbyDrones?.length || 0) > 0"
         class="pointer-events-auto rounded-lg border border-default bg-default/90 px-2 py-1 text-[11px] text-muted shadow-md"
       >
-        {{ props.nearbyDrones.length }} nearby
+        {{ sortedFilteredNearby.length }} nearby
       </div>
     </div>
 
