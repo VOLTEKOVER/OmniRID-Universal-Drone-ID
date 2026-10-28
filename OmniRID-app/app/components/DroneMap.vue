@@ -412,10 +412,52 @@ const isLiveDrone = (d: NearbyDrone) => {
   return diff >= 0 && diff < 60000
 }
 
+const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371000
+  const toRad = (x: number) => x * Math.PI / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)*Math.sin(dLon/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  return R * c
+}
+
+const bearing = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const toRad = (x: number) => x * Math.PI / 180
+  const toDeg = (x: number) => x * 180 / Math.PI
+  const dLon = toRad(lon2 - lon1)
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2))
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon)
+  let brng = toDeg(Math.atan2(y,x))
+  brng = (brng + 360) % 360
+  return brng
+}
+
+const getOwnPos = () => {
+  const s = props.status ?? {}
+  if (!s.gps_valid) return null
+  const lat = Number(s.lat), lon = Number(s.lon)
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat===0 && lon===0)) return null
+  return { lat, lng: lon }
+}
+
 const sortedFilteredNearby = computed(() => {
   let list = (props.nearbyDrones || []).slice()
   if (nearbyFilter.value === 'live') list = list.filter(d => isLiveDrone(d))
   if (nearbyFilter.value === 'unseen') list = list.filter(d => !isSeen(d))
+  const own = getOwnPos()
+  if (own) {
+    list = list.map(d => {
+      const lat = Number((d as any).lat ?? (d as any).latitude)
+      const lon = Number((d as any).lng ?? (d as any).lon ?? (d as any).longitude)
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        const dist = haversine(own.lat, own.lng, lat, lon)
+        const brng = bearing(own.lat, own.lng, lat, lon)
+        return { ...d, _dist_m: Math.round(dist), _bearing: Math.round(brng) }
+      }
+      return d
+    })
+  }
   list.sort((a, b) => {
     if (nearbySort.value === 'rssi') {
       const ra = Number((a as any).rssi)
