@@ -119,6 +119,49 @@ const nearbyHistory = new Map<string, LeafletLatLng[]>()
 
 const showNearbyLayer = ref(true)
 const selectedDrone = ref<NearbyDrone | null>(null)
+const seenKey = 'omnirid:nearby-seen'
+const seenSet = ref<Set<string>>(new Set())
+
+const loadSeen = () => {
+  if (!import.meta.client) return
+  try {
+    const raw = localStorage.getItem(seenKey)
+    if (!raw) return
+    const arr = JSON.parse(raw) as string[]
+    if (Array.isArray(arr)) seenSet.value = new Set(arr.filter(Boolean))
+  } catch {
+    seenSet.value = new Set()
+  }
+}
+
+const saveSeen = () => {
+  if (!import.meta.client) return
+  try {
+    localStorage.setItem(seenKey, JSON.stringify(Array.from(seenSet.value)))
+  } catch {}
+}
+
+const droneKey = (d: NearbyDrone | null | undefined) => {
+  if (!d) return ''
+  return String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || '')
+}
+
+const markSeen = (d: NearbyDrone | null) => {
+  const k = droneKey(d)
+  if (!k) return
+  seenSet.value.add(k)
+  saveSeen()
+}
+
+const isSeen = (d: NearbyDrone | null | undefined) => {
+  const k = droneKey(d)
+  if (!k) return false
+  return seenSet.value.has(k)
+}
+
+onMounted(() => {
+  loadSeen()
+})
 const selectedOwn = ref(false)
 const showPath = ref(true)
 
@@ -339,6 +382,12 @@ const nearbyKey = (d: NearbyDrone) => {
 }
 
 const buildNearbyPopup = (d: NearbyDrone): string => {
+  const seen = isSeen(d)
+  const rawTs = (d as any).last_seen_ts ?? d.last_seen
+  let ts: any = rawTs
+  if (typeof ts === 'string') { const p = Date.parse(ts); if (!Number.isNaN(p)) ts = p }
+  ts = Number(ts)
+  const live = Number.isFinite(ts) && Date.now() - ts >= 0 && Date.now() - ts < 60000
   const fmt = (v: unknown, digits = 1) => {
     const n = Number(v)
     return Number.isFinite(n) ? n.toFixed(digits) : '--'
@@ -352,7 +401,7 @@ const buildNearbyPopup = (d: NearbyDrone): string => {
   const det = d.detection_detail ?? `${manu} ${model}`.trim()
   return [
     '<div style="min-width:200px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.5">',
-    '<b>Nearby Remote ID</b><br>',
+    `<div style="display:flex;align-items:center;gap:4px"><b>Nearby Remote ID</b>${live ? '<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(34,197,94,0.25);color:#86efac">LIVE</span>' : ''}${seen ? '<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(148,163,184,0.25);color:#cbd5e1">SEEN</span>' : ''}</div>`,
     det !== '--' ? `Detection: ${det}<br>` : '',
     `UAS ID/SN: ${id}<br>`,
     `Operator: ${op}<br>`,
@@ -1223,11 +1272,11 @@ watch(isDark, () => {
               >Export JSON</UButton>
               <UButton
                 size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-eye"
-                @click="selectedDrone = null"
-              >Mark seen</UButton>
+                :color="isSeen(selectedDrone) ? 'success' : 'neutral'"
+                :variant="isSeen(selectedDrone) ? 'soft' : 'ghost'"
+                :icon="isSeen(selectedDrone) ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                @click="() => { if (selectedDrone) { if (isSeen(selectedDrone)) { const k = droneKey(selectedDrone); seenSet.value.delete(k); saveSeen() } else { markSeen(selectedDrone) } } }"
+              >{{ isSeen(selectedDrone) ? 'Mark unseen' : 'Mark seen' }}</UButton>
             </div>
           </div>
         </div>
