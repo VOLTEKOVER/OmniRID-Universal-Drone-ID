@@ -121,6 +121,7 @@ const nearbyHistory = new Map<string, LeafletLatLng[]>()
 const showNearbyLayer = ref(true)
 const nearbyFilter = ref<'all' | 'live' | 'unseen'>('all')
 const nearbySort = ref<'last_seen' | 'rssi'>('last_seen')
+const isFullscreen = ref(false)
 const selectedDrone = ref<NearbyDrone | null>(null)
 const seenKey = 'omnirid:nearby-seen'
 const seenSet = ref<Set<string>>(new Set())
@@ -162,8 +163,28 @@ const isSeen = (d: NearbyDrone | null | undefined) => {
   return seenSet.value.has(k)
 }
 
+const toggleFullscreen = async () => {
+  if (!import.meta.client) return
+  const el = mapEl.value?.parentElement as HTMLElement | null
+  if (!el) return
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen()
+    } else {
+      await el.requestFullscreen()
+    }
+  } catch {}
+}
+
 onMounted(() => {
   loadSeen()
+  if (import.meta.client) {
+    const handler = () => {
+      isFullscreen.value = !!document.fullscreenElement
+    }
+    document.addEventListener('fullscreenchange', handler)
+    onUnmounted(() => document.removeEventListener('fullscreenchange', handler))
+  }
 })
 const selectedOwn = ref(false)
 const showPath = ref(true)
