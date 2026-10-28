@@ -84,6 +84,7 @@ const TILE_URLS = {
   dark: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
   light: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
 }
+const LOCAL_TILE_FALLBACK = '/tiles/{z}/{x}/{y}.png'
 
 const TILE_ATTRIBUTION = {
   dark: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
@@ -687,13 +688,22 @@ const recenter = () => {
 const addTileLayer = () => {
   if (!link || !map) return
   if (tileLayer) {
-    map.removeLayer(tileLayer)
+    try { map.removeLayer(tileLayer) } catch {}
     tileLayer = null
   }
-  tileLayer = link.tileLayer(TILE_URLS[isDark.value ? 'dark' : 'light'], {
-    maxZoom: 16,
+  const url = TILE_URLS[isDark.value ? 'dark' : 'light']
+  tileLayer = link.tileLayer(url, {
+    maxZoom: 19,
     attribution: TILE_ATTRIBUTION[isDark.value ? 'dark' : 'light']
   }).addTo(map)
+  try {
+    tileLayer.on('tileerror', () => {
+      try {
+        if (tileLayer && map) map.removeLayer(tileLayer)
+        tileLayer = link.tileLayer(LOCAL_TILE_FALLBACK, { maxZoom: 18, attribution: 'Offline' }).addTo(map)
+      } catch {}
+    })
+  } catch {}
 }
 
 onMounted(async () => {
