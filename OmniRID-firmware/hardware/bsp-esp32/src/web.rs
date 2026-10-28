@@ -31,18 +31,18 @@ const CORS_JSON: &[(&str, &str)] = &[
     ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
     (
         "Access-Control-Allow-Headers",
-        "Content-Type, X-Signature, X-Expected-SHA256",
+        "Content-Type, X-Signature, X-Expected-SHA256, X-App-Token",
     ),
 ];
 
 /// Preflight response headers: echo the request headers/methods the PWA
-/// may send (JSON bodies, Ed25519 signatures, OTA hash).
+/// may send (JSON bodies, Ed25519 signatures, app session token, OTA hash).
 const CORS_PREFLIGHT: &[(&str, &str)] = &[
     ("Access-Control-Allow-Origin", "*"),
     ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
     (
         "Access-Control-Allow-Headers",
-        "Content-Type, X-Signature, X-Expected-SHA256",
+        "Content-Type, X-Signature, X-Expected-SHA256, X-App-Token",
     ),
     ("Access-Control-Max-Age", "86400"),
 ];
