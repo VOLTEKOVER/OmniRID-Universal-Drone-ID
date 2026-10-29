@@ -317,19 +317,14 @@ const makeDroneIcon = (rotation: number): LeafletIcon | null => {
   })
 }
 
-const buildDronePopup = (pos: LeafletLatLng): string => {
+const buildDronePopup = (): string => {
   const s = props.status ?? {}
-  const fmt = (v: unknown, digits = 1) => {
-    const n = Number(v)
-    return Number.isFinite(n) ? n.toFixed(digits) : '--'
-  }
+  const model = (s as any).aircraft_model_name ?? (s as any).aircraft_model ?? (s as any).model ?? ''
+  const manu = (s as any).aircraft_manufacturer ?? (s as any).manufacturer ?? ''
+  const det = (s as any).detection_detail || `${manu} ${model}`.trim() || 'My Drone'
   return [
-    '<div style="min-width:150px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.5">',
-    '<b>My Drone</b><br>',
-    `Lat ${pos.lat.toFixed(6)}<br>`,
-    `Lon ${pos.lng.toFixed(6)}<br>`,
-    `Alt ${fmt(s.alt)} m · Speed ${fmt(s.speed)} m/s<br>`,
-    `Heading ${Number(s.heading) || 0}° · Sats ${Number(s.satellites) || 0} · Fix ${s.gps_valid ? 'Yes' : 'No'}`,
+    '<div style="font-family:ui-monospace,monospace;font-size:11px;line-height:1.4;max-width:160px">',
+    `<b>${String(det).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</b>`,
     '</div>'
   ].join('')
 }
@@ -366,7 +361,7 @@ const syncDrone = (pos: LeafletLatLng | null) => {
       droneMarker.setLatLng(pos)
       droneMarker.setIcon(icon)
     }
-    droneMarker.bindPopup(buildDronePopup(pos))
+    droneMarker.bindPopup(buildDronePopup())
     return
   }
   if (droneMarker) {
@@ -504,32 +499,12 @@ const sortedFilteredNearby = computed(() => {
 })
 
 const buildNearbyPopup = (d: NearbyDrone): string => {
-  const seen = isSeen(d)
-  const rawTs = (d as any).last_seen_ts ?? d.last_seen
-  let ts: any = rawTs
-  if (typeof ts === 'string') { const p = Date.parse(ts); if (!Number.isNaN(p)) ts = p }
-  ts = Number(ts)
-  const live = Number.isFinite(ts) && Date.now() - ts >= 0 && Date.now() - ts < 60000
-  const fmt = (v: unknown, digits = 1) => {
-    const n = Number(v)
-    return Number.isFinite(n) ? n.toFixed(digits) : '--'
-  }
-  const id = d.uas_id ?? d.uav_id ?? d.serial ?? d.serial_number ?? d.sn ?? d.id ?? '--'
-  const op = d.uas_operator_id ?? d.operator_id ?? d.operator ?? '--'
-  const reg = d.registration ?? '--'
-  const alt = d.altitude ?? d.alt
-  const model = d.aircraft_model_name ?? d.aircraft_model ?? d.model ?? '--'
-  const manu = d.aircraft_manufacturer ?? d.manufacturer ?? '--'
-  const det = d.detection_detail ?? `${manu} ${model}`.trim()
+  const model = d.aircraft_model_name ?? d.aircraft_model ?? d.model ?? ''
+  const manu = d.aircraft_manufacturer ?? d.manufacturer ?? ''
+  const det = d.detection_detail || `${manu} ${model}`.trim() || 'Nearby Remote ID'
   return [
-    '<div style="min-width:200px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.5">',
-    `<div style="display:flex;align-items:center;gap:4px"><b>Nearby Remote ID</b>${live ? '<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(34,197,94,0.25);color:#86efac">LIVE</span>' : ''}${seen ? '<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(148,163,184,0.25);color:#cbd5e1">SEEN</span>' : ''}</div>`,
-    det !== '--' ? `Detection: ${det}<br>` : '',
-    `UAS ID/SN: ${id}<br>`,
-    `Operator: ${op}<br>`,
-    `Reg: ${reg}<br>`,
-    `Alt ${fmt(alt)} m · Speed ${fmt(d.speed)} m/s<br>`,
-    `Heading ${Number(d.heading) || 0}° · RSSI ${d.rssi ?? '--'}`,
+    '<div style="font-family:ui-monospace,monospace;font-size:11px;line-height:1.4;max-width:160px">',
+    `<b>${det.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</b>`,
     '</div>'
   ].join('')
 }
