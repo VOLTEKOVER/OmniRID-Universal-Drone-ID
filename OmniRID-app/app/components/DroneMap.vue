@@ -761,7 +761,9 @@ const toggleAirspace = () => {
 }
 
 onMounted(async () => {
-  if (import.meta.server || !mapEl.value) return
+  if (import.meta.server) return
+  await nextTick()
+  if (!mapEl.value) return
   link = await ensureLeaflet()
   if (!link || !mapEl.value) return
   const pos = currentPosition()
@@ -808,17 +810,29 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  map?.remove()
+  try {
+    if (map) {
+      for (const mm of nearbyMarkers.values()) {
+        try { map.removeLayer(mm) } catch {}
+      }
+      nearbyMarkers.clear()
+      try { if (nearbyCluster) { map.removeLayer(nearbyCluster); nearbyCluster = null } } catch {}
+      try { if (pathLine) { map.removeLayer(pathLine); pathLine = null } } catch {}
+      try { if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null } } catch {}
+      try { if (droneMarker) { map.removeLayer(droneMarker); droneMarker = null } } catch {}
+      try { if (takeoffMarker) { map.removeLayer(takeoffMarker); takeoffMarker = null } } catch {}
+      try { if (airspaceLayer) { map.removeLayer(airspaceLayer); airspaceLayer = null } } catch {}
+      map.remove()
+    }
+  } catch {}
   map = null
   droneMarker = null
   takeoffMarker = null
   pathLine = null
   tileLayer = null
-  for (const mm of nearbyMarkers.values()) {
-    const m2 = map as unknown as { removeLayer?: (l: unknown) => void } | null
-    m2?.removeLayer?.(mm)
-  }
   nearbyMarkers.clear()
+  nearbyCluster = null
+  airspaceLayer = null
 })
 
 watch(() => props.status, applyStatus, { deep: true })
