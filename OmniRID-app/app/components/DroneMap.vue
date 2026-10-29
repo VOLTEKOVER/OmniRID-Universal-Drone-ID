@@ -1314,14 +1314,35 @@ watch(isDark, () => {
           <p class="text-sm font-semibold text-highlighted">
             Nearby Drone
           </p>
+          <span v-if="isLiveDrone(selectedDrone)" class="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-300">LIVE</span>
+          <span v-if="isSeen(selectedDrone)" class="text-[9px] px-1 rounded bg-slate-400/20 text-slate-300">SEEN</span>
         </div>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          icon="i-lucide-x"
-          @click="selectedDrone = null"
-        />
+        <div class="flex items-center gap-1">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-eye"
+            :title="isSeen(selectedDrone) ? 'Mark unseen' : 'Mark seen'"
+            @click="() => {
+              const k = droneKey(selectedDrone)
+              if (!k) return
+              if (isSeen(selectedDrone)) {
+                seenSet.value.delete(k)
+              } else {
+                seenSet.value.add(k)
+              }
+              saveSeen()
+            }"
+          />
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-x"
+            @click="selectedDrone = null"
+          />
+        </div>
       </div>
       <div class="space-y-3 px-3 py-2 text-xs">
         <div>
