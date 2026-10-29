@@ -1419,10 +1419,10 @@ watch(isDark, () => {
           <div class="grid grid-cols-2 gap-2">
             <div>
               <p class="text-muted">
-                Duration
+                Duration / Takeoff
               </p>
               <p class="font-mono text-highlighted">
-                {{ selectedDrone.duration ?? selectedDrone.flight_duration ?? '--' }}
+                {{ selectedDrone.duration ?? selectedDrone.flight_duration ?? '--' }}{{ selectedDrone.takeoff_time ? ' · ' + selectedDrone.takeoff_time : (selectedDrone.time_of_day ? ' · ' + selectedDrone.time_of_day : '') }}
               </p>
             </div>
             <div>
@@ -1443,10 +1443,10 @@ watch(isDark, () => {
             </div>
             <div>
               <p class="text-muted">
-                Max. speed
+                Max. speed / Distance
               </p>
               <p class="font-mono text-highlighted">
-                {{ selectedDrone.max_speed ?? selectedDrone.speed ?? '--' }}{{ typeof (selectedDrone.max_speed ?? selectedDrone.speed) === 'number' ? ' m/s' : '' }}
+                {{ selectedDrone.max_speed ?? selectedDrone.speed ?? '--' }}{{ typeof (selectedDrone.max_speed ?? selectedDrone.speed) === 'number' ? ' m/s' : '' }}{{ selectedDrone.total_distance ?? selectedDrone.distance_total ? ' · ' + (selectedDrone.total_distance ?? selectedDrone.distance_total) + (typeof (selectedDrone.total_distance ?? selectedDrone.distance_total) === 'number' ? ' m' : '') : '' }}
               </p>
             </div>
             <div>
