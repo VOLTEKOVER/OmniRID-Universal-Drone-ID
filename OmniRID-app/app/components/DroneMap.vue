@@ -113,6 +113,9 @@ let pathLine: LeafletPolyline | null = null
 let tileLayer: LeafletLayer | null = null
 const nearbyMarkers = new Map<string, LeafletMarker>()
 let nearbyCluster: any = null
+let airspaceLayer: any = null
+let airspaceLastFetch = 0
+const airspaceFetchTimeout = ref<any>(null)
 const nearbyPaths = new Map<string, LeafletPolyline>()
 let hasCentered = false
 let loadPromise: Promise<LeafletStatic | null> | null = null
@@ -123,6 +126,7 @@ const showNearbyLayer = ref(true)
 const nearbyFilter = ref<'all' | 'live' | 'unseen'>('all')
 const nearbySort = ref<'last_seen' | 'rssi'>('last_seen')
 const isFullscreen = ref(false)
+const showAirspace = ref(false)
 const selectedDrone = ref<NearbyDrone | null>(null)
 const seenKey = 'omnirid:nearby-seen'
 const seenSet = ref<Set<string>>(new Set())
@@ -706,6 +710,58 @@ const addTileLayer = () => {
   } catch {}
 }
 
+const fetchAirspace = async () => {
+  if (!import.meta.client || !link || !map || !showAirspace.value) return
+  const now = Date.now()
+  if (now - airspaceLastFetch < 1500) return
+  try {
+    const bounds = map.getBounds()
+    const sw = bounds.getSouthWest()
+    const ne = bounds.getNorthEast()
+    // Use openAIP API with bounding box (bbox: minLon,minLat,maxLon,maxLat)
+    const url = `https://api.openaip.net/api/airspaces?bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}&limit=1000`
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+    if (!res.ok) return
+    const data = await res.json()
+    if (airspaceLayer && map) {
+      try { map.removeLayer(airspaceLayer) } catch {}
+    }
+    // Try to draw GeoJSON if present
+    if (data && (Array.isArray(data) || data.features)) {
+      const geojson = Array.isArray(data) ? { type: 'FeatureCollection', features: data } : data
+      airspaceLayer = (link as any).geoJSON(geojson, {
+        style: (feature: any) => {
+          const type = feature?.properties?.type || feature?.properties?.airspaceType || ''
+          let color = '#f59e0b'
+          if (String(type).toUpperCase().includes('RESTRICT') || String(type).toUpperCase().includes('PROHIBIT')) color = '#ef4444'
+          if (String(type).toUpperCase().includes('CTR') || String(type).toUpperCase().includes('TMA')) color = '#f97316'
+          return { color, weight: 1, fillColor: color, fillOpacity: 0.12 }
+        }
+      })
+      if (airspaceLayer && map) airspaceLayer.addTo(map)
+    }
+    airspaceLastFetch = now
+  } catch {}
+}
+
+const toggleAirspace = () => {
+  showAirspace.value = !showAirspace.value
+  if (!showAirspace.value && airspaceLayer && map) {
+    try { map.removeLayer(airspaceLayer); airspaceLayer = null } catch {}
+    return
+  }
+  if (showAirspace.value) {
+    fetchAirspace()
+    if (map && !(map as any)._airspaceBound) {
+      map.on('moveend', () => {
+        if (airspaceFetchTimeout.value) clearTimeout(airspaceFetchTimeout.value)
+        airspaceFetchTimeout.value = setTimeout(fetchAirspace, 800)
+      })
+      ;(map as any)._airspaceBound = true
+    }
+  }
+}
+
 onMounted(async () => {
   if (import.meta.server || !mapEl.value) return
   link = await ensureLeaflet()
@@ -866,6 +922,16 @@ watch(isDark, () => {
           aria-label="Toggle nearby drones"
           title="Toggle nearby drones"
           @click="showNearbyLayer = !showNearbyLayer"
+        />
+        <UButton
+          color="neutral"
+          :variant="showAirspace ? 'soft' : 'ghost'"
+          size="xs"
+          square
+          icon="i-lucide-shield-alert"
+          aria-label="Toggle airspace (openAIP)"
+          title="Toggle airspace zones"
+          @click="toggleAirspace"
         />
       </div>
       <div
