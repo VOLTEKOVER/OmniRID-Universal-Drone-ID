@@ -1253,11 +1253,24 @@ watch(isDark, () => {
             </div>
             <div>
               <p class="text-muted">
-                Information Source
+                Information Source / Receivers (timeline)
               </p>
-              <p class="break-all font-mono text-highlighted">
-                {{ (status as Record<string, unknown>).information_source ?? (status as Record<string, unknown>).source ?? '--' }}
-              </p>
+              <div class="space-y-1">
+                <template v-if="Array.isArray((status as any).sources) && (status as any).sources.length > 0">
+                  <div v-for="(src, idx) in (status as any).sources" :key="idx" class="flex items-center justify-between gap-2 rounded border border-default/60 px-2 py-1">
+                    <p class="break-all font-mono text-highlighted">{{ typeof src === 'string' ? src : JSON.stringify(src) }}</p>
+                    <div class="flex items-center gap-1">
+                      <span v-if="typeof src === 'string' && ((src as string).toLowerCase().includes('ble') || (src as string).toLowerCase().includes('beacon'))" class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300">BLE/Wi-Fi</span>
+                      <span v-else-if="typeof src === 'string' && (src as string).toLowerCase().includes('nan')" class="text-[9px] px-1 rounded bg-violet-500/20 text-violet-300">Wi-Fi NAN</span>
+                      <span v-else-if="typeof src === 'string' && (src as string).toLowerCase().includes('ads')" class="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300">ADS-B</span>
+                      <span v-else class="text-[9px] px-1 rounded bg-slate-500/20 text-slate-300">Unknown</span>
+                    </div>
+                  </div>
+                </template>
+                <p v-else class="break-all font-mono text-highlighted">
+                  {{ (status as Record<string, unknown>).information_source ?? (status as Record<string, unknown>).source ?? '--' }}
+                </p>
+              </div>
             </div>
             <div>
               <p class="text-muted">
@@ -1558,25 +1571,33 @@ watch(isDark, () => {
             </div>
             <div>
               <p class="text-muted">
-                Information Source
+                Information Source / Receivers (timeline)
               </p>
               <div class="space-y-1">
                 <template v-if="Array.isArray(selectedDrone.sources) && selectedDrone.sources.length > 0">
-                  <p
+                  <div
                     v-for="(src, idx) in selectedDrone.sources"
                     :key="idx"
-                    class="break-all font-mono text-highlighted"
+                    class="flex items-center justify-between gap-2 rounded border border-default/60 px-2 py-1"
                   >
-                    <template v-if="typeof src === 'string'">
-                      {{ src }}
-                    </template>
-                    <template v-else-if="src && typeof src === 'object'">
-                      {{ (src as Record<string, unknown>).id ?? (src as Record<string, unknown>).name ?? (src as Record<string, unknown>).source ?? JSON.stringify(src) }}
-                    </template>
-                    <template v-else>
-                      --
-                    </template>
-                  </p>
+                    <p class="break-all font-mono text-highlighted">
+                      <template v-if="typeof src === 'string'">
+                        {{ src }}
+                      </template>
+                      <template v-else-if="src && typeof src === 'object'">
+                        {{ (src as Record<string, unknown>).id ?? (src as Record<string, unknown>).name ?? (src as Record<string, unknown>).source ?? JSON.stringify(src) }}
+                      </template>
+                      <template v-else>
+                        --
+                      </template>
+                    </p>
+                    <div class="flex items-center gap-1">
+                      <span v-if="typeof src === 'string' && ((src as string).toLowerCase().includes('ble') || (src as string).toLowerCase().includes('beacon'))" class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300">BLE/Wi-Fi</span>
+                      <span v-else-if="typeof src === 'string' && (src as string).toLowerCase().includes('nan')" class="text-[9px] px-1 rounded bg-violet-500/20 text-violet-300">Wi-Fi NAN</span>
+                      <span v-else-if="typeof src === 'string' && (src as string).toLowerCase().includes('ads')" class="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300">ADS-B</span>
+                      <span v-else class="text-[9px] px-1 rounded bg-slate-500/20 text-slate-300">Unknown</span>
+                    </div>
+                  </div>
                 </template>
                 <p v-else-if="typeof selectedDrone.information_source === 'string'" class="break-all font-mono text-highlighted">
                   {{ selectedDrone.information_source }}
