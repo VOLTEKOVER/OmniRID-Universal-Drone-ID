@@ -189,6 +189,27 @@ onMounted(() => {
     }
     document.addEventListener('fullscreenchange', handler)
     onUnmounted(() => document.removeEventListener('fullscreenchange', handler))
+    try {
+      const checkHash = () => {
+        const h = window.location.hash || ''
+        if (h.startsWith('#rx/detections/')) {
+          const id = decodeURIComponent(h.split('#rx/detections/')[1]).trim()
+          if (!id) return
+          const list = Array.isArray(props.nearbyDrones) ? props.nearbyDrones : []
+          const found = list.find((d: any) => {
+            const k = String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || '')
+            return k === id
+          })
+          if (found) {
+            selectedDrone.value = found
+            selectedOwn.value = false
+          }
+        }
+      }
+      checkHash()
+      window.addEventListener('hashchange', checkHash)
+      onUnmounted(() => window.removeEventListener('hashchange', checkHash))
+    } catch {}
   }
 })
 const selectedOwn = ref(false)
@@ -850,6 +871,24 @@ onBeforeUnmount(() => {
 watch(() => props.status, applyStatus, { deep: true })
 watch(() => props.nearbyDrones, () => {
   applyStatus()
+  try {
+    if (import.meta.client) {
+      const h = window.location.hash || ''
+      if (h.startsWith('#rx/detections/')) {
+        const id = decodeURIComponent(h.split('#rx/detections/')[1]).trim()
+        if (!id || selectedDrone.value) return
+        const list = Array.isArray(props.nearbyDrones) ? props.nearbyDrones : []
+        const found = list.find((d: any) => {
+          const k = String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || '')
+          return k === id
+        })
+        if (found) {
+          selectedDrone.value = found
+          selectedOwn.value = false
+        }
+      }
+    }
+  } catch {}
 }, { deep: true })
 watch(isDark, () => {
   if (mapReady.value) addTileLayer()
