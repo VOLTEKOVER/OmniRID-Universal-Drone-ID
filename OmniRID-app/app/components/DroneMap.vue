@@ -716,27 +716,59 @@ const fetchAirspace = async () => {
     const bounds = map.getBounds()
     const sw = bounds.getSouthWest()
     const ne = bounds.getNorthEast()
-    // Use openAIP API with bounding box (bbox: minLon,minLat,maxLon,maxLat)
-    const url = `https://api.openaip.net/api/airspaces?bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}&limit=1000`
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
-    if (!res.ok) return
-    const data = await res.json()
+    // Try openAIP first
+    let data: any = null
+    try {
+      const url = `https://api.openaip.net/api/airspaces?bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}&limit=500`
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+      if (res.ok) {
+        data = await res.json()
+      }
+    } catch {}
+    // Fallback to Overpass API for airspace
+    if (!data || (Array.isArray(data) && data.length === 0) || (data.features && data.features.length === 0)) {
+      try {
+        const query = `[out:json][timeout:25];(way["military"="danger_area"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});way["airspace"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});way["boundary"="protected_area"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});relation["military"="danger_area"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});relation["airspace"](${sw.lat},${sw.lng},${ne.lat},${ne.lng}););out body;>;out skel qt;`
+        const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query, headers: { 'Content-Type': 'text/plain' } })
+        if (res.ok) {
+          const osm = await res.json()
+          // Convert minimal to GeoJSON
+          const features: any[] = []
+          const nodes: Record<number, [number, number]> = {}
+          for (const el of osm.elements || []) {
+            if (el.type === 'node') nodes[el.id] = [el.lon, el.lat]
+          }
+          for (const el of osm.elements || []) {
+            if (el.type === 'way' && el.nodes) {
+              const coords = el.nodes.map((id: number) => nodes[id]).filter(Boolean)
+              if (coords.length > 2) {
+                features.push({ type: 'Feature', properties: { type: el.tags?.airspace || el.tags?.military || 'airspace' }, geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] } })
+              }
+            }
+          }
+          if (features.length) data = { type: 'FeatureCollection', features }
+        }
+      } catch {}
+    }
     if (airspaceLayer && map) {
       try { map.removeLayer(airspaceLayer) } catch {}
     }
-    // Try to draw GeoJSON if present
-    if (data && (Array.isArray(data) || data.features)) {
-      const geojson = Array.isArray(data) ? { type: 'FeatureCollection', features: data } : data
-      airspaceLayer = (link as any).geoJSON(geojson, {
-        style: (feature: any) => {
-          const type = feature?.properties?.type || feature?.properties?.airspaceType || ''
-          let color = '#f59e0b'
-          if (String(type).toUpperCase().includes('RESTRICT') || String(type).toUpperCase().includes('PROHIBIT')) color = '#ef4444'
-          if (String(type).toUpperCase().includes('CTR') || String(type).toUpperCase().includes('TMA')) color = '#f97316'
-          return { color, weight: 1, fillColor: color, fillOpacity: 0.12 }
-        }
-      })
-      if (airspaceLayer && map) airspaceLayer.addTo(map)
+    if (data) {
+      const geojson = Array.isArray(data) ? (data.length && data[0]?.geometry ? { type: 'FeatureCollection', features: data } : data) : data
+      if (geojson?.features?.length) {
+        airspaceLayer = (link as any).geoJSON(geojson, {
+          style: (feature: any) => {
+            const type = feature?.properties?.type || feature?.properties?.airspaceType || feature?.properties?.category || ''
+            let color = '#f59e0b'
+            const t = String(type).toUpperCase()
+            if (t.includes('RESTRICT') || t.includes('PROHIBIT') || t.includes('DANGER')) color = '#ef4444'
+            if (t.includes('CTR') || t.includes('TMA') || t.includes('CLASS')) color = '#f97316'
+            if (t.includes('ZONA') || t.includes('NFZ')) color = '#dc2626'
+            return { color, weight: 1, fillColor: color, fillOpacity: 0.15 }
+          }
+        })
+        if (airspaceLayer && map) airspaceLayer.addTo(map)
+      }
     }
     airspaceLastFetch = now
   } catch {}
