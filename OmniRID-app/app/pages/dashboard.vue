@@ -161,13 +161,20 @@ const nearby = computed<NearbyDrone[]>(() => {
     :ui="{ root: 'pt-16', body: 'p-0 overflow-hidden' }"
   >
     <template #body>
-      <DroneMap
-        :status="status"
-        :nearby-drones="nearby"
-        :show-nearby="settings.virtualNearbyDrones && isSimulated"
-        height-class="h-[calc(100svh-4rem)]"
-        class="rounded-none"
-      />
+      <ClientOnly>
+        <DroneMap
+          :status="status"
+          :nearby-drones="nearby"
+          :show-nearby="settings.virtualNearbyDrones && isSimulated"
+          height-class="h-[calc(100svh-4rem)]"
+          class="rounded-none"
+        />
+        <template #fallback>
+          <div class="flex h-full items-center justify-center">
+            <UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-muted" />
+          </div>
+        </template>
+      </ClientOnly>
     </template>
   </UDashboardPanel>
 </template>
