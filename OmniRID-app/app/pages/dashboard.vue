@@ -7,6 +7,7 @@ import type { NearbyDrone } from '~/components/DroneMap.vue'
 const { status } = useTelemetry()
 const { settings } = useAppSettings()
 const { isSimulated } = useEspConnection()
+const droneMapRef = ref<any>(null)
 
 const simNearbyState = ref({
   t: 0,
@@ -15,8 +16,37 @@ const simNearbyState = ref({
   d3: { lat: 41.9042, lon: 12.4950, vx: 0.000006, vy: -0.00001 }
 })
 
+const currentHashKey = () => {
+  try {
+    const h = window.location.hash || ''
+    if (h.startsWith('#rx/detections/')) {
+      return decodeURIComponent(h.split('#rx/detections/')[1]).trim()
+    }
+  } catch {}
+  return ''
+}
+
 onMounted(() => {
   if (import.meta.client) {
+    try {
+      const handler = (e: KeyboardEvent) => {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+        const list = nearby.value || []
+        if (!list.length) return
+        e.preventDefault()
+        const keys = list.map((d: any) => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
+        const curKey = currentHashKey()
+        const cur = curKey ? keys.findIndex(k => k === curKey) : -1
+        let idx = cur >= 0 ? cur : -1
+        if (e.key === 'ArrowDown') idx = (idx + 1) % keys.length
+        if (e.key === 'ArrowUp') idx = (idx - 1 + keys.length) % keys.length
+        if (idx >= 0 && keys[idx]) {
+          try { window.location.hash = `#rx/detections/${encodeURIComponent(keys[idx])}` } catch {}
+        }
+      }
+      window.addEventListener('keydown', handler)
+      onUnmounted(() => window.removeEventListener('keydown', handler))
+    } catch {}
     const id = setInterval(() => {
       simNearbyState.value.t += 0.016
       const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
@@ -163,6 +193,7 @@ const nearby = computed<NearbyDrone[]>(() => {
     <template #body>
       <ClientOnly>
         <DroneMap
+          ref="droneMapRef"
           :status="status"
           :nearby-drones="nearby"
           :show-nearby="settings.virtualNearbyDrones && isSimulated"
