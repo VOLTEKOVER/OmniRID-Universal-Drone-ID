@@ -1130,14 +1130,19 @@ watch(isDark, () => {
             Azioni Rapide
           </p>
           <div class="flex flex-wrap gap-2">
-            <UButton size="xs" color="primary" variant="solid" icon="i-lucide-play-circle">
-              Replay
-            </UButton>
-            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-download">
+            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-download" @click="() => {
+              try {
+                const data = JSON.stringify(props.status, null, 2)
+                const blob = new Blob([data], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'my-drone.json'
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch {}
+            }">
               Export
-            </UButton>
-            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2">
-              Delete
             </UButton>
           </div>
         </div>
@@ -1429,14 +1434,19 @@ watch(isDark, () => {
             Azioni Rapide
           </p>
           <div class="flex flex-wrap gap-2">
-            <UButton size="xs" color="primary" variant="solid" icon="i-lucide-play-circle">
-              Replay
-            </UButton>
-            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-download">
+            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-download" @click="() => {
+              try {
+                const data = JSON.stringify(props.status, null, 2)
+                const blob = new Blob([data], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'my-drone.json'
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch {}
+            }">
               Export
-            </UButton>
-            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-trash-2">
-              Delete
             </UButton>
           </div>
         </div>
