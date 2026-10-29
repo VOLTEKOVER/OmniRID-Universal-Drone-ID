@@ -514,7 +514,7 @@ const nearbyColors = ['#f59e0b', '#22d3ee', '#a78bfa', '#f43f5e', '#34d399', '#f
 const syncNearby = () => {
   if (!link || !map || !props.showNearby) return
   const seen = new Set<string>()
-  const list = sortedFilteredNearby.value
+  const list = Array.isArray(sortedFilteredNearby.value) ? sortedFilteredNearby.value : []
   if ((link as any).MarkerClusterGroup && !nearbyCluster) {
     try {
       nearbyCluster = (link as any).markerClusterGroup({ disableClusteringAtZoom: 16 })
@@ -953,19 +953,21 @@ watch(isDark, () => {
           aria-label="Auto-fit nearby"
           title="Auto-fit to nearby"
           @click="() => {
-            const list = sortedFilteredNearby.value
-            if (!map || !link) return
-            const pts: any[] = []
-            const own = getOwnPos()
-            if (own) pts.push(link.latLng(own.lat, own.lng))
-            for (const d of list) {
-              const lat = Number((d as any).lat ?? (d as any).latitude)
-              const lon = Number((d as any).lng ?? (d as any).lon ?? (d as any).longitude)
-              if (Number.isFinite(lat) && Number.isFinite(lon)) pts.push(link.latLng(lat, lon))
-            }
-            if (pts.length) {
-              try { (map as any).fitBounds((link as any).latLngBounds(pts), { padding: [40, 40], maxZoom: 14 }) } catch {}
-            }
+            try {
+              const list = sortedFilteredNearby.value || []
+              if (!map || !link || !Array.isArray(list)) return
+              const pts: any[] = []
+              const own = getOwnPos()
+              if (own) pts.push(link.latLng(own.lat, own.lng))
+              for (const d of list) {
+                const lat = Number((d as any).lat ?? (d as any).latitude)
+                const lon = Number((d as any).lng ?? (d as any).lon ?? (d as any).longitude)
+                if (Number.isFinite(lat) && Number.isFinite(lon)) pts.push(link.latLng(lat, lon))
+              }
+              if (pts.length) {
+                try { (map as any).fitBounds((link as any).latLngBounds(pts), { padding: [40, 40], maxZoom: 14 }) } catch {}
+              }
+            } catch {}
           }"
         />
       </div>
