@@ -963,6 +963,31 @@ watch(isDark, () => {
           title="Toggle airspace zones"
           @click="toggleAirspace"
         />
+        <UButton
+          v-if="(props.nearbyDrones?.length || 0) > 0"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          square
+          icon="i-lucide-layers"
+          aria-label="Auto-fit nearby"
+          title="Auto-fit to nearby"
+          @click="() => {
+            const list = sortedFilteredNearby.value
+            if (!map || !link) return
+            const pts: any[] = []
+            const own = getOwnPos()
+            if (own) pts.push(link.latLng(own.lat, own.lng))
+            for (const d of list) {
+              const lat = Number((d as any).lat ?? (d as any).latitude)
+              const lon = Number((d as any).lng ?? (d as any).lon ?? (d as any).longitude)
+              if (Number.isFinite(lat) && Number.isFinite(lon)) pts.push(link.latLng(lat, lon))
+            }
+            if (pts.length) {
+              try { (map as any).fitBounds((link as any).latLngBounds(pts), { padding: [40, 40], maxZoom: 14 }) } catch {}
+            }
+          }"
+        />
       </div>
       <div
         v-if="(props.nearbyDrones?.length || 0) > 0"
