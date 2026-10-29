@@ -523,7 +523,7 @@ const syncNearby = () => {
   }
   if (nearbyCluster && (link as any).MarkerClusterGroup) {
     try {
-      nearbyCluster.clearLayers()
+      try { if (typeof nearbyCluster.clearLayers === 'function') nearbyCluster.clearLayers() } catch {}
       for (let i = 0; i < list.length; i++) {
         const d = list[i]
         const lat = Number((d.lat as unknown) ?? (d as Record<string, unknown>).latitude)
@@ -533,16 +533,21 @@ const syncNearby = () => {
         seen.add(key)
         let marker = nearbyMarkers.get(key)
         if (!marker) {
-          marker = link.marker([lat, lon], { icon: nearbyIcon ?? undefined })
-          marker.on('click', () => { selectedDrone.value = d })
-          marker.bindPopup(buildNearbyPopup(d))
-          nearbyMarkers.set(key, marker)
+          try {
+            marker = link.marker([lat, lon], { icon: nearbyIcon ?? undefined })
+            if (marker && typeof marker.on === 'function') marker.on('click', () => { selectedDrone.value = d })
+            if (marker && typeof marker.bindPopup === 'function') marker.bindPopup(buildNearbyPopup(d))
+            nearbyMarkers.set(key, marker)
+          } catch { continue }
         } else {
-          marker.setLatLng([lat, lon])
-          marker.setPopupContent(buildNearbyPopup(d))
-          marker.on('click', () => { selectedDrone.value = d })
+          try {
+            if (marker && typeof (marker as any).setLatLng === 'function') (marker as any).setLatLng([lat, lon])
+            if (marker && typeof (marker as any).setPopupContent === 'function') (marker as any).setPopupContent(buildNearbyPopup(d))
+            if (marker && typeof marker.off === 'function') marker.off('click')
+            if (marker && typeof marker.on === 'function') marker.on('click', () => { selectedDrone.value = d })
+          } catch {}
         }
-        nearbyCluster.addLayer(marker)
+        try { if (marker && typeof nearbyCluster.addLayer === 'function') nearbyCluster.addLayer(marker) } catch {}
       }
       // ensure on map
       try {
