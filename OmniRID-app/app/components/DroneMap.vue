@@ -255,46 +255,44 @@ const injectScript = (src: string): Promise<boolean> => new Promise((resolve) =>
 
 const ensureLeaflet = (): Promise<LeafletStatic | null> => {
   if (typeof window === 'undefined') return Promise.resolve(null)
-  if (window.L) {
-    // Try to load marker cluster if not present
-    if (!(window.L as any).MarkerClusterGroup) {
-      try {
-        const head = document.head
-        const l1 = document.createElement('link'); l1.rel='stylesheet'; l1.href='/vendor/leaflet/cluster/MarkerCluster.css'; head.appendChild(l1)
-        const l2 = document.createElement('link'); l2.rel='stylesheet'; l2.href='/vendor/leaflet/cluster/MarkerCluster.Default.css'; head.appendChild(l2)
-        const s = document.createElement('script'); s.src='/vendor/leaflet/cluster/leaflet.markercluster.js'; head.appendChild(s)
-      } catch {}
-    }
-    return Promise.resolve(window.L)
-  }
   if (!loadPromise) {
     loadPromise = (async () => {
       const w = window as Window & typeof globalThis
       try {
-        const localCss = document.createElement('link')
-        localCss.rel = 'stylesheet'
-        localCss.href = LOCAL_CSS
-        document.head.appendChild(localCss)
+        if (!w.L) {
+          const localCss = document.createElement('link')
+          localCss.rel = 'stylesheet'
+          localCss.href = LOCAL_CSS
+          document.head.appendChild(localCss)
 
-        const localOk = await injectScript(LOCAL_JS)
-        if (!w.L && !localOk) {
-          const cdnCss = document.createElement('link')
-          cdnCss.rel = 'stylesheet'
-          cdnCss.href = CDN_CSS
-          document.head.appendChild(cdnCss)
-          await injectScript(CDN_JS)
+          const localOk = await injectScript(LOCAL_JS)
+          if (!w.L && !localOk) {
+            const cdnCss = document.createElement('link')
+            cdnCss.rel = 'stylesheet'
+            cdnCss.href = CDN_CSS
+            document.head.appendChild(cdnCss)
+            await injectScript(CDN_JS)
+          }
         }
         if (!w.L) {
           loadFailed.value = true
           loading.value = false
           return null
         }
+        // Ensure L is global for plugins
+        ;(window as any).L = w.L
         // Load marker cluster
         try {
           const head = document.head
-          const l1 = document.createElement('link'); l1.rel='stylesheet'; l1.href='/vendor/leaflet/cluster/MarkerCluster.css'; head.appendChild(l1)
-          const l2 = document.createElement('link'); l2.rel='stylesheet'; l2.href='/vendor/leaflet/cluster/MarkerCluster.Default.css'; head.appendChild(l2)
-          await new Promise(r=>{ const s=document.createElement('script'); s.src='/vendor/leaflet/cluster/leaflet.markercluster.js'; s.onload=r; s.onerror=r; head.appendChild(s) })
+          if (!document.querySelector('link[href="/vendor/leaflet/cluster/MarkerCluster.css"]')) {
+            const l1 = document.createElement('link'); l1.rel='stylesheet'; l1.href='/vendor/leaflet/cluster/MarkerCluster.css'; head.appendChild(l1)
+          }
+          if (!document.querySelector('link[href="/vendor/leaflet/cluster/MarkerCluster.Default.css"]')) {
+            const l2 = document.createElement('link'); l2.rel='stylesheet'; l2.href='/vendor/leaflet/cluster/MarkerCluster.Default.css'; head.appendChild(l2)
+          }
+          if (!(w.L as any).MarkerClusterGroup) {
+            await new Promise(r=>{ const s=document.createElement('script'); s.src='/vendor/leaflet/cluster/leaflet.markercluster.js'; s.onload=r; s.onerror=r; head.appendChild(s) })
+          }
         } catch {}
         loading.value = false
         return w.L
