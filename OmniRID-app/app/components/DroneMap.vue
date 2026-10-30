@@ -307,13 +307,13 @@ const ensureLeaflet = (): Promise<LeafletStatic | null> => {
         try {
           const head = document.head
           if (!document.querySelector('link[href="/vendor/leaflet/cluster/MarkerCluster.css"]')) {
-            const l1 = document.createElement('link'); l1.rel='stylesheet'; l1.href='/vendor/leaflet/cluster/MarkerCluster.css'; head.appendChild(l1)
+            const l1 = document.createElement('link'); l1.rel = 'stylesheet'; l1.href = '/vendor/leaflet/cluster/MarkerCluster.css'; head.appendChild(l1)
           }
           if (!document.querySelector('link[href="/vendor/leaflet/cluster/MarkerCluster.Default.css"]')) {
-            const l2 = document.createElement('link'); l2.rel='stylesheet'; l2.href='/vendor/leaflet/cluster/MarkerCluster.Default.css'; head.appendChild(l2)
+            const l2 = document.createElement('link'); l2.rel = 'stylesheet'; l2.href = '/vendor/leaflet/cluster/MarkerCluster.Default.css'; head.appendChild(l2)
           }
           if (!(w.L as any).MarkerClusterGroup) {
-            await new Promise(r=>{ const s=document.createElement('script'); s.src='/vendor/leaflet/cluster/leaflet.markercluster.js'; s.onload=r; s.onerror=r; head.appendChild(s) })
+            await new Promise((r) => { const s = document.createElement('script'); s.src = '/vendor/leaflet/cluster/leaflet.markercluster.js'; s.onload = r; s.onerror = r; head.appendChild(s) })
           }
         } catch {}
         loading.value = false
@@ -346,7 +346,7 @@ const buildDronePopup = (): string => {
   const det = (s as any).detection_detail || `${manu} ${model}`.trim() || 'My Drone'
   return [
     '<div style="font-family:ui-monospace,monospace;font-size:11px;line-height:1.4;max-width:160px">',
-    `<b>${String(det).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</b>`,
+    `<b>${String(det).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`,
     '</div>'
   ].join('')
 }
@@ -458,8 +458,8 @@ const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const toRad = (x: number) => x * Math.PI / 180
   const dLat = toRad(lat2 - lat1)
   const dLon = toRad(lon2 - lon1)
-  const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)*Math.sin(dLon/2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return R * c
 }
 
@@ -469,7 +469,7 @@ const bearing = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const dLon = toRad(lon2 - lon1)
   const y = Math.sin(dLon) * Math.cos(toRad(lat2))
   const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon)
-  let brng = toDeg(Math.atan2(y,x))
+  let brng = toDeg(Math.atan2(y, x))
   brng = (brng + 360) % 360
   return brng
 }
@@ -478,7 +478,7 @@ const getOwnPos = () => {
   const s = props.status ?? {}
   if (!s.gps_valid) return null
   const lat = Number(s.lat), lon = Number(s.lon)
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat===0 && lon===0)) return null
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return null
   return { lat, lng: lon }
 }
 
@@ -488,7 +488,7 @@ const sortedFilteredNearby = computed(() => {
   if (nearbyFilter.value === 'unseen') list = list.filter(d => !isSeen(d))
   const own = getOwnPos()
   if (own) {
-    list = list.map(d => {
+    list = list.map((d) => {
       const lat = Number((d as any).lat ?? (d as any).latitude)
       const lon = Number((d as any).lng ?? (d as any).lon ?? (d as any).longitude)
       if (Number.isFinite(lat) && Number.isFinite(lon)) {
@@ -533,7 +533,7 @@ const buildNearbyPopup = (d: NearbyDrone): string => {
   const det = d.detection_detail || `${manu} ${model}`.trim() || 'Nearby Remote ID'
   return [
     '<div style="font-family:ui-monospace,monospace;font-size:11px;line-height:1.4;max-width:160px">',
-    `<b>${det.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</b>`,
+    `<b>${det.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`,
     '</div>'
   ].join('')
 }
@@ -560,7 +560,7 @@ const syncNearby = () => {
     try {
       nearbyCluster = (link as any).markerClusterGroup({
         disableClusteringAtZoom: 16,
-        iconCreateFunction: function(cluster: any) {
+        iconCreateFunction: function (cluster: any) {
           const count = cluster.getChildCount()
           return (link as any).divIcon({
             html: '<div style="background:rgba(59,130,246,.9);color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:2px solid #bfdbfe;font-weight:600;font-size:12px">' + count + '</div>',
@@ -751,7 +751,7 @@ const fetchAirspace = async () => {
     let data: any = null
     try {
       const url = `https://api.openaip.net/api/airspaces?bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}&limit=500`
-      const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+      const res = await fetch(url, { headers: { Accept: 'application/json' } })
       if (res.ok) {
         data = await res.json()
       }
@@ -855,8 +855,8 @@ onMounted(async () => {
   try {
     if (!(link as any).MeasureControl) {
       const head = document.head
-      const l = document.createElement('link'); l.rel='stylesheet'; l.href='/vendor/leaflet/measure/leaflet-measure.css'; head.appendChild(l)
-      await new Promise(r=>{ const s=document.createElement('script'); s.src='/vendor/leaflet/measure/leaflet-measure.js'; s.onload=r; s.onerror=r; head.appendChild(s) })
+      const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/vendor/leaflet/measure/leaflet-measure.css'; head.appendChild(l)
+      await new Promise((r) => { const s = document.createElement('script'); s.src = '/vendor/leaflet/measure/leaflet-measure.js'; s.onload = r; s.onerror = r; head.appendChild(s) })
     }
     if ((link as any).control && (link as any).control.polylineMeasure) {
       (link as any).control.polylineMeasure({ position: 'topleft' }).addTo(map)
@@ -1039,7 +1039,8 @@ watch(isDark, () => {
                 const c = (map as any).getCenter ? (map as any).getCenter() : null
                 if (c) (map as any).panTo(c)
               }
-            } catch {}
+            }
+            catch {}
           }"
         />
         <UButton
@@ -1064,9 +1065,11 @@ watch(isDark, () => {
                 if (Number.isFinite(lat) && Number.isFinite(lon)) pts.push(link.latLng(lat, lon))
               }
               if (pts.length) {
-                try { (map as any).fitBounds((link as any).latLngBounds(pts), { padding: [40, 40], maxZoom: 14 }) } catch {}
+                try { (map as any).fitBounds((link as any).latLngBounds(pts), { padding: [40, 40], maxZoom: 14 }) }
+                catch {}
               }
-            } catch {}
+            }
+            catch {}
           }"
         />
       </div>
@@ -1075,7 +1078,13 @@ watch(isDark, () => {
         class="pointer-events-auto flex items-center gap-2 rounded-lg border border-default bg-default/90 px-2 py-1 text-[11px] text-muted shadow-md"
       >
         <span>{{ sortedFilteredNearby.length }} nearby</span>
-        <UButton color="neutral" variant="ghost" size="xs" :icon="showNearbyPanel ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" @click="showNearbyPanel = !showNearbyPanel" />
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :icon="showNearbyPanel ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+          @click="showNearbyPanel = !showNearbyPanel"
+        />
       </div>
     </div>
 
@@ -1230,18 +1239,25 @@ watch(isDark, () => {
             Azioni Rapide
           </p>
           <div class="flex flex-wrap gap-2">
-            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-download" @click="() => {
-              try {
-                const data = JSON.stringify(props.status, null, 2)
-                const blob = new Blob([data], { type: 'application/json' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = 'my-drone.json'
-                a.click()
-                URL.revokeObjectURL(url)
-              } catch {}
-            }">
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-download"
+              @click="() => {
+                try {
+                  const data = JSON.stringify(props.status, null, 2)
+                  const blob = new Blob([data], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'my-drone.json'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }
+                catch {}
+              }"
+            >
               Export
             </UButton>
           </div>
@@ -1319,7 +1335,9 @@ watch(isDark, () => {
               <div class="space-y-1">
                 <template v-if="Array.isArray((status as any).sources) && (status as any).sources.length > 0">
                   <div v-for="(src, idx) in (status as any).sources" :key="idx" class="flex items-center justify-between gap-2 rounded border border-default/60 px-2 py-1">
-                    <p class="break-all font-mono text-highlighted">{{ typeof src === 'string' ? src : JSON.stringify(src) }}</p>
+                    <p class="break-all font-mono text-highlighted">
+                      {{ typeof src === 'string' ? src : JSON.stringify(src) }}
+                    </p>
                     <div class="flex items-center gap-1">
                       <span v-if="typeof src === 'string' && ((src as string).toLowerCase().includes('ble') || (src as string).toLowerCase().includes('beacon'))" class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300">BLE/Wi-Fi</span>
                       <span v-else-if="typeof src === 'string' && (src as string).toLowerCase().includes('nan')" class="text-[9px] px-1 rounded bg-violet-500/20 text-violet-300">Wi-Fi NAN</span>
@@ -1429,7 +1447,8 @@ watch(isDark, () => {
               if (!k) return
               if (isSeen(selectedDrone)) {
                 seenSet.value.delete(k)
-              } else {
+              }
+              else {
                 seenSet.value.add(k)
               }
               saveSeen()
@@ -1482,7 +1501,6 @@ watch(isDark, () => {
                 {{ selectedDrone.uas_operator_id ?? selectedDrone.operator_id ?? selectedDrone.operator ?? '--' }}
               </p>
             </div>
-
           </div>
         </div>
 
@@ -1547,18 +1565,25 @@ watch(isDark, () => {
             Azioni Rapide
           </p>
           <div class="flex flex-wrap gap-2">
-            <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-download" @click="() => {
-              try {
-                const data = JSON.stringify(props.status, null, 2)
-                const blob = new Blob([data], { type: 'application/json' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = 'my-drone.json'
-                a.click()
-                URL.revokeObjectURL(url)
-              } catch {}
-            }">
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-download"
+              @click="() => {
+                try {
+                  const data = JSON.stringify(props.status, null, 2)
+                  const blob = new Blob([data], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'my-drone.json'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }
+                catch {}
+              }"
+            >
               Export
             </UButton>
           </div>
@@ -1605,7 +1630,9 @@ watch(isDark, () => {
                     color="success"
                     variant="soft"
                     size="xs"
-                  >LIVE</UBadge>
+                  >
+                    LIVE
+                  </UBadge>
                   <p class="font-mono text-highlighted">
                     {{ selectedDrone.last_seen ?? '--' }}
                   </p>
@@ -1727,16 +1754,26 @@ watch(isDark, () => {
                     a.download = `omnirid-detection-${id}.json`
                     a.click()
                     URL.revokeObjectURL(url)
-                  } catch {}
+                  }
+                  catch {}
                 }"
-              >Export JSON</UButton>
+              >
+                Export JSON
+              </UButton>
               <UButton
                 size="xs"
                 :color="isSeen(selectedDrone) ? 'success' : 'neutral'"
                 :variant="isSeen(selectedDrone) ? 'soft' : 'ghost'"
                 :icon="isSeen(selectedDrone) ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-                @click="() => { if (selectedDrone) { if (isSeen(selectedDrone)) { const k = droneKey(selectedDrone); seenSet.value.delete(k); saveSeen() } else { markSeen(selectedDrone) } } }"
-              >{{ isSeen(selectedDrone) ? 'Mark unseen' : 'Mark seen' }}</UButton>
+                @click="() => {
+                  if (selectedDrone) {
+                    if (isSeen(selectedDrone)) { const k = droneKey(selectedDrone); seenSet.value.delete(k); saveSeen() }
+                    else { markSeen(selectedDrone) }
+                  }
+                }"
+              >
+                {{ isSeen(selectedDrone) ? 'Mark unseen' : 'Mark seen' }}
+              </UButton>
             </div>
           </div>
         </div>

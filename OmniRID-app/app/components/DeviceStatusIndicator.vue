@@ -43,7 +43,7 @@ const tooltip = computed(() => {
   const parts = []
   parts.push(`GPS: ${gpsOk.value ? 'OK' : 'No fix'}`)
   parts.push(`TX: ${(Number(status.value.tx_total) || 0)} packets`)
-  parts.push(`Uptime: ${status.value.uptime_ms ? Math.floor(Number(status.value.uptime_ms)/1000) + 's' : '—'}`)
+  parts.push(`Uptime: ${status.value.uptime_ms ? Math.floor(Number(status.value.uptime_ms) / 1000) + 's' : '—'}`)
   return parts.join(' | ')
 })
 </script>

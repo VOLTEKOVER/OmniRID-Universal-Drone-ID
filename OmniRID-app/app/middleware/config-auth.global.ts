@@ -11,7 +11,7 @@ export default defineNuxtRouteMiddleware((to) => {
     return
   }
 
-  const isProtected = CONFIG_PROTECTED.some((p) => path === p || path.startsWith(`${p}/`))
+  const isProtected = CONFIG_PROTECTED.some(p => path === p || path.startsWith(`${p}/`))
   if (!isProtected) return
 
   if (!isEspConnected.value) return

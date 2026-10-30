@@ -14,7 +14,7 @@ const VERSION = 'omnirid-v1'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 
-const SHELL_URLS = ['./', './manifest.webmanifest', './favicon.ico', './icons/icon-192.png']
+const SHELL_URLS = ['./', './manifest.webmanifest', './favicon.ico', './icons/icon-192.png', './offline.html']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -70,7 +70,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(SHELL_CACHE).then(cache => cache.put('./', copy)).catch(() => undefined)
           return response
         })
-        .catch(() => caches.match('./').then(cached => cached || Response.error()))
+        .catch(() => caches.match('./offline.html').then(cached => cached || Response.error()))
     )
     return
   }

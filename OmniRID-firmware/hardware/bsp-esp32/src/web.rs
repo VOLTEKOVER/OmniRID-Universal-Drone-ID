@@ -470,7 +470,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                             let outcome = lock.set_config(&cfg);
                             super::nvs_save(&lock.bsp_config);
                             if outcome.protocol_reinit_required {
-                                // TODO: re-init UART
+                                bsp_esp32::usb::init(); // Re-initialize UART (USB CDC) after config change
                             }
                             true
                         } else {

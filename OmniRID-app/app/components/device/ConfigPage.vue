@@ -2,6 +2,7 @@
 import { pageForRoute, pageStatusMeta } from '~/pages.config'
 import { DEFAULTS, pageStatus as schemaPageStatus } from '~/config/device'
 import type { DeviceConfig, Issue, PageId } from '~/config/device'
+import { useSecurityConfirm } from '~/composables/useSecurityConfirm'
 
 type FieldType = 'text' | 'number' | 'password' | 'select' | 'toggle' | 'textarea' | 'chips'
 
@@ -289,7 +290,6 @@ const validateCompatibility = () => {
 }
 
 const { isEspConnected, canConfig, lastError, proxyFetch, configAuthRequired, configAuthenticated } = useEspConnection()
-import { useSecurityConfirm } from '~/composables/useSecurityConfirm'
 const { confirm: securityConfirm } = useSecurityConfirm()
 
 const loadedSnapshot = ref<Record<string, unknown> | null>(null)
@@ -453,8 +453,6 @@ onBeforeMount(() => {
 onBeforeUnmount(() => {
   configActions.off(handleConfigAction)
 })
-
-
 
 const save = async () => {
   if (!canConfig.value) return

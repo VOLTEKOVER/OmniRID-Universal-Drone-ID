@@ -8,7 +8,6 @@ withDefaults(defineProps<{ scrollClass?: string }>(), { scrollClass: 'max-h-[60v
 
 const { settings } = useAppSettings()
 
-
 const languageOptions = [
   { label: 'English', value: 'en' },
   { label: 'Italiano', value: 'it' }
@@ -28,14 +27,11 @@ const resetSettings = () => {
 <template>
   <div class="flex min-h-0 flex-col">
     <div class="space-y-6 overflow-y-auto px-4 py-4" :class="scrollClass">
-      
-
       <section>
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
           Interface
         </p>
         <div class="mt-2 divide-y divide-default border-y border-default">
-          
           <div class="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-baseline gap-2">
               <p class="text-sm font-medium text-highlighted">

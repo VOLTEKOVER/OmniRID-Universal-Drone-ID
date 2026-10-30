@@ -477,7 +477,6 @@ const startUpload = () => {
               />
             </div>
           </ContentSection>
-
         </section>
 
         <ContentSection title="Firmware installation flow" description="From first flash to a verified over-the-air update.">

@@ -16,8 +16,12 @@
             <UCard v-for="item in items" :key="item.label">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm text-muted">{{ item.label }}</p>
-                  <p class="text-lg font-semibold">{{ item.value }}</p>
+                  <p class="text-sm text-muted">
+                    {{ item.label }}
+                  </p>
+                  <p class="text-lg font-semibold">
+                    {{ item.value }}
+                  </p>
                 </div>
                 <UIcon :name="item.icon" class="size-5 text-muted" />
               </div>

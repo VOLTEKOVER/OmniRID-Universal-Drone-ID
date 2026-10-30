@@ -11,7 +11,12 @@
       <template #description>
         <div class="flex items-center justify-between gap-3">
           <span class="text-sm">Install for faster access and offline use.</span>
-          <UButton size="xs" color="primary" label="Install" @click="onInstall" />
+          <UButton
+            size="xs"
+            color="primary"
+            label="Install"
+            @click="onInstall"
+          />
         </div>
       </template>
     </UAlert>

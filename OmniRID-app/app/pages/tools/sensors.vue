@@ -2,4 +2,7 @@
 definePageMeta({ middleware: 'legacy-redirect' })
 navigateTo('/device/sensors', { replace: true })
 </script>
-<template><div /></template>
+
+<template>
+  <div />
+</template>

@@ -5,7 +5,9 @@
         <template #header>
           <div class="flex items-center gap-2">
             <UIcon name="i-lucide-alert-triangle" class="size-5 text-red-500" />
-            <h3 class="text-base font-semibold">Security warning</h3>
+            <h3 class="text-base font-semibold">
+              Security warning
+            </h3>
           </div>
         </template>
         <div class="text-sm text-muted whitespace-pre-wrap">
@@ -13,7 +15,12 @@
         </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="neutral" variant="ghost" label="Cancel" @click="cancel" />
+            <UButton
+              color="neutral"
+              variant="ghost"
+              label="Cancel"
+              @click="cancel"
+            />
             <UButton color="error" label="I understand, continue" @click="accept" />
           </div>
         </template>
@@ -24,5 +31,6 @@
 
 <script setup lang="ts">
 import { useSecurityConfirm } from '~/composables/useSecurityConfirm'
+
 const { isOpen, message, accept, cancel } = useSecurityConfirm()
 </script>

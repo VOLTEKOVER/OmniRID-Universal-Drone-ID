@@ -47,7 +47,7 @@ const virtualConfig = () => ({
 
 let simEpoch = 0
 
-let simOwnState = { lat: 41.9028, lon: 12.4964, vx: 0.00001, vy: 0.000007 }
+const simOwnState = { lat: 41.9028, lon: 12.4964, vx: 0.00001, vy: 0.000007 }
 
 const virtualTelemetry = (): Record<string, unknown> => {
   const now = Date.now()
@@ -464,22 +464,22 @@ const _useEspConnection = () => {
     refresh()
   })
 
-  return { 
-    espIp, 
-    isEspConnected, 
-    isChecking, 
-    lastError, 
-    deviceInfo, 
-    isSimulated, 
-    transport, 
-    isWifiTransport, 
-    isUsbTransport, 
-    canTelemetry, 
-    canConfig, 
-    canOta, 
-    canFlashUsb, 
-    proxyFetch, 
-    refresh, 
+  return {
+    espIp,
+    isEspConnected,
+    isChecking,
+    lastError,
+    deviceInfo,
+    isSimulated,
+    transport,
+    isWifiTransport,
+    isUsbTransport,
+    canTelemetry,
+    canConfig,
+    canOta,
+    canFlashUsb,
+    proxyFetch,
+    refresh,
     connect,
     configAuthRequired,
     configAuthenticated,
