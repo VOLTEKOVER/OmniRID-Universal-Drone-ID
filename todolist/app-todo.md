@@ -47,18 +47,18 @@ Config read on page load + `POST /api/config` on save through `proxyFetch`; ESP 
 - [x] **LED/status indicator** — Added status indicator in header showing connection, GPS, TX state with colors and tooltip.
 - [x] **Firmware update wizard/UI** — Firmware page updated with clear OTA not implemented status, USB/WebSerial flow present. OTA disabled until firmware supports it.
 - [ ] **GNSS advanced options** — Expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware API (check firmware capabilities).
-- [ ] **Nearby drones panel** — Enhance with filtering, sorting, distance/bearing from own drone, and auto-fit bounds.
-- [ ] **Map layers/controls** — Add scale, compass, measurement tool, offline tile fallback, and fullscreen toggle (basic map present).
+- [x] **Nearby drones panel** — Enhanced with filtering/sorting (time/RSSI/distance), distance/bearing from own drone, and auto-fit bounds.
+- [x] **Map layers/controls** — Added scale, compass/reset north, measurement tool, offline tile fallback, fullscreen toggle (present).
 
 ## 7. Detections UX – Additional Dronetag-like features
 
-- [ ] **Detection detail quick actions** — Add "Export", "Delete", "Mark as seen/unseen" directly in detection detail header.
-- [ ] **Multi-source timeline** — Show combined timeline of packets per receiver (color-coded by reception tech: BLE/Wi-Fi Beacon/Wi-Fi NAN/ADS-B).
-- [ ] **Operator info panel** — Expand operator details (Operator ID, location area, if present) in detection detail.
-- [ ] **Flight context** — Display takeoff/time of day, duration, max altitude/speed, distance traveled in summary.
-- [ ] **Map clustering** — Cluster nearby detections on the main map/list map view to avoid overlap.
-- [ ] **Live detection badge** — Show "LIVE" badge for detections updated in the last 60s on the list/map.
+- [x] **Detection detail quick actions** — Added "Export JSON", "Mark seen/unseen", share actions in detection detail.
+- [x] **Multi-source timeline** — Added combined timeline of packets per receiver with tech badges (BLE/Wi-Fi Beacon/Wi-Fi NAN/ADS-B).
+- [x] **Operator info panel** — Expanded operator details in detection detail.
+- [x] **Flight context** — Displayed takeoff/time of day, duration, max altitude/speed, distance in summary.
+- [x] **Map clustering** — Cluster nearby detections on map (MarkerClusterGroup).
+- [x] **Live detection badge** — Show "LIVE"/"SEEN" badges; live indicated by recency.
 - [x] **Filter persistence** — Added localStorage persistence in notifications/settings; can extend to other lists as needed.
-- [ ] **Keyboard navigation** — Arrow keys / Enter to navigate detections in list and open detail.
-- [ ] **Responsive detail layout** — Split view on desktop, stacked view on mobile with map toggle.
-- [ ] **Shareable detection link** — Generate a local URL fragment `#rx/detections/:id` to open a specific detection directly.
+- [x] **Keyboard navigation** — Arrow keys / Enter to navigate detections in list and open detail.
+- [x] **Responsive detail layout** — Split view on desktop, stacked/bottom sheet on mobile with map toggle.
+- [x] **Shareable detection link** — Generate local URL fragment `#rx/detections/:id` to open a specific detection directly.
