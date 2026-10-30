@@ -558,7 +558,17 @@ const syncNearby = () => {
   const list = Array.isArray(sortedFilteredNearby.value) ? sortedFilteredNearby.value : []
   if ((link as any).MarkerClusterGroup && !nearbyCluster) {
     try {
-      nearbyCluster = (link as any).markerClusterGroup({ disableClusteringAtZoom: 16 })
+      nearbyCluster = (link as any).markerClusterGroup({
+        disableClusteringAtZoom: 16,
+        iconCreateFunction: function(cluster: any) {
+          const count = cluster.getChildCount()
+          return (link as any).divIcon({
+            html: '<div style="background:rgba(59,130,246,.9);color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:2px solid #bfdbfe;font-weight:600;font-size:12px">' + count + '</div>',
+            className: 'cd-cluster',
+            iconSize: [36, 36]
+          })
+        }
+      })
       if (map) map.addLayer(nearbyCluster)
     } catch {}
   }
@@ -840,7 +850,6 @@ onMounted(async () => {
     const scale = document.querySelector('.leaflet-control-scale')
     if (scale) {
       scale.classList.add('cd-scale')
-    }
     }
   } catch {}
   try {
