@@ -30,18 +30,30 @@ onMounted(() => {
   if (import.meta.client) {
     try {
       const handler = (e: KeyboardEvent) => {
-        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-        const list = nearby.value || []
-        if (!list.length) return
-        e.preventDefault()
-        const keys = list.map((d: any) => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
-        const curKey = currentHashKey()
-        const cur = curKey ? keys.findIndex(k => k === curKey) : -1
-        let idx = cur >= 0 ? cur : -1
-        if (e.key === 'ArrowDown') idx = (idx + 1) % keys.length
-        if (e.key === 'ArrowUp') idx = (idx - 1 + keys.length) % keys.length
-        if (idx >= 0 && keys[idx]) {
-          try { window.location.hash = `#rx/detections/${encodeURIComponent(keys[idx])}` } catch {}
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          const list = nearby.value || []
+          if (!list.length) return
+          e.preventDefault()
+          const keys = list.map((d: any) => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
+          const curKey = currentHashKey()
+          const cur = curKey ? keys.findIndex(k => k === curKey) : -1
+          let idx = cur >= 0 ? cur : -1
+          if (e.key === 'ArrowDown') idx = (idx + 1) % keys.length
+          if (e.key === 'ArrowUp') idx = (idx - 1 + keys.length) % keys.length
+          if (idx >= 0 && keys[idx]) {
+            try { window.location.hash = `#rx/detections/${encodeURIComponent(keys[idx])}` } catch {}
+          }
+          return
+        }
+        if (e.key === 'Enter') {
+          const list = nearby.value || []
+          if (!list.length) return
+          const keys = list.map((d: any) => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
+          const curKey = currentHashKey()
+          if (curKey && keys.includes(curKey)) {
+            e.preventDefault()
+            try { window.location.hash = `#rx/detections/${encodeURIComponent(curKey)}` } catch {}
+          }
         }
       }
       window.addEventListener('keydown', handler)
