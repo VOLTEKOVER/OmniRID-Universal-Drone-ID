@@ -8,13 +8,6 @@ withDefaults(defineProps<{ scrollClass?: string }>(), { scrollClass: 'max-h-[60v
 
 const { settings } = useAppSettings()
 
-const themeOptions = [
-  { label: 'Blue', value: 'blue' },
-  { label: 'Violet', value: 'violet' },
-  { label: 'Emerald', value: 'emerald' },
-  { label: 'Amber', value: 'amber' },
-  { label: 'Yellow', value: 'yellow' }
-]
 
 const languageOptions = [
   { label: 'English', value: 'en' },
@@ -42,33 +35,7 @@ const resetSettings = () => {
           Interface
         </p>
         <div class="mt-2 divide-y divide-default border-y border-default">
-          <div class="flex items-start justify-between gap-4 py-3">
-            <div>
-              <p class="text-sm font-medium text-highlighted">
-                Enable dark theme
-              </p>
-              <p class="mt-0.5 text-xs text-muted">
-                Use the dark color scheme instead of the system default.
-              </p>
-            </div>
-            <USwitch v-model="settings.enableDarkTheme" />
-          </div>
-          <div class="flex items-center justify-between gap-4 py-3">
-            <div>
-              <p class="text-sm font-medium text-highlighted">
-                Color Theme
-              </p>
-              <p class="mt-0.5 text-xs text-muted">
-                Accent color used across the application.
-              </p>
-            </div>
-            <USelect
-              v-model="settings.colorTheme"
-              :items="themeOptions"
-              value-key="value"
-              class="w-28 shrink-0"
-            />
-          </div>
+          
           <div class="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-baseline gap-2">
               <p class="text-sm font-medium text-highlighted">

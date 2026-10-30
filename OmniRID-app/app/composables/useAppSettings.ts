@@ -11,7 +11,6 @@ export type AppSettings = {
   reopenLastTab: boolean
   disableInternet: boolean
   enableDarkTheme: boolean
-  colorTheme: string
   uiScale: number
   language: string
 }
@@ -23,7 +22,6 @@ export const defaults: AppSettings = {
   reopenLastTab: false,
   disableInternet: false,
   enableDarkTheme: true,
-  colorTheme: 'blue',
   uiScale: 100,
   language: 'en'
 }
@@ -40,7 +38,6 @@ const _useAppSettings = () => {
     document.documentElement.style.fontSize = `${settings.value.uiScale}%`
     document.documentElement.lang = settings.value.language
     const appConfigColors = appConfig as unknown as { ui: { colors: { primary: string } } }
-    appConfigColors.ui.colors.primary = settings.value.colorTheme
   }
 
   watch(settings, (value) => {
