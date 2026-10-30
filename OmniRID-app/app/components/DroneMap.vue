@@ -823,12 +823,24 @@ onMounted(async () => {
   map = link.map(mapEl.value, {
     center: pos ? link.latLng(pos.lat, pos.lng) : link.latLng(0, 0),
     zoom: pos ? 16 : 2,
-    zoomControl: true,
+    zoomControl: false,
     attributionControl: true
   })
   try {
+    if (link.control && link.control.zoom) {
+      link.control.zoom({ position: 'topleft' }).addTo(map)
+    }
+  } catch {}
+  try {
     if ((link as any).control && (link as any).control.scale) {
       (link as any).control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map)
+    }
+  } catch {}
+  try {
+    const scale = document.querySelector('.leaflet-control-scale')
+    if (scale) {
+      scale.classList.add('cd-scale')
+    }
     }
   } catch {}
   try {
@@ -949,11 +961,11 @@ watch(isDark, () => {
       </p>
     </div>
     <div class="pointer-events-none absolute right-3 top-3 z-[1001] flex flex-col items-end gap-2">
-      <div class="pointer-events-auto flex flex-col gap-1 rounded-lg border border-default bg-default/90 p-1 shadow-md">
+      <div class="pointer-events-auto flex flex-col gap-1 rounded-lg border border-default bg-default/95 p-1 shadow-lg">
         <UButton
           color="neutral"
           variant="ghost"
-          size="xs"
+          size="sm"
           square
           :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
           aria-label="Toggle map theme"
@@ -964,7 +976,7 @@ watch(isDark, () => {
           v-if="!loadFailed"
           color="neutral"
           variant="ghost"
-          size="xs"
+          size="sm"
           square
           icon="i-lucide-locate-fixed"
           aria-label="Re-center on drone"
@@ -974,7 +986,7 @@ watch(isDark, () => {
         <UButton
           color="neutral"
           variant="ghost"
-          size="xs"
+          size="sm"
           square
           :icon="showPath ? 'i-lucide-route' : 'i-lucide-route-off'"
           aria-label="Toggle flight path"
@@ -985,7 +997,7 @@ watch(isDark, () => {
           v-if="(props.nearbyDrones?.length || 0) > 0 || props.showNearby"
           color="neutral"
           variant="ghost"
-          size="xs"
+          size="sm"
           square
           :icon="showNearbyLayer ? 'i-lucide-radar' : 'i-lucide-radar-off'"
           aria-label="Toggle nearby drones"
@@ -995,17 +1007,17 @@ watch(isDark, () => {
         <UButton
           color="neutral"
           :variant="showAirspace ? 'soft' : 'ghost'"
-          size="xs"
+          size="sm"
           square
           icon="i-lucide-shield-alert"
-          aria-label="Toggle airspace (openAIP)"
+          aria-label="Toggle airspace zones"
           title="Toggle airspace zones"
           @click="toggleAirspace"
         />
         <UButton
           color="neutral"
           variant="ghost"
-          size="xs"
+          size="sm"
           square
           icon="i-lucide-compass"
           aria-label="Reset north"
@@ -1025,7 +1037,7 @@ watch(isDark, () => {
           v-if="(props.nearbyDrones?.length || 0) > 0"
           color="neutral"
           variant="ghost"
-          size="xs"
+          size="sm"
           square
           icon="i-lucide-layers"
           aria-label="Auto-fit nearby"
@@ -1828,5 +1840,53 @@ watch(isDark, () => {
   color: #f0fdf4;
   border: 2px solid #dcfce7;
   box-shadow: 0 0 0 4px rgb(34 197 94 / 24%), 0 4px 12px rgb(15 23 42 / 65%);
+}
+
+[data-drone-map] .leaflet-control-zoom {
+  border: none;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-drone-map] .leaflet-control-zoom a {
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  border: 1px solid rgb(var(--color-gray-200));
+  background: rgb(var(--color-gray-50));
+  color: rgb(var(--color-gray-900));
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+[data-drone-map] .dark .leaflet-control-zoom a {
+  background: rgb(var(--color-gray-900));
+  color: rgb(var(--color-gray-50));
+  border-color: rgb(var(--color-gray-800));
+}
+
+[data-drone-map] .leaflet-control-scale {
+  border: 1px solid rgb(var(--color-gray-200));
+  background: rgb(var(--color-gray-50)/0.9);
+  border-radius: 0.375rem;
+  padding: 2px 6px;
+  color: rgb(var(--color-gray-700));
+  font-size: 11px;
+}
+
+[data-drone-map] .dark .leaflet-control-scale {
+  background: rgb(var(--color-gray-900)/0.9);
+  border-color: rgb(var(--color-gray-800));
+  color: rgb(var(--color-gray-300));
+}
+
+[data-drone-map] .leaflet-control-scale-line {
+  border-color: rgb(var(--color-gray-400));
+  background: transparent;
+  color: inherit;
 }
 </style>
