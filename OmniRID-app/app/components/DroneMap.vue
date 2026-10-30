@@ -123,8 +123,9 @@ const history: LeafletLatLng[] = []
 const nearbyHistory = new Map<string, LeafletLatLng[]>()
 
 const showNearbyLayer = ref(true)
+const showNearbyPanel = ref(true)
 const nearbyFilter = ref<'all' | 'live' | 'unseen'>('all')
-const nearbySort = ref<'last_seen' | 'rssi'>('last_seen')
+const nearbySort = ref<'last_seen' | 'rssi' | 'distance'>('last_seen')
 const isFullscreen = ref(false)
 const showAirspace = ref(false)
 const selectedDrone = ref<NearbyDrone | null>(null)
@@ -505,6 +506,13 @@ const sortedFilteredNearby = computed(() => {
       const na = Number.isFinite(ra) ? ra : -999
       const nb = Number.isFinite(rb) ? rb : -999
       return nb - na
+    }
+    if (nearbySort.value === 'distance') {
+      const da = Number((a as any)._dist_m)
+      const db = Number((b as any)._dist_m)
+      const na = Number.isFinite(da) ? da : Number.POSITIVE_INFINITY
+      const nb = Number.isFinite(db) ? db : Number.POSITIVE_INFINITY
+      return na - nb
     }
     const rawA = (a as any).last_seen_ts ?? a.last_seen
     const rawB = (b as any).last_seen_ts ?? b.last_seen
@@ -1012,15 +1020,16 @@ watch(isDark, () => {
       </div>
       <div
         v-if="(props.nearbyDrones?.length || 0) > 0"
-        class="pointer-events-auto rounded-lg border border-default bg-default/90 px-2 py-1 text-[11px] text-muted shadow-md"
+        class="pointer-events-auto flex items-center gap-2 rounded-lg border border-default bg-default/90 px-2 py-1 text-[11px] text-muted shadow-md"
       >
-        {{ sortedFilteredNearby.length }} nearby
+        <span>{{ sortedFilteredNearby.length }} nearby</span>
+        <UButton color="neutral" variant="ghost" size="xs" :icon="showNearbyPanel ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" @click="showNearbyPanel = !showNearbyPanel" />
       </div>
     </div>
 
     <div
       v-if="selectedOwn && hasOwnPos"
-      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(380px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto rounded-lg border border-default bg-default/95 shadow-xl"
+      class="pointer-events-auto absolute bottom-0 left-0 right-0 z-[1001] w-full max-h-[65vh] overflow-y-auto rounded-t-xl border border-default bg-default/95 shadow-xl md:bottom-7 md:left-3 md:right-auto md:w-[min(380px,calc(100vw-1.5rem))] md:max-h-[70vh] md:rounded-lg"
     >
       <div class="flex items-center justify-between gap-2 border-b border-default px-3 py-2">
         <div class="flex items-center gap-2">
@@ -1345,7 +1354,7 @@ watch(isDark, () => {
 
     <div
       v-if="selectedDrone"
-      class="pointer-events-auto absolute bottom-7 left-3 z-[1001] w-[min(380px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto rounded-lg border border-default bg-default/95 shadow-xl"
+      class="pointer-events-auto absolute bottom-0 left-0 right-0 z-[1001] w-full max-h-[65vh] overflow-y-auto rounded-t-xl border border-default bg-default/95 shadow-xl md:bottom-7 md:left-3 md:right-auto md:w-[min(380px,calc(100vw-1.5rem))] md:max-h-[70vh] md:rounded-lg"
     >
       <div class="flex items-center justify-between gap-2 border-b border-default px-3 py-2">
         <div class="flex items-center gap-2">
