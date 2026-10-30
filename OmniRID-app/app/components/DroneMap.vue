@@ -328,12 +328,12 @@ const ensureLeaflet = (): Promise<LeafletStatic | null> => {
   return loadPromise
 }
 
-const makeDroneIcon = (rotation: number): LeafletIcon | null => {
+const makeDroneIcon = (rotation: number, isOwn = true): LeafletIcon | null => {
   if (!link) return null
   const deg = Number.isFinite(rotation) ? Math.round(((rotation % 360) + 360) % 360) : 0
   return link.divIcon({
     className: 'cd-cardiv',
-    html: `<div class="cd-map-drone" style="transform: rotate(${deg}deg)"></div>`,
+    html: `<div class="cd-map-drone" style="transform: rotate(${deg}deg); ${isOwn ? '' : 'filter: hue-rotate(200deg);'}"></div>`,
     iconSize: [26, 26],
     iconAnchor: [13, 13]
   })
@@ -370,7 +370,7 @@ const buildHomePopup = (pos: LeafletLatLng): string => {
 const syncDrone = (pos: LeafletLatLng | null) => {
   if (!link || !map) return
   if (pos) {
-    const icon = makeDroneIcon(Number(props.status?.heading ?? 0))
+    const icon = makeDroneIcon(Number(props.status?.heading ?? 0), true)
     if (!icon) return
     if (!droneMarker) {
       droneMarker = link.marker(pos, { icon }).addTo(map)
@@ -541,7 +541,19 @@ const buildNearbyPopup = (d: NearbyDrone): string => {
 const nearbyColors = ['#f59e0b', '#22d3ee', '#a78bfa', '#f43f5e', '#34d399', '#f59e0b']
 
 const syncNearby = () => {
-  if (!link || !map || !props.showNearby) return
+  if (!link || !map || !props.showNearby || !showNearbyLayer.value) {
+    try {
+      if (nearbyCluster && map) {
+        try { if (typeof nearbyCluster.clearLayers === 'function') nearbyCluster.clearLayers() } catch {}
+        try { if (map.hasLayer(nearbyCluster)) map.removeLayer(nearbyCluster) } catch {}
+      }
+      for (const [k, m] of nearbyMarkers.entries()) {
+        try { if (map) map.removeLayer(m) } catch {}
+        nearbyMarkers.delete(k)
+      }
+    } catch {}
+    return
+  }
   const seen = new Set<string>()
   const list = Array.isArray(sortedFilteredNearby.value) ? sortedFilteredNearby.value : []
   if ((link as any).MarkerClusterGroup && !nearbyCluster) {
@@ -970,7 +982,7 @@ watch(isDark, () => {
           @click="showPath = !showPath; applyStatus()"
         />
         <UButton
-          v-if="(props.nearbyDrones?.length || 0) > 0"
+          v-if="(props.nearbyDrones?.length || 0) > 0 || props.showNearby"
           color="neutral"
           variant="ghost"
           size="xs"
@@ -978,7 +990,7 @@ watch(isDark, () => {
           :icon="showNearbyLayer ? 'i-lucide-radar' : 'i-lucide-radar-off'"
           aria-label="Toggle nearby drones"
           title="Toggle nearby drones"
-          @click="showNearbyLayer = !showNearbyLayer"
+          @click="() => { showNearbyLayer = !showNearbyLayer; applyStatus() }"
         />
         <UButton
           color="neutral"
