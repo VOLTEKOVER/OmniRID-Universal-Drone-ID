@@ -222,13 +222,13 @@ const statusBadge = (status: PageStatus) => pageStatusMeta(status)
 const lastTabKey = 'omnirid:last-tab'
 
 watch(() => route.path, (path) => {
-  if (import.meta.client && settings.value.reopenLastTab && path !== '/') {
+  if (import.meta.client && (settings.value as any).reopenLastTab && path !== '/') {
     localStorage.setItem(lastTabKey, path)
   }
 })
 
 watch(() => isEspConnected.value, (connected) => {
-  if (!connected || !settings.value.reopenLastTab || !import.meta.client) return
+  if (!connected || !(settings.value as any).reopenLastTab || !import.meta.client) return
   const last = localStorage.getItem(lastTabKey)
   if (last && last !== route.path && pageForRoute(last)) {
     router.push(last).catch(() => {})
@@ -236,7 +236,7 @@ watch(() => isEspConnected.value, (connected) => {
 })
 
 const sidebarGroups = computed(() => pageGroups
-  .map(group => ({ ...group, items: group.items.filter(page => page.status !== 'wip' || settings.value.expertMode) }))
+  .map(group => ({ ...group, items: group.items.filter(page => page.status !== 'wip' || (settings.value as any).expertMode) }))
   .filter(group => group.items.length > 0))
 
 const pageLink = (page: { label: string, icon: string, to: string, status: PageStatus }, onNavigate: () => void): NavigationMenuItem => {
@@ -338,7 +338,7 @@ const groups = computed(() => {
       })
     } else {
       items = group.items
-        .filter(page => page.status !== 'wip' || settings.value.expertMode)
+        .filter(page => page.status !== 'wip' || (settings.value as any).expertMode)
         .map(page => ({
           label: page.label,
           icon: page.icon,

@@ -991,6 +991,25 @@ watch(isDark, () => {
           @click="toggleAirspace"
         />
         <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          square
+          icon="i-lucide-compass"
+          aria-label="Reset north"
+          title="Reset north"
+          @click="() => {
+            try {
+              if (map && typeof (map as any).setBearing === 'function') (map as any).setBearing(0)
+              else if (map && typeof (map as any).setRotation === 'function') (map as any).setRotation(0)
+              else if (map && typeof (map as any).panTo === 'function') {
+                const c = (map as any).getCenter ? (map as any).getCenter() : null
+                if (c) (map as any).panTo(c)
+              }
+            } catch {}
+          }"
+        />
+        <UButton
           v-if="(props.nearbyDrones?.length || 0) > 0"
           color="neutral"
           variant="ghost"

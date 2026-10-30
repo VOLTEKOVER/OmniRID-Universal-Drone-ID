@@ -35,46 +35,7 @@ const resetSettings = () => {
 <template>
   <div class="flex min-h-0 flex-col">
     <div class="space-y-6 overflow-y-auto px-4 py-4" :class="scrollClass">
-      <section>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-          Options
-        </p>
-        <div class="mt-2 divide-y divide-default border-y border-default">
-          <div class="flex items-start justify-between gap-4 py-3">
-            <div>
-              <p class="text-sm font-medium text-highlighted">
-                Enable Expert Mode
-              </p>
-              <p class="mt-0.5 text-xs text-muted">
-                Unlock pages marked as WIP and experimental tools.
-              </p>
-            </div>
-            <USwitch v-model="settings.expertMode" />
-          </div>
-          <div class="flex items-start justify-between gap-4 py-3">
-            <div>
-              <p class="text-sm font-medium text-highlighted">
-                Reopen last tab on connect
-              </p>
-              <p class="mt-0.5 text-xs text-muted">
-                Restore the last visited page when the ESP gets connected.
-              </p>
-            </div>
-            <USwitch v-model="settings.reopenLastTab" />
-          </div>
-          <div class="flex items-start justify-between gap-4 py-3">
-            <div>
-              <p class="text-sm font-medium text-highlighted">
-                Disable internet access
-              </p>
-              <p class="mt-0.5 text-xs text-muted">
-                For metered or slow connections. Hides external links.
-              </p>
-            </div>
-            <USwitch v-model="settings.disableInternet" />
-          </div>
-        </div>
-      </section>
+      
 
       <section>
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
