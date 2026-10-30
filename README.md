@@ -116,6 +116,9 @@ simulates a GPS patrol.
 
 ## Ground Station (Web App / PWA)
 
+**New:** The PWA now includes an **offline fallback page** (`offline.html`). The Service Worker caches the app shell and serves this page when the network is unavailable. The build now runs with **strict TypeScript** (`tsconfig.json` `"strict": true`). Dependency upgrades: Nuxt 4.6.3, `@iconify-json/lucide` 1.2.149, and `@types/node` 26.6.6.
+
+
 | Component | Stack |
 |---|---|
 | **Framework** | Nuxt 4 / Vue 3 (Vite + Nitro static) |
