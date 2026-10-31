@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 use crate::json::{num1, num6};
 
 /// Mirror of `ESP_RID_VERSION` from `esp_remote_id.h`.
-pub const FW_VERSION: &str = "1.0.0";
+pub const FW_VERSION: &str = "v0.1";
 
 /// Full BSP runtime snapshot, mirror of `rid_state_t`.
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
