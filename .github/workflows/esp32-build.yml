@@ -37,6 +37,9 @@ jobs:
         with:
           workspaces: OmniRID-firmware
 
+      - name: Rust fmt
+        run: cargo fmt --all -- --check
+
       - name: Build host workspace (--locked)
         run: cargo build --workspace --locked
 
