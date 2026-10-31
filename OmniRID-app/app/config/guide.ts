@@ -112,8 +112,8 @@ export const guideSections: GuideSection[] = [
             { label: '$G or $N prefix? NMEA 0183', ok: 'NMEA' },
             { label: '0xFE or 0xFD? MAVLink v1/v2', ok: 'MAVLink' }
           ],
-          fallback: 'Fallback: NMEA',
-          caption: 'Protocol auto-detection priority order in auto mode: MSP, then NMEA, then MAVLink. NMEA is the fallback when a frame is present but no header matches. When no data arrives, the protocol shows as unknown until the next cycle.'
+          fallback: 'Fallback: Unknown (no protocol detected)',
+          caption: 'Protocol auto-detection order in auto mode: MSP, then NMEA, then MAVLink. If none match, the protocol remains Unknown until the next loop iteration.',
         }
       },
       {
@@ -454,7 +454,7 @@ esptool.py --chip esp32c6 -p /dev/ttyACM0 -b 921600 \\
           ['19', 'Web Server', '<code>webserver_en</code>', 'bool', '0/1', '1', 'Enable the web configuration server'],
           ['20', 'Baud Rate', '<code>baud_rate</code>', 'uint32', '9600-921600', '57600', 'UART baud rate (must match FC)'],
           ['21', 'MAVLink SysID', '<code>mavlink_sysid</code>', 'uint8', '0-254', '0', 'MAVLink system ID filter. 0 = auto-detect'],
-          ['22', 'Broadcast without GPS', '<code>bcast_powerup</code>', 'bool', '0/1', '1', 'Intended to send ID messages without a GPS fix — currently has no practical effect, as transmissions only run when fresh GPS data (fix type ≥ 2) is available'],
+          ['22', 'Broadcast without GPS', '<code>bcast_powerup</code>', 'bool', '0/1', '1', 'When enabled, forces a Remote ID transmission on power‑up even if no GPS fix is present (the scheduler now runs transmissions unconditionally each tick).'],
           ['23', 'Lock Level', '<code>lock_level</code>', 'int8', '0-2', '0', '0=Normal, 1=Signed cmds, 2=eFuse permanent'],
           ['24', 'Options', '<code>options</code>', 'bitmask', '0-511', '0', 'Bit 0=Force ARM, 1=No save BasicID, 2=Print MAVLink RID, 3=Demo mode, 4=Kalman filter, 5=Ed25519 auth, 6=MAVLink arm status, 7=MAVLink op loc loop, 8=Identity ready gate'],
           ['25', 'Public Keys', '<code>public_key_1-5</code>', 'string', '0-256 chars', '""', 'Up to 5 public keys (PEM or base64) for command authentication'],
