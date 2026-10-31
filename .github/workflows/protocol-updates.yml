@@ -1,4 +1,4 @@
-name: Weekly Upstream Sync
+name: [repo] Weekly Upstream Sync
 
 on:
   schedule:
