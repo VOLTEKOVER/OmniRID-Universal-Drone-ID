@@ -25,7 +25,7 @@ OmniRID is an **open-source Drone ID transmitter** for ESP32 that turns any flig
 <p align="center">
   <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID"><b>Source</b></a>&nbsp;&nbsp;
   <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/tree/omnirid-webapp-pwa/OmniRID-app"><b>Ground Station</b></a>&nbsp;&nbsp;
-  <a href="todolist/shared-todo.md"><b>Backlog</b></a>
+  <a href="./todolist/shared-todo.md"><b>Backlog</b></a>
 </p>
 
 ---
@@ -76,31 +76,31 @@ simulates a GPS patrol.
 
 ### Input (GPS from flight controller)
 
-| Protocol | Format | Details |
-|---|---|---|
-| **MAVLink v2** | ArduPilot/PX4 | `GPS_RAW_INT`, `GLOBAL_POSITION_INT`, `HEARTBEAT`, `OPEN_DRONE_ID_*` |
-| **MSP** | Betaflight/iNAV | `MSP_RAW_GPS` (106), `MSP_ATTITUDE` (108), `MSP_STATUS` (101) |
-| **NMEA 0183** | Direct GPS module | `$GPGGA`, `$GNGGA`, `$GPRMC`, `$GNRMC`, `$GPVTG`, `$GNVTG` |
-| **DroneCAN** | CAN bus | `uavcan.equipment.gnss.Fix2` (TWAI decode) |
+| Protocol      | Format                | Details                                                                           |
+|---------------|----------------------|-----------------------------------------------------------------------------------|
+| **MAVLink v2** | ArduPilot/PX4        | `GPS_RAW_INT`, `GLOBAL_POSITION_INT`, `HEARTBEAT`, `OPEN_DRONE_ID_*`               |
+| **MSP**        | Betaflight/iNAV      | `MSP_RAW_GPS` (106), `MSP_ATTITUDE` (108), `MSP_STATUS` (101)                     |
+| **NMEA 0183**  | Direct GPS module    | `$GPGGA`, `$GNGGA`, `$GPRMC`, `$GNRMC`, `$GPVTG`, `$GNVTG`                        |
+| **DroneCAN**   | CAN bus              | `uavcan.equipment.gnss.Fix2` (TWAI decode)                                        |
 
 ### Output (Remote ID broadcast)
 
-| Medium | Standard | Range |
-|---|---|---|
-| **WiFi Beacon** | IEEE 802.11 Mgmt | ~100 m (typical) |
-| **WiFi NAN** | Service Discovery | ~100 m |
-| **BLE 4.0** | Legacy advertising | ~50 m |
-| **BLE 5.0** | Coded PHY (S3) | ~200+ m (LR mode) |
-| **LoRa** | (planned) | ~1000 m |
+| Medium        | Standard          | Range                        |
+|---------------|-------------------|-----------------------------|
+| **WiFi Beacon** | IEEE 802.11 Mgmt | ~100 m (typical)            |
+| **WiFi NAN**    | Service Discovery | ~100 m                       |
+| **BLE 4.0**      | Legacy advertising | ~50 m                        |
+| **BLE 5.0**      | Coded PHY (S3)      | ~200 m+ (LR mode)           |
+| **LoRa**         | (planned)          | ~1000 m                      |
 
 ### Radio & protocols
 
-| Feature | Details |
-|---|---|
-| **Broadcast** | WiFi Beacon (802.11 mgmt) + WiFi NAN + BLE 4.0 Legacy + BLE 5.0 Long Range (S3; C6 pending) |
-| **Input protocols** | MAVLink v2 (ArduPilot/PX4), MSP (Betaflight/iNAV), NMEA, DroneCAN/CAN bus — auto-detected |
-| **GPS source** | From flight controller (MAVLink/MSP/NMEA/CAN) or a direct GPS module, with takeoff-location capture |
-| **Position filter** | 1D × 3 Kalman filter (lat/lon/alt) with velocity prediction, 3 s timeout |
+| Feature               | Details                                                                                         |
+|----------------------|--------------------------------------------------------------------------------------------------|
+| **Broadcast**        | WiFi Beacon (802.11 mgmt) + WiFi NAN + BLE 4.0 Legacy + BLE 5.0 Long Range (S3; C6 pending)      |
+| **Input protocols** | MAVLink v2 (ArduPilot/PX4), MSP (Betaflight/iNAV), NMEA, DroneCAN/CAN bus — auto‑detected         |
+| **GPS source**       | From flight controller (MAVLink/MSP/NMEA/CAN) or a direct GPS module, with takeoff‑location capture |
+| **Position filter** | 1D × 3 Kalman filter (lat/lon/alt) with velocity prediction, 3 s timeout                         |
 
 ### Security & compliance
 
@@ -110,7 +110,7 @@ simulates a GPS patrol.
 | **Lock levels** | 3 tiers: Normal / Ed25519 signed / eFuse permanent |
 | **Firmware update** | USB/serial flashing; the `/ota` endpoint is a `501` stub (validators exist, not wired) |
 | **Hardening** | Safe JSON parsing, rate limiting (10 failed attempts/60 s), bounded strings |
-| **Configuration** | 70+ parameters (JSON API + CORS): UAS ID, rates, power, public keys, auth, lock, RGB status LED |
+*Detailed firmware architecture and operation – see [OmniRID-firmware/FIRMWARE.md](OmniRID-firmware/FIRMWARE.md).*
 
 ---
 
@@ -201,10 +201,10 @@ The old standalone HTML demo was removed with the static docs site.
 
 ```
 Flight Controller    ESP32 (or variant)
-─────────────────    ─────────────────
-TX (UART)       ->   GPIO16 (UART2 RX)
-GND             ->   GND
-5V (BEC)        ->   5V / VIN
+───────────────────── ─────────────────────
+TX (UART)            ->   GPIO16 (UART2 RX)
+GND                  ->   GND
+5V (BEC)             ->   5V / VIN
 ```
 
 > **NMEA tap**: add a **1 kΩ series resistor** on the tap line to prevent backfeed.
@@ -346,7 +346,7 @@ OmniRID-Universal-Drone-ID/
 |---|---|
 | **Firmware backlog** | [`todolist/firmware-todo.md`](todolist/firmware-todo.md) |
 | **App backlog** | [`todolist/app-todo.md`](todolist/app-todo.md) |
-| **Shared / repo backlog** | [`todolist/shared-todo.md`](todolist/shared-todo.md) |
+| **Shared / repo backlog** | [`todolist/shared-todo.md`](./todolist/shared-todo.md) |
 | **Hardware BOM** | See the hardware section |
 | **API Reference** | Headless `/api/*` JSON endpoints with CORS; also described in the in-app Guide page |
 
@@ -424,4 +424,3 @@ See the LICENSE file for details.
 <p align="center">
   Made with ❤️ by <a href="https://github.com/VOLTEKOVER">VOLTEKOVER</a>
 </p>
-# trigger
