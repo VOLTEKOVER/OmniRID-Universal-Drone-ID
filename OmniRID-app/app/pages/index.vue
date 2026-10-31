@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { appName, appTagline, appVersion } from '~/config/app'
+import { ref, onMounted } from 'vue'
 
 // Partner logos come with their own intended background: ArduPilot is light on
 // dark, Betaflight/INAV are dark on light. Each logo gets a fixed tile so it
@@ -35,6 +36,55 @@ const capabilities = [
     text: 'Ed25519 OTA verification, lock levels and full config persistence.'
   }
 ]
+  // Reactive state for dynamic changelog and tasks
+  interface ChangelogEntry {
+    date: string
+    title: string
+    items: string[]
+  }
+  const changelog = ref<ChangelogEntry[]>([])
+  const pendingTasks = ref<string[]>([])
+
+  async function loadChangelog() {
+    try {
+      const raw = await $fetch<string>('https://raw.githubusercontent.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/main/CHANGELOG.md')
+      const entries: ChangelogEntry[] = []
+      const sectionRegex = /## \[(\d{4}‑\d{2}‑\d{2})\] – "(.*?)"([\s\S]*?)(?=## |\z)/g
+      let match
+      while ((match = sectionRegex.exec(raw))) {
+        const [, date, title, body] = match
+        const items = body.trim().split('\n')
+          .filter(line => line.startsWith('-'))
+          .map(line => line.slice(1).trim())
+        entries.push({ date, title, items })
+      }
+      changelog.value = entries
+    } catch (e) {
+      console.error('Failed to load changelog', e)
+    }
+  }
+
+  async function loadPendingTasks() {
+    try {
+      const raw = await $fetch<string>('https://raw.githubusercontent.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/main/TASKS.md')
+      const pending = raw.match(/## In‑progress \/ pending tasks([\s\S]*?)(?:\n##|\z)/)
+      if (pending && pending[1]) {
+        const tasks = pending[1].split('\n')
+          .map(l => l.trim())
+          .filter(l => l.startsWith('- '))
+          .map(l => l.slice(2).trim())
+        pendingTasks.value = tasks
+      }
+    } catch (e) {
+      console.error('Failed to load tasks', e)
+    }
+  }
+
+  onMounted(() => {
+    loadChangelog()
+    loadPendingTasks()
+  })
+
 </script>
 
 <template>
@@ -237,12 +287,39 @@ const capabilities = [
             </div>
           </section>
 
+<section>
+  <div class="mb-5 flex items-center gap-3">
+    <h2 class="text-display text-lg text-highlighted">Changelog</h2>
+    <div class="h-px flex-1 bg-accented" aria-hidden="true" />
+  </div>
+  <div v-if="changelog.length" class="space-y-4">
+    <div v-for="entry in changelog" :key="entry.date" class="bg-default p-4 rounded-lg">
+      <h3 class="font-semibold text-highlighted">{{ entry.title }} – {{ entry.date }}</h3>
+      <ul class="list-disc list-inside mt-2 text-sm text-muted">
+        <li v-for="item in entry.items" :key="item">{{ item }}</li>
+      </ul>
+    </div>
+  </div>
+  <p v-else class="text-muted">Loading changelog…</p>
+</section>
+
+<section class="mt-8">
+  <div class="mb-5 flex items-center gap-3">
+    <h2 class="text-display text-lg text-highlighted">Upcoming tasks</h2>
+    <div class="h-px flex-1 bg-accented" aria-hidden="true" />
+  </div>
+  <ul v-if="pendingTasks.length" class="list-disc list-inside text-sm text-muted">
+    <li v-for="task in pendingTasks.slice(0,5)" :key="task">{{ task }}</li>
+  </ul>
+  <p v-else class="text-muted">Loading tasks…</p>
+</section>
+
           <footer
             class="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-default pt-6 font-mono text-xs text-muted"
           >
             <span>{{ appVersion }}</span>
             <span aria-hidden="true" class="text-dimmed">/</span>
-            <span>Apache 2.0</span>
+            <span>AGPL-3.0</span>
             <span aria-hidden="true" class="text-dimmed">/</span>
             <span>Built by VOLTEKOVER</span>
           </footer>
