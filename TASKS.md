@@ -9,7 +9,7 @@
 ## In‑progress / pending tasks
 - Resolve strict‑mode TypeScript errors (≈ 1 k errors) to improve type safety across the PWA.
 - Implement OTA end‑to‑end support in the UI (currently a stub) and align UI with firmware `POST /ota`.
-- Align Wi‑Fi credential length limits between firmware (MAX_STR_LEN = 63) and UI (currently 32).
+- ✅ Align Wi‑Fi credential length limits between firmware (MAX_STR_LEN = 63) and UI (now 32).
 - Add CI job for the PWA (lint, typecheck, build) to the GitHub workflow.
 - Document OTA workflow and security hardening steps in `SECURITY.md`.
 - **Web UI / ground‑station polish backlog** (issue #54) – UI/UX improvements, polish, accessibility.

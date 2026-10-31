@@ -4,7 +4,7 @@
 - Finish fixing strict‑mode TypeScript errors; aim for a clean `pnpm typecheck` pass.
 - Implement OTA UI flow and integrate with the firmware `/ota` endpoint.
 - Add CI pipeline for the PWA (lint, typecheck, build) to GitHub Actions.
-- Align Wi‑Fi credential length limits between firmware and UI.
+- ✅ Align Wi‑Fi credential length limits between firmware and UI (completed).
 - **Web UI / ground‑station polish backlog** (issue #54) – improve UX, accessibility, and visual polish.
 - **GNSS advanced options** – expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware.
 - **Docs policy** – keep `docs/` for images only; remove stale documentation links.

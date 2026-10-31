@@ -110,7 +110,6 @@ simulates a GPS patrol.
 | **Lock levels** | 3 tiers: Normal / Ed25519 signed / eFuse permanent |
 | **Firmware update** | USB/serial flashing; the `/ota` endpoint is a `501` stub (validators exist, not wired) |
 | **Hardening** | Safe JSON parsing, rate limiting (10 failed attempts/60 s), bounded strings |
-*Detailed firmware architecture and operation – see [OmniRID-firmware/FIRMWARE.md](OmniRID-firmware/FIRMWARE.md).*
 
 ---
 

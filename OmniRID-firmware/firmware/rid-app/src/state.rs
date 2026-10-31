@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 use crate::json::{num1, num6};
 
 /// Mirror of `ESP_RID_VERSION` from `esp_remote_id.h`.
-pub const FW_VERSION: &str = "v0.1";
+pub const FW_VERSION: &str = "v0.2";
 
 /// Full BSP runtime snapshot, mirror of `rid_state_t`.
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -104,7 +104,7 @@ mod tests {
         let out = state_to_json(&State::default());
         assert!(
             out.starts_with(
-                "{\"fw_version\":\"1.0.0\",\"protocol\":0,\"gps_valid\":false,\"lat\":0.000000,"
+                "{\"fw_version\":\"v0.2\",\"protocol\":0,\"gps_valid\":false,\"lat\":0.000000,"
             ),
             "{}",
             out
@@ -190,7 +190,7 @@ mod tests {
         // Always valid JSON, parseable back.
         let v: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["heading"], -45);
-        assert_eq!(v["fw_version"], "1.0.0");
+        assert_eq!(v["fw_version"], "v0.2");
     }
 
     #[test]
