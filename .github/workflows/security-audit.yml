@@ -1,4 +1,4 @@
-name: [repo] Security Audit
+name: "[repo] Security Audit"
 
 on:
   push:

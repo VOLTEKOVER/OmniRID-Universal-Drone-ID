@@ -1,4 +1,4 @@
-name: [repo] Release
+name: "[repo] Release"
 
 on:
   push:

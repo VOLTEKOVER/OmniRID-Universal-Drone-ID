@@ -1,4 +1,4 @@
-name: [repo] Deploy OmniRID app to GitHub Pages
+name: "[repo] Deploy OmniRID app to GitHub Pages"
 
 on:
   push:
