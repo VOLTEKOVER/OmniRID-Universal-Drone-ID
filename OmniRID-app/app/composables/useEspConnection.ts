@@ -178,7 +178,7 @@ const _useEspConnection = () => {
         options,
         resolve,
         reject
-      } as any
+      }
       if (import.meta.client) {
         window.dispatchEvent(new CustomEvent('omnirid:config-auth-required'))
       }
@@ -489,7 +489,7 @@ const _useEspConnection = () => {
     submitConfigAuth,
     logout,
     pendingConfigRequest
-  } as any
+  }
 }
 
 export const useEspConnection = createSharedComposable(_useEspConnection)

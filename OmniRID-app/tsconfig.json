@@ -2,7 +2,8 @@
   // https://nuxt.com/docs/guide/concepts/typescript
   "files": [],
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    "lib": ["es2020","dom"]
   },
   "references": [
     { "path": "./.nuxt/tsconfig.app.json" },

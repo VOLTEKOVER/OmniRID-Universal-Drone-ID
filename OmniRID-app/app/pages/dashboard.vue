@@ -1,12 +1,19 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+
+
 import { useTelemetry } from '~/composables/useTelemetry'
+
 import { useAppSettings } from '~/composables/useAppSettings'
-import { useEspConnection } from '~/composables/useEspConnection'
+
 import type { NearbyDrone } from '~/components/DroneMap.vue'
+
 
 const { status } = useTelemetry()
 const { settings } = useAppSettings()
 const { isSimulated } = useEspConnection()
+
+
 const droneMapRef = ref<any>(null)
 
 const simNearbyState = ref({
@@ -20,7 +27,7 @@ const currentHashKey = () => {
   try {
     const h = window.location.hash || ''
     if (h.startsWith('#rx/detections/')) {
-      return decodeURIComponent(h.split('#rx/detections/')[1]).trim()
+      return decodeURIComponent(h.split('#rx/detections/')[1]!).trim()
     }
   } catch {}
   return ''
@@ -41,7 +48,7 @@ onMounted(() => {
           if (e.key === 'ArrowDown') idx = (idx + 1) % keys.length
           if (e.key === 'ArrowUp') idx = (idx - 1 + keys.length) % keys.length
           if (idx >= 0 && keys[idx]) {
-            try { window.location.hash = `#rx/detections/${encodeURIComponent(keys[idx])}` } catch {}
+            try { window.location.hash = `#rx/detections/${encodeURIComponent(keys[idx]! )}` } catch {}
           }
           return
         }
