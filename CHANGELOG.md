@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026‑11‑01] – "v0.3 release"
+- **Firmware**: Bumped `FW_VERSION` to "v0.3".
+- **PWA**: Bumped `appVersion` to "v0.3".
+- **Documentation**: Updated version references in README, CHANGELOG, and added protocol version info.
+
 ## [2026‑10‑31] – "v0.2 release"
 - **Firmware**: Bumped `FW_VERSION` to "v0.2".
 - **PWA**: Bumped `appVersion` to "v0.2".

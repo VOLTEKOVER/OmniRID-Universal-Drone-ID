@@ -93,6 +93,10 @@ simulates a GPS patrol.
 | **BLE 5.0**      | Coded PHY (S3)      | ~200 m+ (LR mode)           |
 | **LoRa**         | (planned)          | ~1000 m                      |
 
+### Protocol Versions
+- **Input**: MAVLink v2, MSP v1, NMEA 0183, DroneCAN (CAN‑bus)
+- **Output**: ASTM F3411‑22a (Remote ID)
+
 ### Radio & protocols
 
 | Feature               | Details                                                                                         |
