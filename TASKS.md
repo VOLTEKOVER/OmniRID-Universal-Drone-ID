@@ -262,6 +262,72 @@ Over 60 firmware settings must be synchronized across three codebases:
 - [ ] Server-side error handling verification
 - [ ] Client-side error handling enhancement
 
+
+
+## 4. Hardware compatibility matrix
+
+### ESP32
+- **Wi‑Fi**: ✅ Supported (802.11 b/g/n)
+- **BLE**: ✅ Supported (4.0/5.0)
+- **UART**: ✅ Supported (up to UART 2)
+- **DroneCAN**: ❌ Not supported (requires ESP32-S3 or C6)
+- **MAVLink USB**: ❌ Not supported (requires ESP32-S3 or C6)
+- **WebSerial**: ✅ Supported
+
+### ESP32-S3
+- **Wi‑Fi**: ✅ Supported
+- **BLE**: ✅ Supported (including BLE 5.0 Long Range experimental)
+- **UART**: ✅ Supported (up to UART 2)
+- **DroneCAN**: ✅ Supported
+- **MAVLink USB**: ✅ Supported
+- **WebSerial**: ✅ Supported
+
+### ESP32-C6
+- **Wi‑Fi**: ✅ Supported
+- **BLE**: ✅ Supported (but BLE 5.0 Long Range not implemented)
+- **UART**: ✅ Supported (up to UART 2)
+- **DroneCAN**: ❓ Need to verify
+- **MAVLink USB**: ❓ Need to verify
+- **WebSerial**: ❓ Need to verify
+
+### Feature Details
+
+**DroneCAN**
+- Supported on ESP32-S3 only
+- Requires GPIO pins for CAN RX/TX
+- Bitrate configurable (default: 500kbps)
+- Used for direct CAN bus connection to flight controller
+
+**MAVLink USB**
+- Supported on ESP32-S3 and ESP32-C6
+- Uses USB CDC (Communication Device Class)
+- Enabled via `mavlink_usb_enable` config option (0 or 1)
+- Requires appropriate USB host drivers
+
+**WebSerial**
+- Supported on all three targets (ESP32, ESP32-S3, ESP32-C6)
+- Uses WebUSB API in the browser
+- Allows firmware flashing and configuration over USB from web browser
+- Requires appropriate device drivers
+
+### GPIO Mapping (Key Pins)
+- **LED GPIO**: ESP32/ESP32-S3/ESP32-C6 all support RGB LED control via GPIO
+- **UART GPIO**: TX/RX pins vary by chip
+- **DroneCAN GPIO**: ESP32-S3 has dedicated CAN pins
+- **Mavlink USB**: Requires USB CDC support
+
+### Development Notes
+- **ESP32**: Most basic target, limited features (no USB CDC, no DroneCAN)
+- **ESP32-S3**: Most capable, adds DroneCAN, MAVLink USB, BLE 5.0 Long Range experimental
+- **ESP32-C6**: Similar to S3 but without BLE 5.0 Long Range, needs verification for DroneCAN/MAVLink USB
+
+### Development Recommendations
+1. **Start with ESP32-S3** for fullest feature set
+2. **Use ESP32 for basic functionality** (Wi-Fi, BLE, UART)
+3. **Use ESP32-C6 for RISC-V specific needs** (if RISC-V assembly is required)
+4. **DroneCAN** only on ESP32-S3
+5. **MAVLink USB** on ESP32-S3/C6 only
+
 ## Future roadmap (high‑level)
 - **LoRa support**: integrate LoRa radio driver and expose as an additional broadcast medium.
 - **Non‑ASTM encoders**: implement GB 42590 / FRDID encoders (issue #46).
