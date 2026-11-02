@@ -5,8 +5,6 @@ const props = defineProps<{
   title: string
   description?: string
   icon?: string
-  eyebrow?: string
-  badges?: { label: string, color?: PageBadgeColor }[]
   status?: { label: string, color?: PageBadgeColor }
   size?: 'sm' | 'md' | 'lg'
 }>()
@@ -38,29 +36,13 @@ const descriptionClass = computed(() => ({
 
     <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
       <div class="min-w-0 space-y-3">
-        <div
-          v-if="eyebrow || badges?.length"
-          class="flex flex-wrap items-center gap-x-3 gap-y-1.5"
-        >
-          <span v-if="eyebrow" class="label-data">{{ eyebrow }}</span>
-          <span v-if="eyebrow && badges?.length" aria-hidden="true" class="h-3 w-px bg-accented" />
-          <UBadge
-            v-for="badge in badges"
-            :key="badge.label"
-            :color="badge.color ?? 'neutral'"
-            variant="soft"
-            size="sm"
-            :label="badge.label"
-          />
-        </div>
-
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
           <UIcon v-if="icon" :name="icon" class="size-6 shrink-0 text-primary sm:size-7" />
           <h1 class="text-display text-highlighted" :class="titleClass">
             {{ title }}
           </h1>
           <UBadge
-            v-if="status"
+            v-if="status?.label === 'Stable'"
             :color="status.color ?? 'neutral'"
             variant="soft"
             :label="status.label"

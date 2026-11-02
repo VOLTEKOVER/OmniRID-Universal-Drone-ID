@@ -183,62 +183,59 @@ const importPreset = async (event: Event) => {
 </script>
 
 <template>
-  <div class="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-    <!-- Capture & save -->
+  <div class="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
     <div class="space-y-4">
-      <div class="overflow-hidden rounded-lg border border-default bg-elevated/40">
-        <div class="flex items-start justify-between gap-3 border-b border-default px-4 py-3.5">
+      <div class="overflow-hidden rounded-xl border border-default bg-elevated/30">
+        <div class="flex items-start justify-between gap-3 border-b border-default px-4 py-4 sm:px-5">
           <div class="min-w-0">
             <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-              <UIcon name="i-lucide-download" class="size-4 text-primary" />
-              Capture from device
+              <UIcon name="i-lucide-scan-line" class="size-4 text-primary" />
+              Capture configuration
             </h3>
             <p class="mt-1 text-xs text-muted">
-              Read the live settings from the ESP32 over <code class="font-mono">GET /api/config</code>.
+              Read the current settings from the connected ESP32.
             </p>
           </div>
           <UButton
             color="primary"
-            variant="soft"
-            icon="i-lucide-scan-line"
+            icon="i-lucide-download"
             class="shrink-0"
             :loading="isCapturing"
             :disabled="!canConfig"
-            aria-label="Capture device configuration"
             @click="captureFromDevice"
           >
-            <span class="hidden sm:inline">Capture</span>
+            <span>Capture</span>
           </UButton>
         </div>
-        <div class="px-4 py-3">
+        <div class="space-y-3 px-4 py-4 sm:px-5">
           <div v-if="capturedConfig" class="flex items-center gap-2">
             <span class="size-1.5 shrink-0 rounded-full bg-success" aria-hidden="true" />
             <span class="font-mono text-xs text-highlighted">{{ Object.keys(capturedConfig).length }} fields</span>
             <span class="text-xs text-muted">ready to save</span>
           </div>
-          <p v-else class="flex items-center gap-2 text-xs text-dimmed">
+          <p v-else class="flex items-center gap-2 text-xs text-muted">
             <span class="size-1.5 shrink-0 rounded-full bg-accented" aria-hidden="true" />
-            No configuration captured yet
+            Capture a configuration to create a preset.
           </p>
-          <p v-if="!canConfig" class="mt-3 flex items-start gap-2 text-xs text-warning">
+          <p v-if="!canConfig" class="flex items-start gap-2 text-xs leading-5 text-error">
             <UIcon :name="isEspConnected ? 'i-lucide-usb' : 'i-lucide-wifi-off'" class="mt-0.5 size-4 shrink-0" />
-            <span v-if="isEspConnected">Presets capture and apply device configuration, which is only available over WiFi.</span>
-            <span v-else>ESP not connected — capture and apply are disabled until the device is reachable.</span>
+            <span v-if="isEspConnected">Switch to WiFi to capture and apply presets.</span>
+            <span v-else>Connect to the ESP over WiFi to capture and apply presets.</span>
           </p>
         </div>
       </div>
 
-      <div class="space-y-3 rounded-lg border border-default bg-elevated/40 p-4">
+      <div class="space-y-3 rounded-xl border border-default bg-elevated/30 p-4 sm:p-5">
         <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
           <UIcon name="i-lucide-save" class="size-4 text-primary" />
-          Save preset
+          Save captured preset
         </h3>
         <UInput v-model="name" placeholder="Preset name (e.g. Racing - EU)" aria-label="Preset name" />
         <UTextarea
           v-model="notes"
           placeholder="Notes (optional)"
           aria-label="Preset notes"
-          :rows="3"
+          :rows="2"
         />
         <UButton
           color="primary"
@@ -249,15 +246,36 @@ const importPreset = async (event: Event) => {
           @click="savePreset"
         />
       </div>
+    </div>
 
-      <UButton
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-upload"
-        label="Import preset file"
-        block
-        @click="fileInput?.click()"
-      />
+    <div class="min-w-0 rounded-xl border border-default bg-elevated/20 p-4 sm:p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+          <UIcon name="i-lucide-library" class="size-4 text-primary" />
+          Preset library
+          <span class="rounded-md bg-elevated px-2 py-0.5 font-mono text-[11px] font-normal text-muted">{{ presets.length }}</span>
+        </h3>
+        <div class="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <UInput
+            v-if="presets.length"
+            v-model="query"
+            icon="i-lucide-search"
+            size="sm"
+            placeholder="Filter presets…"
+            aria-label="Filter presets"
+            class="min-w-0 flex-1 sm:w-48 sm:flex-none"
+          />
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            icon="i-lucide-upload"
+            label="Import"
+            @click="fileInput?.click()"
+          />
+        </div>
+      </div>
+
       <input
         ref="fileInput"
         type="file"
@@ -266,42 +284,24 @@ const importPreset = async (event: Event) => {
         aria-label="Import preset file"
         @change="importPreset"
       >
-    </div>
-
-    <!-- Library -->
-    <div class="space-y-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-          <UIcon name="i-lucide-library" class="size-4 text-primary" />
-          Preset library
-          <span class="rounded-sm bg-elevated px-1.5 py-0.5 font-mono text-[11px] font-normal text-muted">{{ presets.length }}</span>
-        </h3>
-        <UInput
-          v-if="presets.length"
-          v-model="query"
-          icon="i-lucide-search"
-          size="sm"
-          placeholder="Filter presets…"
-          aria-label="Filter presets"
-          class="w-full sm:w-56"
-        />
-      </div>
 
       <UEmpty
         v-if="!presets.length"
+        class="mt-5 rounded-lg border border-dashed border-default bg-default/40 px-4 py-8"
         icon="i-lucide-library"
-        title="No presets yet"
-        description="Capture the current device configuration and save it here as a reusable preset."
+        title="Your library is empty"
+        description="Capture a device configuration or import a preset file to get started."
       />
 
       <UEmpty
         v-else-if="!filteredPresets.length"
+        class="mt-5"
         icon="i-lucide-search-x"
         title="No matches"
         :description="`No preset matches “${query}”.`"
       />
 
-      <div v-else class="space-y-3">
+      <div v-else class="mt-4 space-y-3">
         <article
           v-for="preset in filteredPresets"
           :key="preset.id"

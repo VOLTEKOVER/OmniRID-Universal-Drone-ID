@@ -9,7 +9,7 @@ import type { AutoSearchIndex, SearchAction } from '~/config/search'
 import { pageDescriptions, pageForRoute, pageGroups, pageStatusMeta } from '~/pages.config'
 import type { PageStatus } from '~/pages.config'
 import { DEFAULTS, normalizeConfig, pageStatus, regionChecklist, validateConfig } from '~/config/device'
-import type { DeviceConfig, PageId, RequiredConfigItem, RuntimeCheck } from '~/config/device'
+import type { DeviceConfig, PageId } from '~/config/device'
 
 const route = useRoute()
 const router = useRouter()
@@ -134,18 +134,22 @@ const retryConnection = async () => {
 }
 const checklistConfig = ref<DeviceConfig | null>(null)
 const isChecklistLoading = ref(false)
+const checklistLoadError = ref('')
 
 const loadChecklist = async () => {
   if (!isEspConnected.value) {
     checklistConfig.value = null
+    checklistLoadError.value = ''
     return
   }
   isChecklistLoading.value = true
+  checklistLoadError.value = ''
   try {
     const data = await proxyFetch<Record<string, unknown> | null>('api/config', { timeout: 5000 })
     checklistConfig.value = normalizeConfig({ ...DEFAULTS, ...(data ?? {}) })
-  } catch {
+  } catch (error) {
     checklistConfig.value = null
+    checklistLoadError.value = error instanceof Error ? error.message : 'The device configuration could not be read.'
   } finally {
     isChecklistLoading.value = false
   }
@@ -153,7 +157,10 @@ const loadChecklist = async () => {
 
 watch(() => isEspConnected.value, (connected) => {
   if (connected) loadChecklist()
-  else checklistConfig.value = null
+  else {
+    checklistConfig.value = null
+    checklistLoadError.value = ''
+  }
 })
 
 watch(isChecklistOpen, (open) => {
@@ -177,34 +184,79 @@ const complianceItems = computed(() => {
   return regionChecklist(checklistConfig.value, runtime).items.filter(item => item.required)
 })
 
-const complianceMeta: Record<RequiredConfigItem | RuntimeCheck, { label: string, detail: string, route: string }> = {
-  uas_id: { label: 'UAS ID', detail: 'Broadcast identifier for the aircraft.', route: '/tx/identity' },
-  ua_type: { label: 'UA Type', detail: 'Aircraft category reported to receivers.', route: '/tx/identity' },
-  op_id: { label: 'Operator ID', detail: 'Registration number required in this region.', route: '/tx/identity' },
-  tx: { label: 'Transmission mode', detail: 'At least one broadcast link enabled.', route: '/tx/nation-standard-transmission' },
-  gps: { label: 'GPS fix', detail: 'Live position lock from the flight controller.', route: '/dashboard' },
-  broadcast: { label: 'Live broadcast', detail: 'Remote ID frames seen on air.', route: '/dashboard' }
-}
+const readinessItems = computed(() => {
+  if (!checklistConfig.value) {
+    return [
+      { id: 'identity', label: 'Identity fields complete', detail: 'Complete the required UAS and operator identity fields.', route: '/tx/identity', ok: null },
+      { id: 'broadcast', label: 'At least one broadcast channel enabled', detail: 'Enable a WiFi or Bluetooth Remote ID transmission mode.', route: '/tx/nation-standard-transmission', ok: null },
+      { id: 'gps', label: 'GPS or approved fallback configured', detail: 'Get a GPS fix or enable broadcast without GPS.', route: '/tx/hardware', ok: null },
+      { id: 'security', label: 'Security settings reviewed', detail: 'Review the device lock and security options.', route: '/tx/security', ok: null }
+    ]
+  }
+  const identityChecks = complianceItems.value.filter(item => ['uas_id', 'ua_type', 'op_id'].includes(item.id))
+  const transmissionCheck = complianceItems.value.find(item => item.id === 'tx')
+  const gpsCheck = complianceItems.value.find(item => item.id === 'gps')
+  const securityStatus = pageStatus(checklistIssues.value, 'system')
+  return [
+    {
+      id: 'identity',
+      label: 'Identity fields complete',
+      detail: 'Complete the required UAS and operator identity fields.',
+      route: '/tx/identity',
+      ok: identityChecks.length > 0
+        && identityChecks.every(item => item.ok)
+        && !checklistIssues.value.some(issue => issue.page === 'identity' && issue.severity === 'error')
+    },
+    {
+      id: 'broadcast',
+      label: 'At least one broadcast channel enabled',
+      detail: 'Enable a WiFi or Bluetooth Remote ID transmission mode.',
+      route: '/tx/nation-standard-transmission',
+      ok: transmissionCheck?.ok === true
+        && !checklistIssues.value.some(issue => issue.page === 'nation' && issue.severity === 'error')
+    },
+    {
+      id: 'gps',
+      label: 'GPS or approved fallback configured',
+      detail: 'Get a GPS fix or enable broadcast without GPS.',
+      route: '/tx/hardware',
+      ok: gpsCheck?.ok === true || checklistConfig.value.bcast_powerup === 1
+    },
+    {
+      id: 'security',
+      label: 'Security configuration valid',
+      detail: 'Review the device lock and signing-key settings.',
+      route: '/tx/security',
+      ok: securityStatus === 'valid'
+    }
+  ]
+})
 
 const configPages: { id: PageId, label: string, route: string }[] = [
   { id: 'identity', label: 'Identity', route: '/tx/identity' },
   { id: 'nation', label: 'Nation & transmission', route: '/tx/nation-standard-transmission' },
-  { id: 'fc', label: 'Flight controller', route: '/tx/flight-controller' },
   { id: 'hardware', label: 'Hardware', route: '/tx/hardware' },
   { id: 'system', label: 'Security & options', route: '/tx/security' }
 ]
 
-const configPageStatus = (id: PageId) => pageStatus(checklistIssues.value, id)
+const configPageStatus = (id: PageId) => {
+  if (id !== 'hardware') return pageStatus(checklistIssues.value, id)
+  const hardwareStatus = pageStatus(checklistIssues.value, 'hardware')
+  const flightControllerStatus = pageStatus(checklistIssues.value, 'fc')
+  if (hardwareStatus === 'invalid' || flightControllerStatus === 'invalid') return 'invalid'
+  if (hardwareStatus === 'warning' || flightControllerStatus === 'warning') return 'warning'
+  return 'valid'
+}
 
 const checklistProgress = computed(() => {
-  const items = complianceItems.value
+  const items = readinessItems.value
   if (!items.length) return 0
   return Math.round((items.filter(item => item.ok).length / items.length) * 100)
 })
 
 const checklistReady = computed(() => !!checklistConfig.value
-  && complianceItems.value.length > 0
-  && complianceItems.value.every(item => item.ok)
+  && readinessItems.value.length > 0
+  && readinessItems.value.every(item => item.ok)
   && checklistIssues.value.every(issue => issue.severity !== 'error'))
 
 const openChecklistRoute = (route: string) => {
@@ -372,7 +424,6 @@ watch(searchTerm, (term) => {
 <template>
   <UDashboardGroup unit="rem" class="bg-default">
     <header class="fixed inset-x-0 top-0 z-50 h-16 border-b border-default bg-default/85 backdrop-blur-xl">
-      <div aria-hidden="true" class="absolute inset-x-0 top-0 h-0.5 bg-primary" />
       <div class="flex h-16 items-center gap-1.5 overflow-x-auto px-3 sm:gap-3 sm:px-6 lg:px-8">
         <UButton
           color="neutral"
@@ -402,7 +453,7 @@ watch(searchTerm, (term) => {
           />
         </UTooltip>
 
-        <DeviceStatusIndicator class="hidden shrink-0 md:flex" />
+        <AppOfflineStatus class="shrink-0" />
 
         <UButton
           color="neutral"
@@ -438,137 +489,41 @@ watch(searchTerm, (term) => {
         <div class="hidden h-6 w-px shrink-0 bg-default md:block" aria-hidden="true" />
 
         <div class="flex shrink-0 items-center gap-1 sm:gap-1.5 lg:gap-2">
-          <UPopover v-model:open="isChecklistOpen" :content="{ align: 'end', sideOffset: 8 }">
-            <UButton
-              color="neutral"
-              variant="soft"
-              size="sm"
-              icon="i-lucide-list-checks"
-              aria-label="Open configuration checklist"
-            >
-              <span class="hidden sm:inline">Checklist</span>
-              <template #trailing>
-                <span class="flex items-center gap-1.5">
-                  <svg viewBox="0 0 36 36" class="size-8 -rotate-90" aria-hidden="true">
-                    <circle
-                      cx="18"
-                      cy="18"
-                      r="15"
-                      fill="none"
-                      class="stroke-current/15"
-                      stroke-width="3.5"
-                    />
-                    <circle
-                      cx="18"
-                      cy="18"
-                      r="15"
-                      fill="none"
-                      class="stroke-primary"
-                      stroke-width="3.5"
-                      stroke-linecap="round"
-                      :stroke-dasharray="`${checklistProgress * 0.942} 100`"
-                    />
-                  </svg>
-                  <span class="text-[11px] font-bold leading-none tabular-nums">{{ isEspConnected ? `${checklistProgress}%` : '—' }}</span>
-                </span>
-              </template>
-            </UButton>
-            <template #content>
-              <div class="w-[24rem] max-w-[calc(100vw-2rem)] space-y-3 p-3">
-                <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <p class="text-sm font-semibold text-highlighted">
-                      Mission readiness
-                    </p>
-                    <p class="mt-0.5 text-xs text-muted">
-                      {{ isEspConnected ? `Live checks for ${complianceStandard}.` : 'Connect to the ESP to run live checks.' }}
-                    </p>
-                  </div>
-                  <UBadge
-                    :color="!isEspConnected ? 'neutral' : checklistReady ? 'success' : 'warning'"
-                    variant="soft"
-                    :label="!isEspConnected ? 'Offline' : checklistReady ? 'Ready' : 'Action needed'"
+          <UButton
+            color="neutral"
+            variant="soft"
+            size="sm"
+            icon="i-lucide-list-checks"
+            aria-label="Open configuration checklist"
+            @click="isChecklistOpen = true"
+          >
+            <span class="hidden sm:inline">Checklist</span>
+            <template #trailing>
+              <span class="flex items-center gap-1.5">
+                <svg viewBox="0 0 36 36" class="size-8 -rotate-90" aria-hidden="true">
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="15"
+                    fill="none"
+                    class="stroke-current/15"
+                    stroke-width="3.5"
                   />
-                </div>
-
-                <div v-if="!isEspConnected" class="rounded-lg border border-dashed border-default px-3 py-6 text-center">
-                  <UIcon name="i-lucide-plug-zap" class="mx-auto size-5 text-muted" aria-hidden="true" />
-                  <p class="mt-2 text-xs text-muted">
-                    Readiness checks compare the live configuration against your region requirements.
-                  </p>
-                  <UButton
-                    class="mt-3"
-                    color="primary"
-                    variant="soft"
-                    size="sm"
-                    icon="i-lucide-router"
-                    label="Configure connection"
-                    @click="isChecklistOpen = false; isEspIpOpen = true"
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="15"
+                    fill="none"
+                    class="stroke-primary"
+                    stroke-width="3.5"
+                    stroke-linecap="round"
+                    :stroke-dasharray="`${checklistProgress * 0.942} 100`"
                   />
-                </div>
-
-                <template v-else>
-                  <div class="space-y-1">
-                    <p class="px-1 text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
-                      Region compliance
-                    </p>
-                    <button
-                      v-for="item in complianceItems"
-                      :key="item.id"
-                      type="button"
-                      class="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition hover:bg-elevated/60"
-                      @click="openChecklistRoute(complianceMeta[item.id].route)"
-                    >
-                      <UIcon
-                        :name="item.ok ? 'i-lucide-circle-check' : 'i-lucide-circle-dashed'"
-                        :class="item.ok ? 'text-success' : 'text-warning'"
-                        class="mt-0.5 size-4 shrink-0"
-                      />
-                      <span class="min-w-0 flex-1">
-                        <span class="block text-sm font-medium text-highlighted">{{ complianceMeta[item.id].label }}</span>
-                        <span class="mt-0.5 block text-xs text-muted">{{ item.ok ? 'Compliant.' : complianceMeta[item.id].detail }}</span>
-                      </span>
-                      <UIcon name="i-lucide-arrow-up-right" class="mt-0.5 size-3.5 shrink-0 text-muted" aria-hidden="true" />
-                    </button>
-                  </div>
-
-                  <div class="space-y-1">
-                    <p class="px-1 text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
-                      Configuration
-                    </p>
-                    <button
-                      v-for="page in configPages"
-                      :key="page.id"
-                      type="button"
-                      class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition hover:bg-elevated/60"
-                      @click="openChecklistRoute(page.route)"
-                    >
-                      <span
-                        class="size-2 shrink-0 rounded-full"
-                        :class="configPageStatus(page.id) === 'invalid' ? 'bg-error' : configPageStatus(page.id) === 'warning' ? 'bg-warning' : 'bg-success'"
-                      />
-                      <span class="min-w-0 flex-1 truncate text-sm text-default">{{ page.label }}</span>
-                      <span
-                        class="shrink-0 text-[11px] font-medium uppercase tracking-[0.12em]"
-                        :class="configPageStatus(page.id) === 'invalid' ? 'text-error' : configPageStatus(page.id) === 'warning' ? 'text-warning' : 'text-muted'"
-                      >{{ configPageStatus(page.id) === 'invalid' ? 'Error' : configPageStatus(page.id) === 'warning' ? 'Review' : 'Valid' }}</span>
-                    </button>
-                  </div>
-
-                  <UButton
-                    color="primary"
-                    variant="soft"
-                    size="sm"
-                    block
-                    icon="i-lucide-refresh-cw"
-                    label="Re-run checks"
-                    :loading="isChecklistLoading"
-                    @click="loadChecklist"
-                  />
-                </template>
-              </div>
+                </svg>
+                <span class="text-[11px] font-bold leading-none tabular-nums">{{ isEspConnected ? `${checklistProgress}%` : '—' }}</span>
+              </span>
             </template>
-          </UPopover>
+          </UButton>
 
           <UPopover v-model:open="isEspIpOpen" :content="{ align: 'end', sideOffset: 8 }">
             <UButton
@@ -897,42 +852,28 @@ watch(searchTerm, (term) => {
               />
             </div>
 
-            <UPopover v-if="collapsed" :content="{ sideOffset: 8 }">
+            <UPopover :content="{ sideOffset: 8 }">
               <UButton
                 color="error"
-                variant="solid"
-                square
+                variant="soft"
+                :block="!collapsed"
+                :square="collapsed"
                 icon="i-lucide-triangle-alert"
                 aria-label="Important disclaimer"
-              />
+              >
+                <span v-if="!collapsed">Safety notice</span>
+              </UButton>
               <template #content>
-                <div class="w-[20rem] max-w-[calc(100vw-2rem)] space-y-2 p-3">
+                <div class="w-[22rem] max-w-[calc(100vw-2rem)] space-y-2 p-3">
                   <p class="text-sm font-semibold text-highlighted">
                     Important disclaimer
                   </p>
-                  <p class="text-[11px] leading-4 text-muted">
+                  <p class="max-h-[50vh] overflow-y-auto text-xs leading-5 text-muted">
                     {{ disclaimerText }}
                   </p>
                 </div>
               </template>
             </UPopover>
-
-            <UAlert
-              v-else
-              color="error"
-              variant="solid"
-              icon="i-lucide-triangle-alert"
-              :ui="{ icon: 'text-white' }"
-              class="rounded-lg"
-            >
-              <template #description>
-                <div class="max-h-[30vh] overflow-y-auto pr-1">
-                  <p class="text-[11px] leading-4 text-white">
-                    {{ disclaimerText }}
-                  </p>
-                </div>
-              </template>
-            </UAlert>
           </div>
         </div>
       </template>
@@ -945,6 +886,154 @@ watch(searchTerm, (term) => {
       :fuse="searchFuse"
     />
     <slot />
+    <USlideover
+      v-model:open="isChecklistOpen"
+      title="Mission readiness"
+      description="Compare saved device settings with the configured region standard."
+      :ui="{ content: 'w-full sm:max-w-xl' }"
+    >
+      <template #body>
+        <div class="flex h-full min-h-0 flex-col">
+          <div class="flex items-center justify-between gap-3 border-b border-default pb-4">
+            <div class="min-w-0">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+                Device connection
+              </p>
+              <p class="mt-1 text-sm text-muted">
+                {{ isEspConnected ? complianceStandard : 'No ESP connected' }}
+              </p>
+            </div>
+            <UBadge
+              class="shrink-0"
+              :color="!isEspConnected ? 'neutral' : checklistLoadError ? 'error' : checklistReady ? 'success' : 'warning'"
+              variant="soft"
+              :label="!isEspConnected ? 'Offline' : checklistLoadError ? 'Unavailable' : isChecklistLoading ? 'Checking' : checklistReady ? 'Ready' : 'Action needed'"
+            />
+          </div>
+
+          <div class="min-h-0 flex-1 space-y-6 overflow-y-auto py-5">
+            <UAlert
+              v-if="!isEspConnected"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-wifi-off"
+              title="Live checks are unavailable"
+              description="Connect the ESP to compare its saved settings with the configured standard."
+            >
+              <template #actions>
+                <UButton
+                  color="neutral"
+                  variant="outline"
+                  size="sm"
+                  icon="i-lucide-router"
+                  label="Configure connection"
+                  @click="isChecklistOpen = false; isEspIpOpen = true"
+                />
+              </template>
+            </UAlert>
+
+            <UAlert
+              v-if="isEspConnected && isChecklistLoading"
+              color="info"
+              variant="soft"
+              icon="i-lucide-loader-circle"
+              title="Reading device configuration"
+              description="Loading saved settings and checking them against the selected standard."
+            />
+
+            <UAlert
+              v-if="isEspConnected && checklistLoadError"
+              color="error"
+              variant="soft"
+              icon="i-lucide-circle-alert"
+              title="Could not read the device configuration"
+              :description="checklistLoadError"
+            >
+              <template #actions>
+                <UButton
+                  color="error"
+                  variant="outline"
+                  size="sm"
+                  icon="i-lucide-refresh-cw"
+                  label="Try again"
+                  @click="loadChecklist"
+                />
+              </template>
+            </UAlert>
+
+            <section v-if="!isChecklistLoading && !checklistLoadError && (!isEspConnected || checklistConfig)">
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <h2 class="text-sm font-semibold text-highlighted">
+                  Readiness checklist
+                </h2>
+                <span class="text-xs tabular-nums text-muted">
+                  {{ !isEspConnected ? 'Not checked' : `${readinessItems.filter(item => item.ok).length}/${readinessItems.length} passed` }}
+                </span>
+              </div>
+              <div class="divide-y divide-default rounded-xl border border-default bg-elevated/30">
+                <button
+                  v-for="item in readinessItems"
+                  :key="item.id"
+                  type="button"
+                  class="flex w-full items-start gap-3 px-4 py-4 text-left transition first:rounded-t-xl last:rounded-b-xl hover:bg-elevated/60"
+                  @click="openChecklistRoute(item.route)"
+                >
+                  <UIcon
+                    :name="item.ok === null ? 'i-lucide-circle-help' : item.ok ? 'i-lucide-circle-check' : 'i-lucide-circle-dashed'"
+                    :class="item.ok === null ? 'text-muted' : item.ok ? 'text-success' : 'text-error'"
+                    class="mt-0.5 size-5 shrink-0"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-medium text-highlighted">{{ item.label }}</span>
+                    <span class="mt-1 block text-xs leading-5 text-muted">{{ item.ok ? 'Passed' : item.detail }}</span>
+                  </span>
+                  <UIcon name="i-lucide-arrow-up-right" class="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
+                </button>
+              </div>
+            </section>
+
+            <section v-if="isEspConnected">
+              <h2 class="mb-2 text-sm font-semibold text-highlighted">
+                Configuration status
+              </h2>
+              <div class="divide-y divide-default rounded-xl border border-default bg-elevated/30">
+                <button
+                  v-for="page in configPages"
+                  :key="page.id"
+                  type="button"
+                  class="flex w-full items-center gap-3 px-4 py-3 text-left transition first:rounded-t-xl last:rounded-b-xl hover:bg-elevated/60"
+                  @click="openChecklistRoute(page.route)"
+                >
+                  <span
+                    class="size-2.5 shrink-0 rounded-full"
+                    :class="configPageStatus(page.id) === 'invalid' ? 'bg-error' : configPageStatus(page.id) === 'warning' ? 'bg-warning' : 'bg-success'"
+                  />
+                  <span class="min-w-0 flex-1 truncate text-sm text-default">{{ page.label }}</span>
+                  <span
+                    class="shrink-0 text-xs font-medium uppercase tracking-[0.12em]"
+                    :class="configPageStatus(page.id) === 'invalid' ? 'text-error' : configPageStatus(page.id) === 'warning' ? 'text-warning' : 'text-muted'"
+                  >{{ configPageStatus(page.id) === 'invalid' ? 'Error' : configPageStatus(page.id) === 'warning' ? 'Review' : 'Valid' }}</span>
+                  <UIcon name="i-lucide-arrow-up-right" class="size-4 shrink-0 text-muted" aria-hidden="true" />
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <div class="border-t border-default pt-4">
+            <UButton
+              color="primary"
+              variant="soft"
+              block
+              icon="i-lucide-refresh-cw"
+              label="Refresh checks"
+              :loading="isChecklistLoading"
+              :disabled="!isEspConnected"
+              @click="loadChecklist"
+            />
+          </div>
+        </div>
+      </template>
+    </USlideover>
     <NotificationsSlideover />
     <AppSettingsSlideover v-if="isMobileNav" />
     <ConfigAuthModal />

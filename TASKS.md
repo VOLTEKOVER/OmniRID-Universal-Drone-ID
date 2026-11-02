@@ -19,6 +19,8 @@
 - ✅ Add CI job for the PWA (lint, typecheck, build) to the GitHub workflow.
 - ✅ Document OTA workflow and security hardening steps in `SECURITY.md`.
 - **Web UI / ground‑station polish backlog** (issue #54) – UI/UX improvements, polish, accessibility.
+- **Memory usage reporting** – expose real ESP32 flash-partition and NVS usage through the firmware API, then add a detected SD-card usage bar; SD support is pending the user's card model and wiring details.
+- **Saved route history download** – persist flight-route history in firmware and expose an authenticated API so the app can request and import saved routes; SD-backed storage depends on selecting the card model and wiring.
 - **GNSS advanced options** – expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware.
 - **DroneCAN AHRS / Identity** – implement AHRS and Identity parsing (issue #52).
 - **Non‑ASTM output encoders** – GB 42590 / FRDID support (issue #46).

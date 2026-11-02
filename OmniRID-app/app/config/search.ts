@@ -290,7 +290,7 @@ export function referenceEntries(): SearchEntry[] {
   for (const protocol of PROTOCOLS) {
     out.push({
       label: protocol.label,
-      to: '/tx/flight-controller',
+      to: '/tx/hardware',
       icon: 'i-lucide-cable',
       suffix: 'Protocol',
       description: 'Flight-controller telemetry protocol',
@@ -373,7 +373,7 @@ export function referenceEntries(): SearchEntry[] {
   }
   out.push({
     label: 'UART baud rates',
-    to: '/tx/flight-controller',
+    to: '/tx/hardware',
     icon: 'i-lucide-gauge',
     suffix: 'Reference',
     description: BAUD_RATES.join(' · '),

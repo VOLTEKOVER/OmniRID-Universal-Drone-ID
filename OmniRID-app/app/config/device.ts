@@ -417,8 +417,8 @@ export function validateConfig(c: DeviceConfig, ctx: ValidationContext = {}): Is
   if (c.lock_level >= 1 && !publicKeys(c).some(k => k.trim()))
     err('lock_level', 'system', `Lock level ${c.lock_level} requires at least one public key, otherwise the device becomes unreachable.`)
   if (![0, 1, 2].includes(c.lock_level)) err('lock_level', 'system', 'Invalid lock level.')
-  if (hasFlag(c.options, OPTIONS.demoMode)) warn('options', 'system', 'Demo mode active: transmits a simulated GPS position.')
-  if (hasFlag(c.options, OPTIONS.forceArm)) warn('options', 'system', 'Force ARM OK active: test option, not for real flights.')
+  if (hasFlag(c.options, OPTIONS.demoMode)) warn('options', 'hardware', 'Demo mode active: transmits a simulated GPS position.')
+  if (hasFlag(c.options, OPTIONS.forceArm)) warn('options', 'hardware', 'Force ARM OK active: test option, not for real flights.')
 
   return out
 }

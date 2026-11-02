@@ -38,8 +38,7 @@ export const pageDescriptions: Record<string, string> = {
   'dashboard': 'Live telemetry, ESP connection status, device monitoring and sensor readings',
   'nation': 'Country, Remote ID standard and transmission configuration',
   'identity': 'UAS ID, operator ID, registration number, serial and CAA identity fields',
-  'flight-controller': 'Flight-controller link, UART wiring and protocol pins',
-  'hardware': 'Board variant, GPIO, console and power information',
+  'hardware': 'Flight-controller connection, UART, DroneCAN, GPIO and boot configuration',
   'memory': 'Storage, presets and memory management tools',
   'security': 'Device lock, command signing, public keys, panel access and security options',
   'console': 'Live firmware console, serial terminal, command output and logs',
@@ -91,7 +90,6 @@ export const pageGroups: PageGroup[] = [
     items: [
       { id: 'nation', to: '/tx/nation-standard-transmission', group: 'tx', label: 'Nation, Standard & Transmission', icon: 'i-lucide-globe', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
       { id: 'identity', to: '/tx/identity', group: 'tx', label: 'Identity', icon: 'i-lucide-user', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
-      { id: 'flight-controller', to: '/tx/flight-controller', group: 'tx', label: 'Flight Controller', icon: 'i-lucide-plane', kind: 'drone', status: 'stable', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
       { id: 'hardware', to: '/tx/hardware', group: 'tx', label: 'Hardware', icon: 'i-lucide-cpu', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
       { id: 'memory', to: '/tx/memory', group: 'tx', label: 'Memory', icon: 'i-lucide-database', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },
       { id: 'security', to: '/tx/security', group: 'tx', label: 'Security', icon: 'i-lucide-shield-check', kind: 'drone', status: 'implemented', requiresConnection: true, requiresESP: true, minLockLevel: 0 },

@@ -1,214 +1,199 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-
+import type { NearbyDrone } from '~/components/DroneMap.vue'
+import { useAppSettings } from '~/composables/useAppSettings'
+import { useEspConnection } from '~/composables/useEspConnection'
 import { useTelemetry } from '~/composables/useTelemetry'
 
-import { useAppSettings } from '~/composables/useAppSettings'
-
-import type { NearbyDrone } from '~/components/DroneMap.vue'
-
-const { status } = useTelemetry()
-const { settings } = useAppSettings()
-const { isSimulated } = useEspConnection()
-
-const droneMapRef = ref<unknown>(null)
-
-const simNearbyState = ref({
-  t: 0,
-  d1: { lat: 41.9038, lon: 12.4972, vx: 0.00001, vy: 0.000008 },
-  d2: { lat: 41.9018, lon: 12.4952, vx: -0.000008, vy: 0.000012 },
-  d3: { lat: 41.9042, lon: 12.4950, vx: 0.000006, vy: -0.00001 }
-})
-
-const currentHashKey = () => {
-  try {
-    const h = window.location.hash || ''
-    if (h.startsWith('#rx/detections/')) {
-      return decodeURIComponent(h.split('#rx/detections/')[1]!).trim()
-    }
-  } catch {
-    // Malformed hash: fall back to no selection.
-  }
-  return ''
+interface CityCenter {
+  lat: number
+  lng: number
 }
 
-onMounted(() => {
-  if (import.meta.client) {
-    try {
-      const handler = (e: KeyboardEvent) => {
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-          const list = nearby.value || []
-          if (!list.length) return
-          e.preventDefault()
-          const keys = list.map(d => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
-          const curKey = currentHashKey()
-          const cur = curKey ? keys.findIndex(k => k === curKey) : -1
-          let idx = cur >= 0 ? cur : -1
-          if (e.key === 'ArrowDown') idx = (idx + 1) % keys.length
-          if (e.key === 'ArrowUp') idx = (idx - 1 + keys.length) % keys.length
-          if (idx >= 0 && keys[idx]) {
-            try {
-              window.location.hash = `#rx/detections/${encodeURIComponent(keys[idx]!)}`
-            } catch {
-              // Ignore hash update failures (e.g. navigation locked).
-            }
-          }
-          return
-        }
-        if (e.key === 'Enter') {
-          const list = nearby.value || []
-          if (!list.length) return
-          const keys = list.map(d => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
-          const curKey = currentHashKey()
-          if (curKey && keys.includes(curKey)) {
-            e.preventDefault()
-            try {
-              window.location.hash = `#rx/detections/${encodeURIComponent(curKey)}`
-            } catch {
-              // Ignore hash update failures (e.g. navigation locked).
-            }
-          }
-        }
-      }
-      window.addEventListener('keydown', handler)
-      onUnmounted(() => window.removeEventListener('keydown', handler))
-    } catch {
-      // Keyboard navigation unavailable (e.g. window access blocked).
-    }
-    const id = setInterval(() => {
-      simNearbyState.value.t += 0.016
-      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
-      const s1 = simNearbyState.value.d1
-      s1.lat += s1.vx
-      s1.lon += s1.vy
-      if (s1.lat > 41.905 || s1.lat < 41.901) s1.vx *= -1
-      if (s1.lon > 12.498 || s1.lon < 12.4945) s1.vy *= -1
-      s1.vx = clamp(s1.vx + (Math.random() - 0.5) * 0.0000005, -0.000012, 0.000012)
-      s1.vy = clamp(s1.vy + (Math.random() - 0.5) * 0.0000005, -0.000012, 0.000012)
-      const s2 = simNearbyState.value.d2
-      s2.lat += s2.vx
-      s2.lon += s2.vy
-      if (s2.lat > 41.905 || s2.lat < 41.901) s2.vx *= -1
-      if (s2.lon > 12.498 || s2.lon < 12.4945) s2.vy *= -1
-      s2.vx = clamp(s2.vx + (Math.random() - 0.5) * 0.0000006, -0.000014, 0.000014)
-      s2.vy = clamp(s2.vy + (Math.random() - 0.5) * 0.0000006, -0.000014, 0.000014)
-      const s3 = simNearbyState.value.d3
-      s3.lat += s3.vx
-      s3.lon += s3.vy
-      if (s3.lat > 41.905 || s3.lat < 41.901) s3.vx *= -1
-      if (s3.lon > 12.498 || s3.lon < 12.4945) s3.vy *= -1
-      s3.vx = clamp(s3.vx + (Math.random() - 0.5) * 0.0000004, -0.00001, 0.00001)
-      s3.vy = clamp(s3.vy + (Math.random() - 0.5) * 0.0000004, -0.00001, 0.00001)
-    }, 50)
-    onUnmounted(() => clearInterval(id))
+interface GeocodingResult {
+  lat: string
+  lon: string
+  display_name: string
+}
+
+const { settings, loaded } = useAppSettings()
+const { configAuthenticated } = useEspConnection()
+const { status: telemetryStatus } = useTelemetry()
+const detections = ref<NearbyDrone[]>([])
+const cityCenter = ref<CityCenter | null>(null)
+const cityError = ref('')
+const resolvingCity = ref(false)
+const isDevelopment = import.meta.dev
+const isVirtualConnectionActive = computed(() => settings.value.virtualConnection !== 'off')
+const ownDroneEnabled = computed(() => (
+  (isDevelopment && isVirtualConnectionActive.value && cityCenter.value !== null)
+  || configAuthenticated.value
+))
+const simulationStep = ref(0)
+const ownDroneStatus = computed(() => {
+  const status = { ...telemetryStatus.value }
+  if (!isDevelopment || !isVirtualConnectionActive.value || !cityCenter.value) return status
+  const angle = simulationStep.value * 0.06
+  const position = {
+    lat: cityCenter.value.lat + Math.sin(angle) * 0.0007,
+    lng: cityCenter.value.lng + Math.cos(angle) * 0.0007 * Math.cos(cityCenter.value.lat * Math.PI / 180)
+  }
+  return {
+    ...status,
+    gps_valid: true,
+    lat: position.lat,
+    lon: position.lng,
+    takeoff_captured: true,
+    takeoff_lat: cityCenter.value.lat,
+    takeoff_lon: cityCenter.value.lng,
+    detection_detail: 'Virtual TX drone',
+    aircraft_manufacturer: 'OmniRID',
+    aircraft_model_name: 'Virtual transmitter'
   }
 })
+let geocodeController: AbortController | null = null
+let simulationInterval: ReturnType<typeof setInterval> | null = null
+let simulationStartedAt = 0
+const simulatedTracks = new Map<number, CityCenter[]>()
+const SIMULATED_DRONES = [
+  { id: 'DEV-RID-001', model: 'Quadcopter', manufacturer: 'Demo Aviation', operatorId: 'DEMO-OP-001', radius: 0.0014, altitude: 48, speed: 5.2, heading: 35, rssi: -48 },
+  { id: 'DEV-RID-002', model: 'Fixed-wing UAV', manufacturer: 'Demo Robotics', operatorId: 'DEMO-OP-002', radius: 0.0022, altitude: 92, speed: 12.4, heading: 118, rssi: -61 },
+  { id: 'DEV-RID-003', model: 'Camera drone', manufacturer: 'Sample Dynamics', operatorId: 'DEMO-OP-003', radius: 0.003, altitude: 65, speed: 3.8, heading: 205, rssi: -72 },
+  { id: 'DEV-RID-004', model: 'Survey UAV', manufacturer: 'Demo Aviation', operatorId: 'DEMO-OP-004', radius: 0.004, altitude: 120, speed: 8.6, heading: 287, rssi: -55 }
+] as const
+const MAX_SIMULATED_TRACK_POINTS = 40
 
-const nearby = computed<NearbyDrone[]>(() => {
-  if (!isSimulated.value || settings.value.virtualConnection === 'off' || !settings.value.virtualNearbyDrones) return []
-  const t = simNearbyState.value.t
-  const now = new Date()
-  const s1 = simNearbyState.value.d1
-  const s2 = simNearbyState.value.d2
-  const s3 = simNearbyState.value.d3
-  const h1 = Math.round(((Math.atan2(s1.vy, s1.vx) * 180 / Math.PI) % 360 + 360) % 360)
-  const h2 = Math.round(((Math.atan2(s2.vy, s2.vx) * 180 / Math.PI) % 360 + 360) % 360)
-  const h3 = Math.round(((Math.atan2(s3.vy, s3.vx) * 180 / Math.PI) % 360 + 360) % 360)
-  return [
-    {
-      id: 'sim-dji-1',
-      uas_id: '1581F67PB229G0010A8F',
-      serial_number: '1581F67PB229G0010A8F',
-      lat: s1.lat,
-      lng: s1.lon,
-      altitude: 45 + Math.sin(t / 4) * 2,
-      speed: Math.sqrt(s1.vx * s1.vx + s1.vy * s1.vy) * 111000,
-      heading: h1,
-      operator_id: '—',
-      uas_operator_id: '—',
-      rssi: -65,
-      last_seen: now.toLocaleString(),
-      last_seen_ts: Date.now(),
-      first_seen: '7 Apr, 2026, 11:33:17',
-      detection_detail: 'DJI Mavic 3 Classic',
-      aircraft_manufacturer: 'DJI',
-      aircraft_model_name: 'Mavic 3 Classic',
-      transmission_technology: 'Wi-Fi Beacon',
-      protocol: 'Wi-Fi Beacon',
-      information_source: '1596F27A7982C4E02992 (RID Receiver)',
-      sources: ['1596F27A7982C4E02992 (RID Receiver)', '1596F276A9DEA5C15A15 (RID Receiver)'],
-      detected_at: 'Tuesday April 7, 2026 at 11:33',
-      duration: '00:15:12',
-      total_distance: '9 m',
-      max_height_ato: '51 m',
-      max_speed: '2 m/s',
-      max_ua_operator_distance: '5 m',
-      max_ua_sensor_distance: '9.72 km',
-      label_and_display_color: '—'
-    },
-    {
-      id: 'sim-autel-1',
-      uas_id: 'AUTEL123456789ABC',
-      serial_number: 'AUTEL123456789ABC',
-      lat: s2.lat,
-      lng: s2.lon,
-      altitude: 38 + Math.sin(t / 5) * 3,
-      speed: Math.sqrt(s2.vx * s2.vx + s2.vy * s2.vy) * 111000,
-      heading: h2,
-      operator_id: 'IT-OP-12345',
-      uas_operator_id: 'IT-OP-12345',
-      rssi: -72,
-      last_seen: now.toLocaleString(),
-      last_seen_ts: Date.now(),
-      first_seen: now.toLocaleString(),
-      detection_detail: 'Autel EVO Nano+',
-      aircraft_manufacturer: 'Autel',
-      aircraft_model_name: 'EVO Nano+',
-      transmission_technology: 'BLE 4.x',
-      protocol: 'BLE 4.x',
-      information_source: '1596F276A9DEA5C15A15 (RID Receiver)',
-      sources: ['1596F276A9DEA5C15A15 (RID Receiver)'],
-      detected_at: now.toLocaleString(),
-      duration: '00:03:24',
-      total_distance: '412 m',
-      max_height_ato: '38 m',
-      max_speed: '8 m/s',
-      max_ua_operator_distance: '24 m',
-      max_ua_sensor_distance: '1.42 km',
-      label_and_display_color: '—'
-    },
-    {
-      id: 'sim-parrot-1',
-      uas_id: 'PARROT987654321XYZ',
-      serial_number: 'PARROT987654321XYZ',
-      lat: s3.lat,
-      lng: s3.lon,
-      altitude: 52 + Math.sin(t / 3) * 1.5,
-      speed: Math.sqrt(s3.vx * s3.vx + s3.vy * s3.vy) * 111000,
-      heading: h3,
-      operator_id: 'FR-OP-99887',
-      uas_operator_id: 'FR-OP-99887',
-      rssi: -68,
-      last_seen: now.toLocaleString(),
-      last_seen_ts: Date.now(),
-      first_seen: now.toLocaleString(),
-      detection_detail: 'Parrot Anafi',
-      aircraft_manufacturer: 'Parrot',
-      aircraft_model_name: 'Anafi',
-      transmission_technology: 'Wi-Fi NAN',
-      protocol: 'Wi-Fi NAN',
-      information_source: '1596F27A7982C4E02992 (RID Receiver)',
-      sources: ['1596F27A7982C4E02992 (RID Receiver)'],
-      detected_at: now.toLocaleString(),
-      duration: '00:07:56',
-      total_distance: '876 m',
-      max_height_ato: '62 m',
-      max_speed: '6 m/s',
-      max_ua_operator_distance: '18 m',
-      max_ua_sensor_distance: '2.84 km',
-      label_and_display_color: '—'
+const routePoint = (center: CityCenter, index: number, step: number): CityCenter => {
+  const drone = SIMULATED_DRONES[index]!
+  const angle = step * 0.11 + index * 1.57
+  return {
+    lat: center.lat + Math.sin(angle) * drone.radius,
+    lng: center.lng + Math.cos(angle) * drone.radius * Math.cos(center.lat * Math.PI / 180)
+  }
+}
+
+const updateSimulatedDetections = () => {
+  const center = cityCenter.value
+  if (!center || !isDevelopment || !isVirtualConnectionActive.value || !settings.value.virtualNearbyDrones) {
+    detections.value = []
+    simulatedTracks.clear()
+    return
+  }
+
+  if (!simulationStartedAt) {
+    simulationStartedAt = Date.now()
+    SIMULATED_DRONES.forEach((_, index) => {
+      simulatedTracks.set(index, Array.from({ length: 24 }, (_, point) =>
+        routePoint(center, index, point - 24)
+      ))
+    })
+  }
+
+  const elapsedSteps = Math.floor((Date.now() - simulationStartedAt) / 1500)
+  const lastSeen = Date.now()
+  detections.value = SIMULATED_DRONES.map((drone, index) => {
+    const track = simulatedTracks.get(index) ?? []
+    const position = routePoint(center, index, elapsedSteps)
+    if (!track.length || track[track.length - 1]!.lat !== position.lat || track[track.length - 1]!.lng !== position.lng) {
+      track.push(position)
     }
-  ]
+    if (track.length > MAX_SIMULATED_TRACK_POINTS) track.splice(0, track.length - MAX_SIMULATED_TRACK_POINTS)
+    simulatedTracks.set(index, track)
+
+    return {
+      id: drone.id,
+      uas_id: drone.id,
+      lat: position.lat,
+      lng: position.lng,
+      altitude: drone.altitude,
+      speed: drone.speed,
+      heading: (drone.heading + elapsedSteps * 5) % 360,
+      rssi: drone.rssi,
+      uas_operator_id: drone.operatorId,
+      operator_id: drone.operatorId,
+      last_seen: new Date(lastSeen).toISOString(),
+      last_seen_ts: lastSeen,
+      first_seen: simulationStartedAt,
+      detected_at: new Date(lastSeen).toISOString(),
+      source: 'Development simulator',
+      protocol: 'ASTM F3411',
+      aircraft_model_name: drone.model,
+      aircraft_manufacturer: drone.manufacturer,
+      detection_detail: `${drone.manufacturer} ${drone.model} (simulated)`,
+      track: [...track]
+    }
+  })
+}
+
+const resolveDefaultCity = async (city: string) => {
+  geocodeController?.abort()
+  geocodeController = null
+  cityError.value = ''
+  cityCenter.value = null
+  simulatedTracks.clear()
+  simulationStartedAt = 0
+  detections.value = []
+  const query = city.trim()
+  if (!query) {
+    resolvingCity.value = false
+    updateSimulatedDetections()
+    return
+  }
+
+  const controller = new AbortController()
+  geocodeController = controller
+  resolvingCity.value = true
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/search')
+    url.searchParams.set('format', 'jsonv2')
+    url.searchParams.set('limit', '1')
+    url.searchParams.set('q', query)
+    const response = await fetch(url, {
+      signal: controller.signal,
+      referrerPolicy: 'strict-origin-when-cross-origin'
+    })
+    if (!response.ok) throw new Error(`City lookup failed (HTTP ${response.status}).`)
+    const results = await response.json() as GeocodingResult[]
+    const result = results[0]
+    if (!result) throw new Error(`No city found for “${query}”.`)
+    const lat = Number(result.lat)
+    const lng = Number(result.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('The city lookup returned invalid coordinates.')
+    cityCenter.value = { lat, lng }
+    updateSimulatedDetections()
+  } catch (error) {
+    if (controller.signal.aborted) return
+    cityError.value = error instanceof Error ? error.message : 'Unable to find that city.'
+  } finally {
+    if (geocodeController === controller) {
+      geocodeController = null
+      resolvingCity.value = false
+    }
+  }
+}
+
+watch(
+  [() => loaded.value, () => settings.value.defaultCity],
+  ([isLoaded, city]) => {
+    if (isLoaded) void resolveDefaultCity(city)
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => settings.value.virtualNearbyDrones, () => settings.value.virtualConnection],
+  updateSimulatedDetections
+)
+
+onMounted(() => {
+  simulationInterval = setInterval(() => {
+    simulationStep.value += 1
+    updateSimulatedDetections()
+  }, 1500)
+})
+
+onBeforeUnmount(() => {
+  geocodeController?.abort()
+  if (simulationInterval) clearInterval(simulationInterval)
 })
 </script>
 
@@ -219,21 +204,38 @@ const nearby = computed<NearbyDrone[]>(() => {
     :ui="{ root: 'pt-16', body: 'p-0 overflow-hidden' }"
   >
     <template #body>
-      <ClientOnly>
-        <DroneMap
-          ref="droneMapRef"
-          :status="status"
-          :nearby-drones="nearby"
-          :show-nearby="settings.virtualNearbyDrones && isSimulated"
-          height-class="h-[calc(100svh-4rem)]"
-          class="rounded-none"
-        />
-        <template #fallback>
-          <div class="flex h-full items-center justify-center">
-            <UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-muted" />
-          </div>
-        </template>
-      </ClientOnly>
+      <div class="relative">
+        <ClientOnly>
+          <DroneMap
+            :nearby-drones="detections"
+            :status="ownDroneStatus"
+            :own-drone-enabled="ownDroneEnabled"
+            :initial-center="cityCenter"
+            height-class="h-[calc(100svh-4rem)]"
+            class="rounded-none"
+          />
+          <template #fallback>
+            <div class="flex h-full items-center justify-center">
+              <UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-muted" />
+            </div>
+          </template>
+        </ClientOnly>
+        <div
+          v-if="isDevelopment && isVirtualConnectionActive && settings.virtualNearbyDrones"
+          class="pointer-events-none absolute bottom-10 right-3 z-[1001] max-w-[min(22rem,calc(100vw-5rem))] rounded-lg border border-white/20 bg-black/90 px-3 py-2 text-right text-white shadow-lg"
+          role="status"
+        >
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-white">
+            Development · Simulated Remote ID
+          </p>
+          <p class="mt-0.5 truncate text-xs text-white/75">
+            {{ resolvingCity ? 'Locating default city…' : settings.defaultCity || 'Choose a default city in settings' }}
+          </p>
+          <p v-if="cityError" class="mt-1 text-xs text-white">
+            {{ cityError }}
+          </p>
+        </div>
+      </div>
     </template>
   </UDashboardPanel>
 </template>

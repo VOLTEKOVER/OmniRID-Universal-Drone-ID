@@ -64,8 +64,8 @@ const heroId = computed(() => heroTitle.value.toLowerCase().replaceAll(' ', '-')
 const pageId = computed<PageId | undefined>(() => {
   const segment = route.path.split('/')[2]
   const map: Record<string, PageId | undefined> = {
-    'nation': 'nation', 'identity': 'identity',
-    'flight-controller': 'fc', 'hardware': 'hardware', 'system': 'system', 'security': 'system'
+    nation: 'nation', identity: 'identity',
+    hardware: 'hardware', system: 'system', security: 'system'
   }
   return segment ? map[segment] : undefined
 })
@@ -80,7 +80,11 @@ const issues = ref<Issue[]>([])
 const dangerItems = computed(() => props.danger ? props.danger({ ...state }) : [])
 const schemaStatus = computed(() => {
   if (!props.validateConfig || !pageId.value || !issues.value.length) return undefined
-  const status = schemaPageStatus(issues.value, pageId.value)
+  const status = pageId.value === 'hardware'
+    ? issues.value.some(issue => issue.severity === 'error')
+      ? 'invalid'
+      : 'warning'
+    : schemaPageStatus(issues.value, pageId.value)
   if (status === 'invalid') return { label: 'Invalid config', color: 'error' as const }
   if (status === 'warning') return { label: 'Check config', color: 'warning' as const }
   return undefined
@@ -329,7 +333,9 @@ const validateSchema = () => {
   issues.value = []
   if (!props.validateConfig) return
   const all = props.validateConfig(toDeviceConfig())
-  issues.value = pageId.value ? all.filter(issue => issue.page === pageId.value) : all
+  issues.value = pageId.value
+    ? all.filter(issue => issue.page === pageId.value || (pageId.value === 'hardware' && issue.page === 'fc'))
+    : all
   for (const issue of issues.value) {
     if (issue.severity === 'error') errors[issue.field] = issue.message
     else if (errors[issue.field]) Reflect.deleteProperty(errors, issue.field)

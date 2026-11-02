@@ -6,7 +6,8 @@ import type { VirtualConnection } from '~/composables/useAppSettings'
 // available height when hosted in a slideover.
 withDefaults(defineProps<{ scrollClass?: string }>(), { scrollClass: 'max-h-[60vh]' })
 
-const { settings } = useAppSettings()
+const { settings, loaded } = useAppSettings()
+const defaultCityDraft = ref(settings.value.defaultCity)
 
 const languageOptions = [
   { label: 'English', value: 'en' },
@@ -21,7 +22,12 @@ const virtualConnectionOptions: { label: string, value: VirtualConnection, icon:
 
 const resetSettings = () => {
   settings.value = { ...defaults }
+  defaultCityDraft.value = defaults.defaultCity
 }
+
+watch(loaded, (isLoaded) => {
+  if (isLoaded) defaultCityDraft.value = settings.value.defaultCity
+})
 </script>
 
 <template>
@@ -95,13 +101,37 @@ const resetSettings = () => {
               </button>
             </div>
           </div>
+          <div class="flex flex-col gap-2 py-3">
+            <div>
+              <p class="text-sm font-medium text-highlighted">
+                Default map city
+              </p>
+              <p class="mt-0.5 text-xs text-muted">
+                Choose a city to center the dashboard and place development detections. The lookup uses OpenStreetMap Nominatim.
+              </p>
+            </div>
+            <div class="flex gap-2">
+              <UInput
+                v-model="defaultCityDraft"
+                class="min-w-0 flex-1"
+                placeholder="e.g. Rome, Italy"
+                aria-label="Default map city"
+                @keydown.enter="settings.defaultCity = defaultCityDraft.trim()"
+              />
+              <UButton
+                label="Set city"
+                :disabled="!defaultCityDraft.trim()"
+                @click="settings.defaultCity = defaultCityDraft.trim()"
+              />
+            </div>
+          </div>
           <div class="flex items-start justify-between gap-4 py-3">
             <div>
               <p class="text-sm font-medium text-highlighted">
                 Virtual nearby drones
               </p>
               <p class="mt-0.5 text-xs text-muted">
-                Generate simulated nearby Remote ID drones around your virtual position for testing.
+                Generate simulated Remote ID detections around the default map city in development mode.
               </p>
             </div>
             <USwitch v-model="settings.virtualNearbyDrones" :disabled="settings.virtualConnection === 'off'" />

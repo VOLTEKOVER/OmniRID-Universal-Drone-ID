@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { PageBadgeColor } from '~/components/PageHero.vue'
 import { installTargets, processSteps } from '~/config/content'
 import { pageForRoute, pageStatusMeta } from '~/pages.config'
 
@@ -7,10 +6,6 @@ const { espIp, isEspConnected, isChecking, lastError, isWifiTransport, canFlashU
 const route = useRoute()
 
 const selectedTarget = ref('esp32')
-const heroBadges: { label: string, color?: PageBadgeColor }[] = [
-  { label: 'Install', color: 'primary' },
-  { label: 'OTA', color: 'info' }
-]
 const heroStatus = computed(() => {
   const page = pageForRoute(route.path)
   return page ? pageStatusMeta(page.status) : undefined
@@ -75,7 +70,6 @@ const flashFirmware = async () => {
         <PageHero
           title="Firmware & OTA updates"
           description="Flash over USB with WebSerial. The firmware validates OTA uploads server-side (SHA-256 hash + Ed25519 signature), but this app build does not expose the upload UI yet."
-          :badges="heroBadges"
           :status="heroStatus"
           size="sm"
         >

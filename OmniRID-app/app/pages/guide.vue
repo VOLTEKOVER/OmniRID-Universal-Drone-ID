@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import type { PageBadgeColor } from '~/components/PageHero.vue'
 import type { GuideSection } from '~/config/guide'
 import GuideBlocks from '~/components/docs/GuideBlocks.vue'
 import { guideSections, sectionSearchText } from '~/config/guide'
 import { pageForRoute, pageStatusMeta } from '~/pages.config'
 
-const heroBadges: { label: string, color?: PageBadgeColor }[] = [{ label: 'In-app Guide', color: 'primary' }]
 const route = useRoute()
 const heroStatus = computed(() => {
   const page = pageForRoute(route.path)
@@ -99,7 +97,6 @@ function onBodyClick(event: MouseEvent) {
         <PageHero
           title="OmniRID technical guide"
           description="A practical reference for installation, configuration, protocols, OTA, security and regulatory information for the OmniRID ESP32 Remote ID platform."
-          :badges="heroBadges"
           :status="heroStatus"
         >
           <template #right>
