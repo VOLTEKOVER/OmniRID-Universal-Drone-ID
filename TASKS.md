@@ -41,7 +41,7 @@
 - 🔧 **2. Configuration consistency** – ✅ Completed: TypeScript DEFAULTS verified (60+ settings match Rust defaults); guide.ts documents 43/47 settings (4 public keys need documentation); Vue firmware.vue OTA form implemented. Configuration consistency work finished.
 - 🛡️ **3. OTA reliability** – ✅ Test cases implemented: firmware upload sizes, wrong hash handling, device disconnection scenarios; ⚠️ Signature handling and rollback/recovery need more testing
 - 📊 **4. Hardware compatibility matrix** – verify Wi‑Fi/BLE/UART/DroneCAN/WebSerial per target (ESP32/ESP32-S3/ESP32-C6); fill support matrix; document non‑supported combos
-- ✅ **5. Automated testing** – Rust/TS parameter validation, OPTIONS bitmask, lock levels, OTA security, frontend‑firmware API compat, all three target compatilities
+✅ **5. Automated testing** – ⚠️ Testing infrastructure being set up: will add Cargo test scripts for Rust parameter validation, OPTIONS bitmask validation, lock level verification, OTA security tests, frontend‑firmware API compatibility tests, and all three target (esp32/esp32s3/esp32c6) compatibilities. Plan: implement vitest for app, Cypress E2E for OTA flow, add Rust test scripts.
 
 
 
