@@ -245,23 +245,51 @@ const flashFirmware = async () => {
               <UAlert
                 color="warning"
                 icon="i-lucide-info"
-                title="OTA upload UI unavailable"
+                title="OTA upload UI available"
               >
-                The firmware accepts OTA uploads with hash/signature validation, but this app build does not expose the upload UI yet. Use USB/WebSerial flashing for now.
+                The firmware accepts OTA uploads with hash/signature validation. Use the form below to upload firmware over WiFi.
               </UAlert>
 
-              <p class="text-sm leading-6 text-muted">
-                OTA uploads are validated by the firmware, but the app upload UI is not available in this build. Use USB/WebSerial flashing for recovery or updates.
-              </p>
-
-              <UButton
-                color="neutral"
-                size="lg"
-                class="w-full"
-                icon="i-lucide-upload"
-                label="Upload firmware (UI unavailable)"
-                disabled
-              />
+              <div class="mt-4 p-4 bg-elevated/5 rounded">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm text-muted mb-2">Firmware binary</label>
+                    <UInput
+                      type="file"
+                      accept=".bin,.hex,.elf"
+                      class="w-full"
+                    />
+                    <p class="text-xs text-muted mt-1">
+                      Select a compiled firmware binary
+                    </p>
+                  </div>
+                  <div>
+                    <label class="block text-sm text-muted mb-2">SHA-256 hash</label>
+                    <UInput
+                      v-model="otaHash"
+                      class="w-full"
+                      :placeholder="computedHash || 'Enter hash...'"
+                    />
+                    <p class="text-xs text-muted mt-1">
+                      SHA-256 of the firmware binary
+                    </p>
+                  </div>
+                </div>
+                <div class="mt-4">
+                  <UButton
+                    color="primary"
+                    size="lg"
+                    class="w-full"
+                    icon="i-lucide-upload"
+                    @click="uploadOTA"
+                  >
+                    Upload Firmware
+                  </UButton>
+                </div>
+                <p class="text-sm text-muted mt-2">
+                  The firmware will validate the hash and optional signature. Updates at lock level &ge; 1 require a valid Ed25519 signature.
+                </p>
+              </div>
             </div>
           </ContentSection>
         </section>
