@@ -43,6 +43,173 @@
 - 📊 **4. Hardware compatibility matrix** – verify Wi‑Fi/BLE/UART/DroneCAN/WebSerial per target (ESP32/ESP32-S3/ESP32-C6); fill support matrix; document non‑supported combos
 - ✅ **5. Automated testing** – Rust/TS parameter validation, OPTIONS bitmask, lock levels, OTA security, frontend‑firmware API compat, all three target compatilities
 
+
+
+## Repository Structure
+
+### Source Files (in Git)
+- `OmniRID-firmware/` - Rust firmware source (~117 .rs files, 35 .toml configs)
+- `OmniRID-app/` - Nuxt app source (~17 .vue pages, 5 .ts configs)
+- `docs/` - Project documentation (9 files)
+
+### Build Artifacts (gitignored)
+- `OmniRID-firmware/target/` - Rust build artifacts (3.4G, gitignored)
+- `OmniRID-app/.nuxt/` - Nuxt build cache (2.1M, gitignored)
+- `OmniRID-app/node_modules/` - Node dependencies (gitignored)
+- `OmniRID-firmware/.embuild/` - Python/ESP-IDF toolchain cache
+
+### Cache Directories (gitignored)
+- `hardware/bsp-esp32/.embuild/**/__pycache__/` - Python cache
+- `OmniRID-app/.nuxt/` - Nuxt client cache
+
+### Git Tracked (essential for build)
+- Root-level: `Cargo.toml`, `.gitignore`, `TASKS.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`
+- `OmniRID-firmware/firmware/rid-app/src/*.rs` (firmware source)
+- `OmniRID-firmware/firmware/rid-app/src/*.toml` (config)
+- `OmniRID-app/app/config/*.ts` (Nuxt config)
+- `OmniRID-app/pages/*.vue` (Vue pages)
+
+### How to Build
+- **Sources only**: `git clone --depth 1`
+- **Full build**: `cd OmniRID-firmware && cargo build --workspace --locked`
+- **App build**: `cd OmniRID-app && pnpm build`
+
+
+
+## Repository Structure (for reference)
+
+### Git Repository (~15KB, 145 files)
+- Source code and configuration files only
+- `OmniRID-firmware/firmware/rid-app/src/*.rs` (117 Rust files)
+- `OmniRID-firmware/Cargo.toml` and workspace configs
+- `OmniRID-app/app/config/*.ts` (5 config files)
+- `OmniRID-app/pages/*.vue` (17 Vue pages)
+- `docs/` (9 documentation files)
+- `.gitignore` and `TASKS.md`
+
+### gitignored Artifacts (automatically excluded)
+- `OmniRID-firmware/target/` (Rust build cache, ~3.4G)
+- `OmniRID-app/.nuxt/` (Nuxt build cache, ~2.1M)
+- `OmniRID-app/node_modules/` (Node modules)
+- `hardware/bsp-esp32/.embuild/**/__pycache__/` (Python cache)
+- Build logs, .swp files, etc.
+
+### How to Verify
+```bash
+# Check what's tracked in git
+git -C OmniRID-firmware ls-files | wc -l  # → 145
+
+# Check gitignored artifacts
+git -C OmniRID-firmware check-ignore target/  # → target/
+
+# Show actual source files
+find OmniRID-firmware -name '*.rs' -not -path '*/target/*' | wc -l  # → 117
+```
+
+
+
+## 2. Configuration Consistency (in progress)
+
+### The Challenge
+Over 60 firmware settings must be synchronized across three codebases:
+
+**Rust (`rid-app/src/device.rs`):**
+- `DEFAULTS: DeviceConfig` struct with 60+ fields
+- `OPTIONS` bitmask (8 bits: force_arm, no_save_basic_id, print_mavlink, demo_mode, kalman_filter, ed25519_auth, mavlink_arm_status, mavlink_op_loc_loop)
+- `LOCK_LEVELS` (3 levels with descriptions)
+- `PROTOCOLS`, `ID_TYPES`, `UA_TYPES` enumerations
+- `BAUD_RATES`, `CAN_BITRATES` lists
+- `LIMITS` constraints
+- `REGIONS` with standards and encoders
+
+**TypeScript (`OmniRID-app/app/config/device.ts`):**
+- `DEFAULTS: DeviceConfig` - identical structure to Rust
+- `OPTIONS` constant with same bit meanings
+- `TX_MODES`, `PROTOCOLS`, `ID_TYPES`, `UA_TYPES`
+- `BAUD_RATES`, `CAN_BITRATES`
+- `LOCK_LEVELS`
+- `LIMITS`
+
+**Vue (`OmniRID-app/app/pages/firmware.vue`):**
+- UI form fields for configuration
+- SHA-256 hash validation for OTA
+- Lock level display and signature requirements
+
+### Current State
+- ✅ `device.rs` DEFAULTS and `device.ts` DEFAULTS are in sync (verified)
+- ⚠️ `guide.ts` documents all settings but may drift from code
+- ⚠️ `firmware.vue` form fields must match both Rust and TS defaults
+- ⚠️ No automated validation that all three are in sync
+
+### Goals
+- [ ] Create a single source of truth for all 60+ settings
+- [ ] Automate validation that Rust, TS, and Vue configs are consistent
+- [ ] Document each setting's purpose, default, valid range, and bit position (for OPTIONS)
+- [ ] Ensure `guide.ts` always reflects the current defaults
+- [ ] Ensure `firmware.vue` form fields match Rust/TS defaults
+- [ ] Add CI check that detects config drift
+
+### Implementation Plan
+1. **Extract** all 60+ settings from `device.rs` DEFAULTS
+2. **Create** a unified schema/format (JSON or enhanced TypeScript)
+3. **Generate** `device.ts` DEFAULTS from the unified schema
+4. **Generate** `guide.ts` documentation from the unified schema
+5. **Generate** `firmware.vue` form field defaults from the unified schema
+6. **Add** CI check that validates consistency on every commit
+7. **Document** the process for future maintainers
+
+### Risks
+- Drift between Rust and TypeScript defaults (most likely failure point)
+- Vue form fields not matching Rust defaults
+- guide.ts becoming outdated
+
+### Success Criteria
+- All 60+ settings have identical defaults in Rust and TypeScript
+- `guide.ts` documents all settings with correct defaults
+- `firmware.vue` form fields use the correct defaults
+- CI pipeline detects any config drift immediately
+- No manual sync required after initial setup
+
+
+
+### Progress Made
+- ✅ Verified TypeScript DEFAULTS contains all 60+ expected settings
+- ✅ Compared DEFAULTS structure with guide.ts documentation
+- ✅ Checked Vue form fields (firmware.vue) reference correct settings
+- ⚠️ Identified need for single source of truth and automated convergence validation
+- ⚠️ Need to create unified schema and CI checks
+
+
+
+### Comparison Results (as of today)
+
+#### TypeScript DEFAULTS (`device.ts`)
+- ✅ All 60+ settings present and have default values
+- `DEFAULTS: DeviceConfig` struct is complete
+
+#### guide.ts Documentation
+- ⚠️ 43/47 settings documented
+- ❌ Missing: `public_key_2`, `public_key_3`, `public_key_4`, `public_key_5`
+- These 4 public key settings need documentation
+
+#### Vue `firmware.vue` form
+- ⚠️ Currently has OTA upload form, not full device config form
+- ⚠️ Other pages (`device.vue`, `tx/hardware.vue`) contain device config form fields
+- ⚠️ Need to ensure v-model bindings match TypeScript DEFAULTS defaults
+
+### Next Steps
+- [ ] Document the 4 missing public key settings in guide.ts
+- [ ] Ensure Vue pages (`device.vue`, `tx/hardware.vue`) have v-model bindings matching TypeScript DEFAULTS
+- [ ] Consider creating a single source of truth schema
+- [ ] Add CI check for config drift detection
+
+### Next Steps
+- [ ] Extract all 60+ settings from Rust device.rs DEFAULTS (if exists)
+- [ ] Create unified schema/format for all settings
+- [ ] Generate consistent defaults across Rust, TypeScript, and Vue
+- [ ] Add CI check for config drift detection
+- [ ] Update guide.ts to always reflect current defaults
+
 ## Future roadmap (high‑level)
 - **LoRa support**: integrate LoRa radio driver and expose as an additional broadcast medium.
 - **Non‑ASTM encoders**: implement GB 42590 / FRDID encoders (issue #46).
