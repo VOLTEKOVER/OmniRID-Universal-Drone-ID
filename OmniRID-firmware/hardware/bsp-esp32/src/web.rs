@@ -475,6 +475,10 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                             send_json(req, 401, r#"{"error":"invalid or missing signature"}"#)?;
                             return Ok(());
                         }
+                        ConfigWrite::Unauthorized => {
+                            send_json(req, 401, r#"{"error":"unauthorized"}"#)?;
+                            return Ok(());
+                        }
                         ConfigWrite::Ok => {}
                     }
                     let applied = {
@@ -682,8 +686,12 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         .unwrap_or(0);
                     let expected_sha256 = req
                         .header("X-Expected-SHA256")
-                        .and_then(|s| if s.len() <= 64 { Some(s.as_bytes()) } else { None });
-                    let signature = req.header("X-Signature").and_then(|s| if s.len() < 512 { Some(s.as_bytes()) } else { None });
+                        .filter(|s| s.len() <= 64)
+                        .map(|s| s.as_bytes().to_vec());
+                    let signature = req
+                        .header("X-Signature")
+                        .filter(|s| s.len() < 512)
+                        .map(|s| s.as_bytes().to_vec());
                     if expected_sha256.is_none() {
                         send_json(req, 400, r#"{"error":"missing X-Expected-SHA256"}"#)?;
                         return Ok(());
@@ -715,8 +723,8 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                     let upload = OtaUpload {
                         lock_level,
                         content_len,
-                        expected_sha256,
-                        signature,
+                        expected_sha256: expected_sha256.as_deref(),
+                        signature: signature.as_deref(),
                         public_keys: &public_keys,
                         body_cap,
                     };

@@ -59,6 +59,13 @@ rid-core = { path = "../../firmware/rid-core" }
 out-astm = { path = "../../outputs/out-astm" }
 app = { path = "../../firmware/app" }
 
+# libc 0.2.190+ switched newlib's `stat` to `st_atim`/`st_mtim`/`st_ctim`,
+# but the std sources used by `-Z build-std` (esp32c6) still read
+# `st_atime`/`st_mtime`/`st_ctime`, so building std with libc 0.2.191 fails.
+# Pin the last compatible release for ESP-IDF targets.
+[target.'cfg(target_os = "espidf")'.dependencies]
+libc = "=0.2.189"
+
 # ESP-IDF hardware dependencies (only when the `hardware` feature is active).
 # `default-features = false` keeps `binstart` OUT: the firmware defines its own
 # `app_main`, so esp-idf-sys must not generate a second one.  (Without this,
