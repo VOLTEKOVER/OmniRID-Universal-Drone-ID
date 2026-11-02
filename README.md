@@ -235,9 +235,10 @@ it remains in git history).
 ### CI (no local toolchain)
 
 Every push to `omnirid-webapp-pwa` runs host tests + the three ESP32 cross-builds
-via GitHub Actions. The `esp32`/`esp32s3` links currently fail (see below);
-`esp32c6` and the host jobs are green. See the
-[latest builds](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/esp32-build.yml).
+via GitHub Actions. The host build and all three ESP32 targets (`esp32`,
+`esp32s3`, `esp32c6`) build locally; see the
+[latest builds](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/esp32-build.yml)
+for the current CI result.
 
 ### Host build (Linux / macOS / Windows)
 
@@ -270,8 +271,8 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \
   --no-default-features --features esp32c6,hardware --target riscv32imac-esp-espidf
 ```
 
-> CI status: host and ESP32-C6 builds pass; the Xtensa `esp32`/`esp32s3` links
-> currently fail and are tracked in [`TASKS.md`](TASKS.md).
+> Cross-build status: host, ESP32, ESP32-S3 and ESP32-C6 all build locally
+> with `-Z build-std`; check the Actions run for the current CI result.
 
 ### Flash & connect
 
