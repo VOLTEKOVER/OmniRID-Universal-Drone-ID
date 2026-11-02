@@ -25,7 +25,7 @@ OmniRID is an **open-source Drone ID transmitter** for ESP32 that turns any flig
 <p align="center">
   <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID"><b>Source</b></a>&nbsp;&nbsp;
   <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/tree/omnirid-webapp-pwa/OmniRID-app"><b>Ground Station</b></a>&nbsp;&nbsp;
-  <a href="./todolist/shared-todo.md"><b>Backlog</b></a>
+  <a href="./TASKS.md"><b>Backlog</b></a>
 </p>
 
 ---
@@ -271,7 +271,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \
 ```
 
 > CI status: host and ESP32-C6 builds pass; the Xtensa `esp32`/`esp32s3` links
-> currently fail and are tracked in [`todolist/firmware-todo.md`](todolist/firmware-todo.md).
+> currently fail and are tracked in [`TASKS.md`](TASKS.md).
 
 ### Flash & connect
 
@@ -332,7 +332,7 @@ OmniRID-Universal-Drone-ID/
 ├── docs/                         # Images only (static docs site removed)
 │   └── images/
 │
-├── todolist/                     # Backlog: firmware-todo, app-todo, shared-todo
+├── TASKS.md                      # Consolidated project backlog / roadmap
 ├── 3D_FILES/                     # Enclosure/casing 3D models
 ├── .github/workflows/            # CI (esp32-build, protocol-updates, release, security-audit)
 │
@@ -347,9 +347,7 @@ OmniRID-Universal-Drone-ID/
 
 | Resource | Link |
 |---|---|
-| **Firmware backlog** | [`todolist/firmware-todo.md`](todolist/firmware-todo.md) |
-| **App backlog** | [`todolist/app-todo.md`](todolist/app-todo.md) |
-| **Shared / repo backlog** | [`todolist/shared-todo.md`](./todolist/shared-todo.md) |
+| **Project backlog** | [`TASKS.md`](TASKS.md) |
 | **Hardware BOM** | See the hardware section |
 | **API Reference** | Headless `/api/*` JSON endpoints with CORS; also described in the in-app Guide page |
 
@@ -372,7 +370,7 @@ OmniRID-Universal-Drone-ID/
 > logic (SHA-256 + Ed25519, lock-level gate, idle timeout) exists and is tested
 > in `firmware/rid-app/src/ota.rs`, but it is not wired to the HTTP handler.
 > Flash over USB/serial for now. Tracked in
-> [`todolist/firmware-todo.md`](todolist/firmware-todo.md).
+> [`TASKS.md`](TASKS.md).
 
 The intended design, once wired:
 

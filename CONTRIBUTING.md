@@ -59,7 +59,7 @@ docs/                      # Images only (static docs site removed)
    cargo clippy --workspace --all-targets -- -D warnings
    ```
 5. Test on real hardware if possible
-6. Update [`todolist/firmware-todo.md`](todolist/firmware-todo.md) / [`todolist/app-todo.md`](todolist/app-todo.md) when an item is fixed or discovered
+6. Update [`TASKS.md`](TASKS.md) when an item is fixed or discovered
 7. Commit with a clear message (see below)
 8. Push and open a Pull Request
 
@@ -85,7 +85,7 @@ Examples:
 - Rust: `cargo fmt` (edition 2024), `cargo clippy -D warnings`
 - `no_std` for firmware crates; `std` only in `bsp-esp32`
 - Keep `unsafe` out of core crates (only in hardware glue)
-- Update [`todolist/firmware-todo.md`](todolist/firmware-todo.md) / [`todolist/app-todo.md`](todolist/app-todo.md) with any new/changed source files
+- Update [`TASKS.md`](TASKS.md) with any new/changed source files
 
 ## Reporting Bugs
 

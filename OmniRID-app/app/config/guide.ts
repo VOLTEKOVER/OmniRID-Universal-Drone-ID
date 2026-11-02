@@ -623,7 +623,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
 │   ├── server/routes/api/esp/           # Dev/self-hosted proxy to the device
 │   └── public/                          # Static assets
 ├── docs/                                # Images only (static docs site removed)
-├── todolist/                            # firmware-todo.md, app-todo.md, shared-todo.md
+├── TASKS.md                             # Consolidated project backlog / roadmap
 └── .github/workflows/                   # esp32-build, protocol-updates, release, security-audit`
       }
     ]
@@ -1246,7 +1246,7 @@ cat public.pem`
       },
       {
         type: 'p',
-        html: '<b>Recommended:</b> XIAO ESP32-C6 + L76K GNSS — zero soldering, 21×18 mm, USB-C, LiPo, U.FL. See the hardware comparison table above and the <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/blob/omnirid-webapp-pwa/todolist/firmware-todo.md" target="_blank">firmware backlog / roadmap</a> for details.'
+        html: '<b>Recommended:</b> XIAO ESP32-C6 + L76K GNSS — zero soldering, 21×18 mm, USB-C, LiPo, U.FL. See the hardware comparison table above and the <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/blob/omnirid-webapp-pwa/TASKS.md" target="_blank">firmware backlog / roadmap</a> for details.'
       },
       {
         type: 'h',

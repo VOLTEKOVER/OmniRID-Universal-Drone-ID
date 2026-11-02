@@ -42,7 +42,7 @@ This project implements a **WiFi AP + REST API** Remote ID transmitter:
 
 These features are **not enabled by default**. See the current gaps at the end
 of this file and the firmware backlog in
-[`todolist/firmware-todo.md`](todolist/firmware-todo.md).
+[`TASKS.md`](TASKS.md).
 
 **Device (the only real boundary):**
 

@@ -12,23 +12,25 @@
 
 ## In‑progress / pending tasks
 - ✅ Resolve strict‑mode TypeScript errors — `pnpm typecheck` is clean.
-- Implement the OTA upload UI in the app (firmware `POST /ota` is implemented; only the UI is pending).
+- Implement the OTA upload UI in the app (firmware `POST /ota` is implemented and gated by `X-Expected-SHA256` / `X-Signature`; only the app upload UI is pending).
+- **App deep review** – proxy/SSRF handling, service worker caching, auth middleware, polling leaks, and firmware↔app field/limit mismatches.
 - ✅ Align Wi‑Fi credential length limits between firmware (MAX_STR_LEN = 63) and UI (now 32).
 - ✅ Add CI job for the PWA (lint, typecheck, build) to the GitHub workflow.
 - ✅ Document OTA workflow and security hardening steps in `SECURITY.md`.
 - **Web UI / ground‑station polish backlog** (issue #54) – UI/UX improvements, polish, accessibility.
 - **GNSS advanced options** – expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware.
 - **DroneCAN AHRS / Identity** – implement AHRS and Identity parsing (issue #52).
-- **Non‑ASTM output encoders** – GB 42590 / FRDID support (issue #46).
+- **Non‑ASTM output encoders** – GB 42590 / FRDID support (issue #46).
 - **BLE 5.0 Long Range on ESP32‑C6** – enable and test long‑range BLE.
 - **ESP‑NOW mesh relay** – multi‑hop range extension (issue #29).
 - **LoRa SX1262 backup** – integrate LoRa radio backup link (issue #29).
 - **SD‑card + geofence logging** – flight‑log recovery and geofence storage (issue #29).
 - **Ground tools** – timing analysis, NVS provisioning, Meshtastic bridge, mesh mapper (issue #53).
 - **Refactors & portability** – code refactors (issue #26) and dependency management (issue #27).
-- **Xtensa cross‑build failure** – investigate and fix link failures on ESP32/ESP32S3 (issue #43).
-- **ESP‑IDF 6 / `esp-idf-sys` 0.38** – address binding and opaque structs issues (issue #43).
-- **TypeScript 7 migration** – upgrade to TS 7 once compatibility issues resolved.
+- **Xtensa cross‑build failure** – investigate and fix link failures on ESP32/ESP32S3 (issue #43). Local reproduction was blocked by a toolchain/ESP-IDF bindgen mismatch, not confirmed as project code.
+- **Firmware deep review** – review the firmware core, protocol parsers, `out-astm`, and the `bsp-esp32` web API / FFI.
+- **ESP‑IDF 6 / `esp-idf-sys` 0.38** – address binding and opaque structs issues (issue #43).
+- **TypeScript 7 migration** – upgrade to TS 7 once compatibility issues resolved.
 - **Docs policy** – keep `docs/` for images only; remove stale documentation links.
 - **`sdkconfig.defaults` comment** – ✅ updated to reference `SECURITY.md`.
 
