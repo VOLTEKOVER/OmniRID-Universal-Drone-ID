@@ -49,10 +49,7 @@ pub fn ota_end(handle: OtaHandle) -> bool {
 
 /// Reboot into the new firmware.
 pub fn reboot() -> ! {
-    unsafe {
-        sys::esp_restart();
-    }
-    loop {}
+    unsafe { sys::esp_restart() }
 }
 
 /// Minimal OTA write handle wrapping ESP-IDF OTA APIs.

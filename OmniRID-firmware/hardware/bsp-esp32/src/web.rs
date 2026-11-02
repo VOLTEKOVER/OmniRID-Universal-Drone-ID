@@ -240,7 +240,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                     let token = req.header("X-App-Token");
                     let authed = if let Some(t) = token {
                         let mut auth = state.app_auth.lock();
-                        auth.is_valid(t.as_bytes(), now_ms() as u64)
+                        auth.is_valid(t, now_ms() as u64)
                     } else {
                         false
                     };
@@ -754,8 +754,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         Ok(()) => {
                             if crate::ota::ota_end(ota_handle) {
                                 send_json(req, 200, r#"{"ok":true,"reboot":true}"#)?;
-                                crate::ota::reboot();
-                                Ok(())
+                                crate::ota::reboot()
                             } else {
                                 send_json(req, 500, r#"{"error":"ota end failed"}"#)?;
                                 Ok(())
