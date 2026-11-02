@@ -30,14 +30,12 @@ const _useAppSettings = () => {
   const settings = useState<AppSettings>('app-settings', () => ({ ...defaults }))
   const loaded = useState<boolean>('app-settings-loaded', () => false)
   const colorMode = useColorMode()
-  const appConfig = useAppConfig()
 
   const applySideEffects = () => {
     if (!import.meta.client) return
     colorMode.preference = settings.value.enableDarkTheme ? 'dark' : 'light'
     document.documentElement.style.fontSize = `${settings.value.uiScale}%`
     document.documentElement.lang = settings.value.language
-    const appConfigColors = appConfig as unknown as { ui: { colors: { primary: string } } }
   }
 
   watch(settings, (value) => {

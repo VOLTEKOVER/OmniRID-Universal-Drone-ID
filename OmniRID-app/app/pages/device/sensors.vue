@@ -36,13 +36,11 @@
 <script setup lang="ts">
 import { pageForRoute, pageStatusMeta } from '~/pages.config'
 import { useTelemetry } from '~/composables/useTelemetry'
-import { useEspConnection } from '~/composables/useEspConnection'
 
 const route = useRoute()
 const page = computed(() => pageForRoute(route.path))
 const heroStatus = computed(() => page.value ? pageStatusMeta(page.value.status) : undefined)
 const { status } = useTelemetry()
-const { isEspConnected } = useEspConnection()
 
 const items = computed(() => [
   { label: 'GPS Valid', value: status.value.gps_valid ? 'Yes' : 'No', icon: 'i-lucide-satellite' },

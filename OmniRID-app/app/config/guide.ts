@@ -113,7 +113,7 @@ export const guideSections: GuideSection[] = [
             { label: '0xFE or 0xFD? MAVLink v1/v2', ok: 'MAVLink' }
           ],
           fallback: 'Fallback: Unknown (no protocol detected)',
-          caption: 'Protocol auto-detection order in auto mode: MSP, then NMEA, then MAVLink. If none match, the protocol remains Unknown until the next loop iteration.',
+          caption: 'Protocol auto-detection order in auto mode: MSP, then NMEA, then MAVLink. If none match, the protocol remains Unknown until the next loop iteration.'
         }
       },
       {
@@ -300,7 +300,7 @@ cd OmniRID-Universal-Drone-ID/OmniRID-firmware
 # Host build (for testing)
 cargo build --workspace
 
-# Run tests (305 tests)
+# Run tests (307 tests)
 cargo test --workspace
 
 # Cross-build for ESP32-C6 (requires nightly + rust-src)
@@ -343,7 +343,7 @@ esptool.py --chip esp32c6 -p /dev/ttyACM0 -b 921600 \\
         type: 'ul',
         items: [
           '<b>FC mode (default):</b> Connect to a flight controller via UART for real GPS data.',
-          '<b>Demo mode (optional):</b> Enabled via the <b>Options</b> bit 3 (or the <code>demo</code> CLI command). Simulates a drone flying a circular patrol over Rome (Colosseum, ~300 m radius) at ~6 m/s, altitude 50±20 m. No flight controller needed. You can configure it and view live telemetry immediately (OTA is not available yet — flash via USB).'
+          '<b>Demo mode (optional):</b> Enabled via the <b>Options</b> bit 3 (or the <code>demo</code> CLI command). Simulates a drone flying a circular patrol over Rome (Colosseum, ~300 m radius) at ~6 m/s, altitude 50±20 m. No flight controller needed. You can configure it and view live telemetry immediately (the app OTA upload UI is pending — flash via USB).'
         ]
       },
       {
@@ -574,7 +574,7 @@ cd OmniRID-Universal-Drone-ID/OmniRID-firmware
 # Host build
 cargo build --workspace
 
-# Run all tests (305 tests)
+# Run all tests (307 tests)
 cargo test --workspace
 
 # Lint
@@ -585,7 +585,7 @@ cd hardware/bsp-esp32
 RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
   --no-default-features --features esp32c6,hardware --target riscv32imac-esp-espidf
 
-# Flash the resulting binary with espflash / idf.py (USB/serial; OTA is not wired)`
+# Flash the resulting binary with espflash / idf.py (USB/serial; the app OTA upload UI is not wired)`
       },
       {
         type: 'h',
@@ -842,7 +842,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
         type: 'callout',
         tone: 'warning',
         title: 'Not implemented yet',
-        html: 'OTA is <b>not available</b> in the current build: <code>POST /ota</code> answers <code>501 {"error":"OTA not implemented; flash via serial/USB"}</code>. The validation logic (SHA-256 + Ed25519, lock-level gate, idle timeout) exists and is tested in <code>rid-app::ota</code>, but it is not wired to the HTTP handler. Flash over USB/serial for now. The flow described below is the intended design, kept for when the endpoint is implemented.'
+        html: 'OTA is <b>implemented in the firmware</b>: <code>POST /ota</code> accepts a firmware image with <code>X-Expected-SHA256</code> (plus <code>X-Signature</code> at lock level ≥ 1), validates SHA-256/Ed25519, writes to the inactive OTA partition and reboots. The PWA upload UI is not wired up yet, so flash over USB/serial from this app for now. The flow described below is the implemented server-side design.'
       },
       {
         type: 'h',
@@ -850,7 +850,7 @@ RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \\
       },
       {
         type: 'p',
-        html: 'When implemented, OmniRID will support updating firmware wirelessly through the web interface, without a USB cable after the initial flash. The upload will include cryptographic verification to reject corrupt or malicious firmware. <b>Today this endpoint returns 501 — use USB/serial flashing.</b>'
+        html: 'OmniRID supports updating firmware wirelessly through the REST API. Uploads include cryptographic verification to reject corrupt or malicious firmware. <b>The firmware endpoint is implemented; the app upload UI is not available yet, so use USB/serial flashing for now.</b>'
       },
       {
         type: 'h',
@@ -1663,7 +1663,7 @@ cat public.pem`
       },
       {
         type: 'p',
-        html: 'Demo mode (GPS patrol simulation) verified: config UI, telemetry dashboard and lock-level UI are functional. OTA is not implemented (flash via USB). Flight-controller hardware testing with MAVLink/MSP/NMEA is in progress.'
+        html: 'Demo mode (GPS patrol simulation) verified: config UI, telemetry dashboard and lock-level UI are functional. OTA is implemented in the firmware; the app upload UI is pending (flash via USB). Flight-controller hardware testing with MAVLink/MSP/NMEA is in progress.'
       },
       {
         type: 'p',

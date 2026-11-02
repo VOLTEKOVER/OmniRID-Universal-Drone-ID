@@ -3,7 +3,7 @@ import type { PageBadgeColor } from '~/components/PageHero.vue'
 import { installTargets, processSteps } from '~/config/content'
 import { pageForRoute, pageStatusMeta } from '~/pages.config'
 
-const { espIp, isEspConnected, isChecking, lastError, isWifiTransport, canOta, canFlashUsb, refresh } = useEspConnection()
+const { espIp, isEspConnected, isChecking, lastError, isWifiTransport, canFlashUsb, refresh } = useEspConnection()
 const route = useRoute()
 
 const selectedTarget = ref('esp32')
@@ -11,22 +11,10 @@ const heroBadges: { label: string, color?: PageBadgeColor }[] = [
   { label: 'Install', color: 'primary' },
   { label: 'OTA', color: 'info' }
 ]
-const targetNames = installTargets.map(target => target.name).join(', ')
 const heroStatus = computed(() => {
   const page = pageForRoute(route.path)
   return page ? pageStatusMeta(page.status) : undefined
 })
-
-const fileInput = ref<HTMLInputElement | null>(null)
-const dragActive = ref(false)
-const selectedFile = ref<File | null>(null)
-const expectedSha = ref('')
-const isHashing = ref(false)
-const hashingNotice = ref('')
-const uploadProgress = ref(0)
-const isUploading = ref(false)
-const uploadError = ref<string | null>(null)
-const uploadMessage = ref<string | null>(null)
 
 const USB_PORT_KEY = 'omnirid:usb-port'
 const usbPort = ref('COM3')
@@ -34,7 +22,7 @@ const isFlashing = ref(false)
 const flashProgress = ref(0)
 const flashMessage = ref<string | null>(null)
 const toast = useToast()
-const { notifyInfo, notifyError } = useNotifications()
+const { notifyInfo } = useNotifications()
 
 onMounted(() => {
   if (import.meta.client) {
@@ -78,207 +66,6 @@ const flashFirmware = async () => {
   })
   notifyInfo(`${target} flashed`, `Firmware written over ${usbPort.value} (WebSerial).`)
 }
-
-const formatBytes = (bytes: number) => {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 ** 2).toFixed(2)} MB`
-}
-
-const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n))
-
-const sha256HexArray = (data: Uint8Array): string => {
-  const K = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-  ]
-  const l = data.length
-  const padLen = Math.ceil((l + 9) / 64) * 64
-  const buf = new Uint8Array(padLen)
-  buf.set(data)
-  buf[l] = 0x80
-  const view = new DataView(buf.buffer)
-  view.setUint32(padLen - 8, Math.floor(l / 0x100000000))
-  view.setUint32(padLen - 4, (l * 8) >>> 0)
-  const H = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19])
-  const w = new Uint32Array(64)
-  for (let off = 0; off < padLen; off += 64) {
-    for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4)
-    for (let i = 16; i < 64; i++) {
-      const s0 = rotr(w[i - 15]!, 7) ^ rotr(w[i - 15]!, 18) ^ (w[i - 15]! >>> 3)
-      const s1 = rotr(w[i - 2]!, 17) ^ rotr(w[i - 2]!, 19) ^ (w[i - 2]! >>> 10)
-      w[i] = (w[i - 16]! + s0 + w[i - 7]! + s1) >>> 0
-    }
-    let a = H[0]!
-    let b = H[1]!
-    let c = H[2]!
-    let d = H[3]!
-    let e = H[4]!
-    let f = H[5]!
-    let g = H[6]!
-    let h = H[7]!
-    for (let i = 0; i < 64; i++) {
-      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)
-      const ch = (e & f) ^ (~e & g)
-      const t1 = (h + S1 + ch + (K[i] ?? 0) + (w[i] ?? 0)) >>> 0
-      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)
-      const maj = (a & b) ^ (a & c) ^ (b & c)
-      const t2 = (S0 + maj) >>> 0
-      h = g
-      g = f
-      f = e
-      e = (d + t1) >>> 0
-      d = c
-      c = b
-      b = a
-      a = (t1 + t2) >>> 0
-    }
-    H[0] = (H[0]! + a) >>> 0
-    H[1] = (H[1]! + b) >>> 0
-    H[2] = (H[2]! + c) >>> 0
-    H[3] = (H[3]! + d) >>> 0
-    H[4] = (H[4]! + e) >>> 0
-    H[5] = (H[5]! + f) >>> 0
-    H[6] = (H[6]! + g) >>> 0
-    H[7] = (H[7]! + h) >>> 0
-  }
-  return Array.from(H, value => value.toString(16).padStart(2, '0')).join('')
-}
-
-const computeSha256 = async (file: File): Promise<string> => {
-  const buf = await file.arrayBuffer()
-  if (typeof globalThis.crypto?.subtle?.digest === 'function') {
-    const digest = await crypto.subtle.digest('SHA-256', buf)
-    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
-  }
-  return sha256HexArray(new Uint8Array(buf))
-}
-
-const pickFile = (file: File | null) => {
-  if (!file) return
-  selectedFile.value = file
-  expectedSha.value = ''
-  uploadProgress.value = 0
-  uploadError.value = null
-  uploadMessage.value = null
-  isHashing.value = true
-  hashingNotice.value = ''
-  computeSha256(file)
-    .then((hash) => {
-      expectedSha.value = hash
-    })
-    .catch(() => {
-      hashingNotice.value = 'Could not hash the selected file'
-      notifyError('Firmware hashing failed', `Could not compute SHA-256 for ${file.name}.`)
-      toast.add({
-        title: 'Firmware hashing failed',
-        description: `Could not compute SHA-256 for ${file.name}.`,
-        icon: 'i-lucide-circle-alert',
-        color: 'error'
-      })
-    })
-    .finally(() => {
-      isHashing.value = false
-    })
-}
-
-const onFileChange = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  pickFile(input.files?.[0] ?? null)
-}
-
-const onDrop = (event: DragEvent) => {
-  dragActive.value = false
-  pickFile(event.dataTransfer?.files?.[0] ?? null)
-}
-
-const clearFile = () => {
-  selectedFile.value = null
-  expectedSha.value = ''
-  isHashing.value = false
-  hashingNotice.value = ''
-  uploadProgress.value = 0
-  uploadError.value = null
-  uploadMessage.value = null
-  if (fileInput.value) fileInput.value.value = ''
-}
-
-const readOtaError = (text: string): string | null => {
-  if (!text) return null
-  try {
-    const parsed = JSON.parse(text) as Record<string, unknown>
-    const error = String(parsed.error ?? '')
-    const detail = String(parsed.detail ?? '')
-    return [error, detail].filter(Boolean).join(': ')
-  } catch {
-    return text.slice(0, 240)
-  }
-}
-
-const startUpload = () => {
-  const file = selectedFile.value
-  if (!file || !expectedSha.value || isUploading.value) return
-  uploadError.value = null
-  uploadMessage.value = null
-  uploadProgress.value = 0
-  isUploading.value = true
-
-  const xhr = new XMLHttpRequest()
-  xhr.open('POST', '/api/esp/ota')
-  xhr.setRequestHeader('x-esp-ip', espIp.value)
-  xhr.setRequestHeader('X-Expected-SHA256', expectedSha.value)
-  xhr.setRequestHeader('Content-Type', 'application/octet-stream')
-  xhr.setRequestHeader('x-esp-timeout', '300000')
-  xhr.upload.onprogress = (event) => {
-    if (event.lengthComputable) {
-      uploadProgress.value = Math.round((event.loaded / event.total) * 100)
-    }
-  }
-  xhr.onload = () => {
-    isUploading.value = false
-    if (xhr.status >= 200 && xhr.status < 300) {
-      uploadMessage.value = 'Upload complete. The device is rebooting into the new firmware.'
-      isEspConnected.value = false
-      notifyInfo('Firmware uploaded', 'The device is rebooting into the new firmware.')
-      toast.add({
-        title: 'Firmware uploaded',
-        description: 'The device is rebooting into the new firmware.',
-        icon: 'i-lucide-check',
-        color: 'success'
-      })
-    } else {
-      uploadError.value = readOtaError(xhr.responseText) ?? `Upload failed (HTTP ${xhr.status}).`
-      notifyError('Firmware upload failed', uploadError.value)
-      toast.add({
-        title: 'Firmware upload failed',
-        description: uploadError.value,
-        icon: 'i-lucide-circle-alert',
-        color: 'error'
-      })
-    }
-  }
-  xhr.onerror = () => {
-    isUploading.value = false
-    uploadError.value = 'Upload failed — the device became unreachable. Keep it powered and retry.'
-    notifyError('Firmware upload failed', uploadError.value)
-    toast.add({
-      title: 'Firmware upload failed',
-      description: uploadError.value,
-      icon: 'i-lucide-circle-alert',
-      color: 'error'
-    })
-  }
-  xhr.onabort = () => {
-    isUploading.value = false
-  }
-  xhr.send(file)
-}
 </script>
 
 <template>
@@ -287,7 +74,7 @@ const startUpload = () => {
       <div class="mx-auto w-full max-w-[1400px] space-y-6 px-4 pb-16 sm:px-6 lg:px-10">
         <PageHero
           title="Firmware & OTA updates"
-          description="Flash over USB with WebSerial, or push an update to the connected device over WiFi with built-in SHA-256 verification."
+          description="Flash over USB with WebSerial. The firmware validates OTA uploads server-side (SHA-256 hash + Ed25519 signature), but this app build does not expose the upload UI yet."
           :badges="heroBadges"
           :status="heroStatus"
           size="sm"
@@ -408,7 +195,7 @@ const startUpload = () => {
 
           <ContentSection
             title="Update over WiFi (OTA)"
-            description="Not implemented in firmware (POST /ota returns 501). Use USB/WebSerial for now."
+            description="Server-side OTA is implemented; the app upload UI is not wired up in this build. Use USB/WebSerial for now."
             icon="i-lucide-cloud-upload"
             icon-class="bg-amber-500/10 text-amber-500 ring-amber-500/20"
             heading="md"
@@ -458,13 +245,13 @@ const startUpload = () => {
               <UAlert
                 color="warning"
                 icon="i-lucide-info"
-                title="OTA not implemented"
+                title="OTA upload UI unavailable"
               >
-                POST /ota returns 501 in the current firmware. Use USB/WebSerial flashing for now.
+                The firmware accepts OTA uploads with hash/signature validation, but this app build does not expose the upload UI yet. Use USB/WebSerial flashing for now.
               </UAlert>
 
               <p class="text-sm leading-6 text-muted">
-                OTA updates are not available in this firmware build. Use USB/WebSerial flashing for recovery or updates.
+                OTA uploads are validated by the firmware, but the app upload UI is not available in this build. Use USB/WebSerial flashing for recovery or updates.
               </p>
 
               <UButton
@@ -472,7 +259,7 @@ const startUpload = () => {
                 size="lg"
                 class="w-full"
                 icon="i-lucide-upload"
-                label="Upload firmware (not available)"
+                label="Upload firmware (UI unavailable)"
                 disabled
               />
             </div>

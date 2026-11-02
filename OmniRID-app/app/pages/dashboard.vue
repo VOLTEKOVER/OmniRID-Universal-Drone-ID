@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
-
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 
 import { useTelemetry } from '~/composables/useTelemetry'
 
@@ -8,13 +7,11 @@ import { useAppSettings } from '~/composables/useAppSettings'
 
 import type { NearbyDrone } from '~/components/DroneMap.vue'
 
-
 const { status } = useTelemetry()
 const { settings } = useAppSettings()
 const { isSimulated } = useEspConnection()
 
-
-const droneMapRef = ref<any>(null)
+const droneMapRef = ref<unknown>(null)
 
 const simNearbyState = ref({
   t: 0,
@@ -29,7 +26,9 @@ const currentHashKey = () => {
     if (h.startsWith('#rx/detections/')) {
       return decodeURIComponent(h.split('#rx/detections/')[1]!).trim()
     }
-  } catch {}
+  } catch {
+    // Malformed hash: fall back to no selection.
+  }
   return ''
 }
 
@@ -41,31 +40,41 @@ onMounted(() => {
           const list = nearby.value || []
           if (!list.length) return
           e.preventDefault()
-          const keys = list.map((d: any) => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
+          const keys = list.map(d => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
           const curKey = currentHashKey()
           const cur = curKey ? keys.findIndex(k => k === curKey) : -1
           let idx = cur >= 0 ? cur : -1
           if (e.key === 'ArrowDown') idx = (idx + 1) % keys.length
           if (e.key === 'ArrowUp') idx = (idx - 1 + keys.length) % keys.length
           if (idx >= 0 && keys[idx]) {
-            try { window.location.hash = `#rx/detections/${encodeURIComponent(keys[idx]! )}` } catch {}
+            try {
+              window.location.hash = `#rx/detections/${encodeURIComponent(keys[idx]!)}`
+            } catch {
+              // Ignore hash update failures (e.g. navigation locked).
+            }
           }
           return
         }
         if (e.key === 'Enter') {
           const list = nearby.value || []
           if (!list.length) return
-          const keys = list.map((d: any) => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
+          const keys = list.map(d => String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || ''))
           const curKey = currentHashKey()
           if (curKey && keys.includes(curKey)) {
             e.preventDefault()
-            try { window.location.hash = `#rx/detections/${encodeURIComponent(curKey)}` } catch {}
+            try {
+              window.location.hash = `#rx/detections/${encodeURIComponent(curKey)}`
+            } catch {
+              // Ignore hash update failures (e.g. navigation locked).
+            }
           }
         }
       }
       window.addEventListener('keydown', handler)
       onUnmounted(() => window.removeEventListener('keydown', handler))
-    } catch {}
+    } catch {
+      // Keyboard navigation unavailable (e.g. window access blocked).
+    }
     const id = setInterval(() => {
       simNearbyState.value.t += 0.016
       const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))

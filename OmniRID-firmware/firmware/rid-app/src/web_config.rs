@@ -192,7 +192,15 @@ mod tests {
         let body = b"{\"locked\":1}";
         let sig = sign(body);
         assert_eq!(
-            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 1000, false),
+            signed_action_decision(
+                1,
+                body,
+                Some(sig.as_bytes()),
+                keys(),
+                &mut rate,
+                1000,
+                false
+            ),
             ConfigWrite::Ok
         );
     }
@@ -224,7 +232,15 @@ mod tests {
         let body = b"{\"locked\":1}";
         let bad = sign(b"other");
         assert_eq!(
-            signed_action_decision(1, body, Some(bad.as_bytes()), keys(), &mut rate, 1000, false),
+            signed_action_decision(
+                1,
+                body,
+                Some(bad.as_bytes()),
+                keys(),
+                &mut rate,
+                1000,
+                false
+            ),
             ConfigWrite::InvalidSignature
         );
         assert_eq!(rate.count(), 1);
@@ -240,7 +256,15 @@ mod tests {
         let body = b"{\"locked\":1}";
         let sig = sign(body);
         assert_eq!(
-            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 5000, false),
+            signed_action_decision(
+                1,
+                body,
+                Some(sig.as_bytes()),
+                keys(),
+                &mut rate,
+                5000,
+                false
+            ),
             ConfigWrite::RateLimited
         );
     }
@@ -256,7 +280,15 @@ mod tests {
         let after = 1000 + crate::web::SIG_RATE_WINDOW_MS;
         // A valid signature is accepted once the window has elapsed.
         assert_eq!(
-            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, after, false),
+            signed_action_decision(
+                1,
+                body,
+                Some(sig.as_bytes()),
+                keys(),
+                &mut rate,
+                after,
+                false
+            ),
             ConfigWrite::Ok
         );
     }
@@ -299,7 +331,15 @@ mod tests {
         let body = b"{\"locked\":1}\0junk";
         let sig = sign(b"{\"locked\":1}");
         assert_eq!(
-            signed_action_decision(1, body, Some(sig.as_bytes()), keys(), &mut rate, 1000, false),
+            signed_action_decision(
+                1,
+                body,
+                Some(sig.as_bytes()),
+                keys(),
+                &mut rate,
+                1000,
+                false
+            ),
             ConfigWrite::Ok
         );
     }
@@ -357,7 +397,15 @@ mod tests {
         let mut rate = SigRate::new();
         let sig = sign(b"restart");
         assert_eq!(
-            handle_command(1, b"restart", Some(sig.as_bytes()), keys(), &mut rate, 1000, false),
+            handle_command(
+                1,
+                b"restart",
+                Some(sig.as_bytes()),
+                keys(),
+                &mut rate,
+                1000,
+                false
+            ),
             CommandOutcome::Ok(CommandKind::Restart)
         );
         assert_eq!(
@@ -366,7 +414,15 @@ mod tests {
         );
         let bad = sign(b"reset");
         assert_eq!(
-            handle_command(1, b"restart", Some(bad.as_bytes()), keys(), &mut rate, 1000, false),
+            handle_command(
+                1,
+                b"restart",
+                Some(bad.as_bytes()),
+                keys(),
+                &mut rate,
+                1000,
+                false
+            ),
             CommandOutcome::InvalidSignature
         );
     }
@@ -424,7 +480,15 @@ mod tests {
         let sig = sign(b"restart");
         // Even a valid signature is rejected while rate-limited.
         assert_eq!(
-            handle_command(1, b"restart", Some(sig.as_bytes()), keys(), &mut rate, 5000, false),
+            handle_command(
+                1,
+                b"restart",
+                Some(sig.as_bytes()),
+                keys(),
+                &mut rate,
+                5000,
+                false
+            ),
             CommandOutcome::RateLimited
         );
         // After the window elapses a valid signature passes again.

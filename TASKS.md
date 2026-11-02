@@ -1,17 +1,21 @@
 # Project Tasks & Roadmap
 
-## Completed tasks (as of 2026‑10‑30)
-- **Firmware**: Updated `cc` crate to v1.10, fixed UART re‑init placeholder after config changes. (Commit `fix(firmware): update cc dependency and re‑init UART via USB CDC`)
-- **PWA**: Enabled strict TypeScript mode, added offline fallback page (`public/offline.html`), enhanced Service Worker caching, upgraded Nuxt to 4.6.3 and related dependencies. (Commit `feat(pwa): enable strict TypeScript, add offline fallback page, improve service worker`)
-- **Documentation**: Updated `README.md` with offline support note and dependency upgrades.
-- **Dependency audit**: Bumped `@iconify-json/lucide`, `@types/node`, `nuxt`.
+## Completed tasks (as of 2026‑11‑02)
+- **PWA quality gate**: `pnpm typecheck`, `pnpm lint` and `pnpm build` are clean (0 errors/problems); the six `v-html` guide renders now go through a whitelist `GuideRichText` renderer.
+- **CI**: `.github/workflows/pr-checks.yml` runs the PWA lint/typecheck/build with pnpm (matching `packageManager`/`pnpm-lock.yaml`).
+- **Firmware**: `cargo fmt --check`, clippy, build and tests are green; `POST /ota` is wired to `rid_app::ota`; USB re-init is gated by chip/`mavlink_usb_enable`.
+- **Docs/cleanup**: README/CONTRIBUTING test count corrected to 307; `SECURITY.md` OTA/session text refreshed; `sdkconfig.defaults` points at `SECURITY.md`; root placeholder npm files and committed PWA archives removed.
+- **Firmware** (2026‑10‑30): Updated `cc` crate to v1.10, fixed UART re‑init placeholder after config changes. (Commit `fix(firmware): update cc dependency and re‑init UART via USB CDC`)
+- **PWA** (2026‑10‑30): Enabled strict TypeScript mode, added offline fallback page (`public/offline.html`), enhanced Service Worker caching, upgraded Nuxt to 4.6.3 and related dependencies. (Commit `feat(pwa): enable strict TypeScript, add offline fallback page, improve service worker`)
+- **Documentation** (2026‑10‑30): Updated `README.md` with offline support note and dependency upgrades.
+- **Dependency audit** (2026‑10‑30): Bumped `@iconify-json/lucide`, `@types/node`, `nuxt`.
 
 ## In‑progress / pending tasks
-- Resolve strict‑mode TypeScript errors (≈ 1 k errors) to improve type safety across the PWA.
-- Implement OTA end‑to‑end support in the UI (currently a stub) and align UI with firmware `POST /ota`.
-- ✅ Align Wi‑Fi credential length limits between firmware (MAX_STR_LEN = 63) and UI (now 32).
-- Add CI job for the PWA (lint, typecheck, build) to the GitHub workflow.
-- Document OTA workflow and security hardening steps in `SECURITY.md`.
+- ✅ Resolve strict‑mode TypeScript errors — `pnpm typecheck` is clean.
+- Implement the OTA upload UI in the app (firmware `POST /ota` is implemented; only the UI is pending).
+- ✅ Align Wi‑Fi credential length limits between firmware (MAX_STR_LEN = 63) and UI (now 32).
+- ✅ Add CI job for the PWA (lint, typecheck, build) to the GitHub workflow.
+- ✅ Document OTA workflow and security hardening steps in `SECURITY.md`.
 - **Web UI / ground‑station polish backlog** (issue #54) – UI/UX improvements, polish, accessibility.
 - **GNSS advanced options** – expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware.
 - **DroneCAN AHRS / Identity** – implement AHRS and Identity parsing (issue #52).
@@ -26,7 +30,7 @@
 - **ESP‑IDF 6 / `esp-idf-sys` 0.38** – address binding and opaque structs issues (issue #43).
 - **TypeScript 7 migration** – upgrade to TS 7 once compatibility issues resolved.
 - **Docs policy** – keep `docs/` for images only; remove stale documentation links.
-- **`sdkconfig.defaults` comment** – update reference to removed security‑hardening doc (pending if firmware touched).
+- **`sdkconfig.defaults` comment** – ✅ updated to reference `SECURITY.md`.
 
 ## Future roadmap (high‑level)
 - **LoRa support**: integrate LoRa radio driver and expose as an additional broadcast medium.

@@ -8,7 +8,7 @@ const { settings } = useAppSettings()
 const tabItems = computed(() => {
   const group = pageGroups.find(item => item.id === props.group)
   return (group?.items ?? [])
-    .filter(item => item.status !== 'wip' || (settings.value as any).expertMode)
+    .filter(item => item.status !== 'wip' || settings.value.expertMode)
     .map(item => ({ label: item.label, icon: item.icon, to: item.to }))
 })
 </script>

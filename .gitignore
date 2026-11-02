@@ -20,6 +20,8 @@ dist/
 *.a
 *.out
 *.exe
+*.zip
+*.tar.gz
 
 # ==================== ESP-IDF SPECIFIC ====================
 # Build outputs (except tracked firmware binaries)

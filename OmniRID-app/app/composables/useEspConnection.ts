@@ -18,8 +18,8 @@ type ProxyOptions = {
 type PendingConfigRequest = {
   path: string
   options: ProxyOptions
-  resolve: (value: any) => void
-  reject: (reason?: any) => void
+  resolve: (value: unknown) => void
+  reject: (reason?: unknown) => void
 }
 
 const virtualCapabilities = () => ({
@@ -176,7 +176,7 @@ const _useEspConnection = () => {
       pendingConfigRequest.value = {
         path,
         options,
-        resolve,
+        resolve: resolve as (value: unknown) => void,
         reject
       }
       if (import.meta.client) {
@@ -274,8 +274,8 @@ const _useEspConnection = () => {
     configAuthError.value = ''
     const pwd = (password || '').trim()
     if (!pwd) {
-      configAuthError.value = 'Password richiesta'
-      throw new Error('Password richiesta')
+      configAuthError.value = 'Password required'
+      throw new Error('Password required')
     }
     if (isSimulated.value) {
       configAuthenticated.value = true
@@ -326,9 +326,10 @@ const _useEspConnection = () => {
         }
       }
       return res
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (!configAuthError.value) {
-        configAuthError.value = e?.data?.error || e?.message || 'Autenticazione fallita'
+        const err = e as { data?: { error?: string }, message?: string }
+        configAuthError.value = err?.data?.error || err?.message || 'Authentication failed'
       }
       throw e
     }
@@ -369,9 +370,10 @@ const _useEspConnection = () => {
         body,
         timeout: options.timeout ?? 6000
       }) as Promise<T>
-    } catch (e: any) {
-      const status = e?.statusCode || e?.status || e?.response?.status
-      const msg = e?.data?.message || e?.data?.error || e?.message || ''
+    } catch (e: unknown) {
+      const err = e as { statusCode?: number, status?: number, response?: { status?: number }, data?: { message?: string, error?: string }, message?: string }
+      const status = err?.statusCode || err?.status || err?.response?.status
+      const msg = err?.data?.message || err?.data?.error || err?.message || ''
       if (isWrite && isEspConnected.value && (status === 401 || /app.*auth|password|unauthorized/i.test(String(msg)))) {
         configAuthRequired.value = true
         configAuthenticated.value = false
@@ -397,10 +399,10 @@ const _useEspConnection = () => {
       isEspConnected.value = true
       const info = typeof data === 'object' && data !== null ? data as Record<string, unknown> : null
       deviceInfo.value = info
-      if (info && typeof (info as any).lock_level === 'number') {
-        useState<number>('omnirid-device-lock-level').value = (info as any).lock_level
-      } else if (info && typeof (info as any).lockLevel === 'number') {
-        useState<number>('omnirid-device-lock-level').value = (info as any).lockLevel
+      if (info && typeof info.lock_level === 'number') {
+        useState<number>('omnirid-device-lock-level').value = info.lock_level
+      } else if (info && typeof info.lockLevel === 'number') {
+        useState<number>('omnirid-device-lock-level').value = info.lockLevel
       } else {
         try {
           const cfg = await proxyFetch<Record<string, unknown>>('api/config', { timeout: 3000 }).catch(() => null)

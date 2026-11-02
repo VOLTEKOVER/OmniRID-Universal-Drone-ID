@@ -53,6 +53,20 @@ const MAX_CONFIG_BODY: usize = 16 * 1024;
 /// Maximum accepted body for `POST /api/reset` and `POST /api/command`.
 const MAX_CMD_BODY: usize = 4 * 1024;
 
+/// Re-initialise the USB CDC UART after a protocol switch. USB CDC only
+/// exists on the S3/C6, so this is a no-op on the classic ESP32; it is also
+/// skipped when MAVLink-over-USB is disabled.
+#[cfg(any(feature = "esp32s3", feature = "esp32c6"))]
+fn reinit_usb_if_needed(should_reinit: bool) {
+    if should_reinit {
+        crate::usb::init();
+    }
+}
+
+/// No-op counterpart for chips without the `usb` module.
+#[cfg(not(any(feature = "esp32s3", feature = "esp32c6")))]
+fn reinit_usb_if_needed(_should_reinit: bool) {}
+
 /// HTTP reason phrase for the status codes this API returns.
 fn reason_phrase(status: u16) -> &'static str {
     match status {
@@ -223,7 +237,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         let p = &ctl.bsp_config.app_password;
                         p[0] != 0
                     };
-                    let token = req.header("X-App-Token").or_else(|| req.header("x-app-token"));
+                    let token = req.header("X-App-Token");
                     let authed = if let Some(t) = token {
                         let mut auth = state.app_auth.lock();
                         auth.is_valid(t.as_bytes(), now_ms() as u64)
@@ -369,7 +383,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         }
                     }
                     let (level, _keys) = lock_and_keys(&state);
-                    let app_token = req.header("X-App-Token").or_else(|| req.header("x-app-token")).map(|s| s.as_str());
+                    let app_token = req.header("X-App-Token");
                     let session_ok = app_session_valid(&state, app_token);
                     if level >= 1 && !session_ok {
                         send_json(req, 401, r#"{"ok":false,"error":"unauthorized"}"#)?;
@@ -447,7 +461,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                     };
                     let json_str = alloc::str::from_utf8(&body).unwrap_or("{}");
                     let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                    let app_token = req.header("X-App-Token").or_else(|| req.header("x-app-token")).map(|s| s.as_str());
+                    let app_token = req.header("X-App-Token");
                     match write_decision(&state, &body, sig.as_deref(), app_token) {
                         ConfigWrite::RateLimited => {
                             send_json(
@@ -469,9 +483,9 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                             let cfg = lock.bsp_config.clone();
                             let outcome = lock.set_config(&cfg);
                             super::nvs_save(&lock.bsp_config);
-                            if outcome.protocol_reinit_required {
-                                bsp_esp32::usb::init(); // Re-initialize UART (USB CDC) after config change
-                            }
+                            reinit_usb_if_needed(
+                                outcome.protocol_reinit_required && cfg.mavlink_usb_enable,
+                            );
                             true
                         } else {
                             false
@@ -534,7 +548,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         return Ok(());
                     };
                     let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                    let app_token = req.header("X-App-Token").or_else(|| req.header("x-app-token")).map(|s| s.as_str());
+                    let app_token = req.header("X-App-Token");
                     match write_decision(&state, &body, sig.as_deref(), app_token) {
                         ConfigWrite::RateLimited => {
                             send_json(
@@ -605,7 +619,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         return Ok(());
                     };
                     let sig = req.header("X-Signature").map(|s| s.as_bytes().to_vec());
-                    let app_token = req.header("X-App-Token").or_else(|| req.header("x-app-token")).map(|s| s.as_str());
+                    let app_token = req.header("X-App-Token");
                     match command_decision(&state, &body, sig.as_deref(), app_token) {
                         CommandOutcome::RateLimited => {
                             send_json(

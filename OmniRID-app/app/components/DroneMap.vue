@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import type { TelemetryStatus } from '~/composables/useTelemetry'
 import type {
-  LeafletIcon, LeafletLatLng, LeafletLayer, LeafletMap, LeafletMarker, LeafletPolyline, LeafletStatic
+  LeafletGeoJSONLayer,
+  LeafletIcon,
+  LeafletLatLng,
+  LeafletLayer,
+  LeafletMap,
+  LeafletMarker,
+  LeafletMarkerCluster,
+  LeafletPolyline,
+  LeafletStatic
 } from '~/types/leaflet'
 
 export interface NearbyDrone {
@@ -112,10 +120,10 @@ let nearbyIcon: LeafletIcon | null = null
 let pathLine: LeafletPolyline | null = null
 let tileLayer: LeafletLayer | null = null
 const nearbyMarkers = new Map<string, LeafletMarker>()
-let nearbyCluster: any = null
-let airspaceLayer: any = null
+let nearbyCluster: LeafletMarkerCluster | null = null
+let airspaceLayer: LeafletGeoJSONLayer | null = null
 let airspaceLastFetch = 0
-const airspaceFetchTimeout = ref<any>(null)
+const airspaceFetchTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 const nearbyPaths = new Map<string, LeafletPolyline>()
 let hasCentered = false
 let loadPromise: Promise<LeafletStatic | null> | null = null
@@ -126,7 +134,6 @@ const showNearbyLayer = ref(true)
 const showNearbyPanel = ref(true)
 const nearbyFilter = ref<'all' | 'live' | 'unseen'>('all')
 const nearbySort = ref<'last_seen' | 'rssi' | 'distance'>('last_seen')
-const isFullscreen = ref(false)
 const showAirspace = ref(false)
 const selectedDrone = ref<NearbyDrone | null>(null)
 const seenKey = 'omnirid:nearby-seen'
@@ -140,6 +147,7 @@ const loadSeen = () => {
     const arr = JSON.parse(raw) as string[]
     if (Array.isArray(arr)) seenSet.value = new Set(arr.filter(Boolean))
   } catch {
+    /* corrupt or unavailable storage: start with an empty set */
     seenSet.value = new Set()
   }
 }
@@ -148,19 +156,14 @@ const saveSeen = () => {
   if (!import.meta.client) return
   try {
     localStorage.setItem(seenKey, JSON.stringify(Array.from(seenSet.value)))
-  } catch {}
+  } catch {
+    /* storage full or disabled; "seen" state is best-effort */
+  }
 }
 
 const droneKey = (d: NearbyDrone | null | undefined) => {
   if (!d) return ''
   return String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || '')
-}
-
-const markSeen = (d: NearbyDrone | null) => {
-  const k = droneKey(d)
-  if (!k) return
-  seenSet.value.add(k)
-  saveSeen()
 }
 
 const isSeen = (d: NearbyDrone | null | undefined) => {
@@ -169,48 +172,32 @@ const isSeen = (d: NearbyDrone | null | undefined) => {
   return seenSet.value.has(k)
 }
 
-const toggleFullscreen = async () => {
-  if (!import.meta.client) return
-  const el = mapEl.value?.parentElement as HTMLElement | null
-  if (!el) return
-  try {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen()
-    } else {
-      await el.requestFullscreen()
-    }
-  } catch {}
+const findNearbyById = (id: string): NearbyDrone | undefined => {
+  const list = Array.isArray(props.nearbyDrones) ? props.nearbyDrones : []
+  return list.find(d => droneKey(d) === id)
 }
 
 onMounted(() => {
   loadSeen()
   if (import.meta.client) {
-    const handler = () => {
-      isFullscreen.value = !!document.fullscreenElement
-    }
-    document.addEventListener('fullscreenchange', handler)
-    onUnmounted(() => document.removeEventListener('fullscreenchange', handler))
     try {
       const checkHash = () => {
         const h = window.location.hash || ''
-        if (h.startsWith('#rx/detections/')) {
-          const id = decodeURIComponent(h.split('#rx/detections/')[1]).trim()
-          if (!id) return
-          const list = Array.isArray(props.nearbyDrones) ? props.nearbyDrones : []
-          const found = list.find((d: any) => {
-            const k = String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || '')
-            return k === id
-          })
-          if (found) {
-            selectedDrone.value = found
-            selectedOwn.value = false
-          }
+        if (!h.startsWith('#rx/detections/')) return
+        const id = decodeURIComponent(h.split('#rx/detections/')[1] ?? '').trim()
+        if (!id) return
+        const found = findNearbyById(id)
+        if (found) {
+          selectedDrone.value = found
+          selectedOwn.value = false
         }
       }
       checkHash()
       window.addEventListener('hashchange', checkHash)
       onUnmounted(() => window.removeEventListener('hashchange', checkHash))
-    } catch {}
+    } catch {
+      /* malformed hash, ignore */
+    }
   }
 })
 const selectedOwn = ref(false)
@@ -266,6 +253,13 @@ const currentPosition = (): LeafletLatLng | null => {
   return { lat, lng: lon }
 }
 
+const appendStylesheet = (href: string) => {
+  const el = document.createElement('link')
+  el.rel = 'stylesheet'
+  el.href = href
+  document.head.appendChild(el)
+}
+
 const injectScript = (src: string): Promise<boolean> => new Promise((resolve) => {
   const script = document.createElement('script')
   script.src = src
@@ -282,17 +276,10 @@ const ensureLeaflet = (): Promise<LeafletStatic | null> => {
       const w = window as Window & typeof globalThis
       try {
         if (!w.L) {
-          const localCss = document.createElement('link')
-          localCss.rel = 'stylesheet'
-          localCss.href = LOCAL_CSS
-          document.head.appendChild(localCss)
-
+          appendStylesheet(LOCAL_CSS)
           const localOk = await injectScript(LOCAL_JS)
           if (!w.L && !localOk) {
-            const cdnCss = document.createElement('link')
-            cdnCss.rel = 'stylesheet'
-            cdnCss.href = CDN_CSS
-            document.head.appendChild(cdnCss)
+            appendStylesheet(CDN_CSS)
             await injectScript(CDN_JS)
           }
         }
@@ -301,21 +288,22 @@ const ensureLeaflet = (): Promise<LeafletStatic | null> => {
           loading.value = false
           return null
         }
-        // Ensure L is global for plugins
-        ;(window as any).L = w.L
-        // Load marker cluster
+        // Make L global for the plugins, which expect `window.L`.
+        window.L = w.L
+        // Marker cluster is optional: on failure the plain-marker path is used.
         try {
-          const head = document.head
           if (!document.querySelector('link[href="/vendor/leaflet/cluster/MarkerCluster.css"]')) {
-            const l1 = document.createElement('link'); l1.rel = 'stylesheet'; l1.href = '/vendor/leaflet/cluster/MarkerCluster.css'; head.appendChild(l1)
+            appendStylesheet('/vendor/leaflet/cluster/MarkerCluster.css')
           }
           if (!document.querySelector('link[href="/vendor/leaflet/cluster/MarkerCluster.Default.css"]')) {
-            const l2 = document.createElement('link'); l2.rel = 'stylesheet'; l2.href = '/vendor/leaflet/cluster/MarkerCluster.Default.css'; head.appendChild(l2)
+            appendStylesheet('/vendor/leaflet/cluster/MarkerCluster.Default.css')
           }
-          if (!(w.L as any).MarkerClusterGroup) {
-            await new Promise((r) => { const s = document.createElement('script'); s.src = '/vendor/leaflet/cluster/leaflet.markercluster.js'; s.onload = r; s.onerror = r; head.appendChild(s) })
+          if (typeof w.L.markerClusterGroup !== 'function') {
+            await injectScript('/vendor/leaflet/cluster/leaflet.markercluster.js')
           }
-        } catch {}
+        } catch {
+          /* cluster plugin unavailable, fall back to individual markers */
+        }
         loading.value = false
         return w.L
       } catch {
@@ -341,12 +329,12 @@ const makeDroneIcon = (rotation: number, isOwn = true): LeafletIcon | null => {
 
 const buildDronePopup = (): string => {
   const s = props.status ?? {}
-  const model = (s as any).aircraft_model_name ?? (s as any).aircraft_model ?? (s as any).model ?? ''
-  const manu = (s as any).aircraft_manufacturer ?? (s as any).manufacturer ?? ''
-  const det = (s as any).detection_detail || `${manu} ${model}`.trim() || 'My Drone'
+  const model = s.aircraft_model_name ?? s.aircraft_model ?? s.model ?? ''
+  const manu = s.aircraft_manufacturer ?? s.manufacturer ?? ''
+  const det = String(s.detection_detail || `${manu} ${model}`.trim() || 'My Drone')
   return [
     '<div style="font-family:ui-monospace,monospace;font-size:11px;line-height:1.4;max-width:160px">',
-    `<b>${String(det).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`,
+    `<b>${det.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`,
     '</div>'
   ].join('')
 }
@@ -374,8 +362,7 @@ const syncDrone = (pos: LeafletLatLng | null) => {
     if (!icon) return
     if (!droneMarker) {
       droneMarker = link.marker(pos, { icon }).addTo(map)
-      const dm = droneMarker as unknown as { on?: (e: string, fn: () => void) => void }
-      dm.on?.('click', () => {
+      droneMarker.on?.('click', () => {
         selectedOwn.value = true
         selectedDrone.value = null
       })
@@ -443,12 +430,20 @@ const nearbyKey = (d: NearbyDrone) => {
   return String(d.id ?? d.uas_id ?? d.uav_id ?? d.serial ?? d.serial_number ?? d.sn ?? `${d.lat},${d.lng}`)
 }
 
+const toTimestamp = (raw: unknown): number | null => {
+  let ts: number
+  if (typeof raw === 'string') {
+    const parsed = Date.parse(raw)
+    ts = Number.isNaN(parsed) ? Number.NaN : parsed
+  } else {
+    ts = Number(raw)
+  }
+  return Number.isFinite(ts) ? ts : null
+}
+
 const isLiveDrone = (d: NearbyDrone) => {
-  const raw = (d as any).last_seen_ts ?? d.last_seen
-  let ts: any = raw
-  if (typeof ts === 'string') { const p = Date.parse(ts); if (!Number.isNaN(p)) ts = p }
-  ts = Number(ts)
-  if (!Number.isFinite(ts)) return false
+  const ts = toTimestamp(d.last_seen_ts ?? d.last_seen)
+  if (ts === null) return false
   const diff = Date.now() - ts
   return diff >= 0 && diff < 60000
 }
@@ -477,7 +472,8 @@ const bearing = (lat1: number, lon1: number, lat2: number, lon2: number) => {
 const getOwnPos = () => {
   const s = props.status ?? {}
   if (!s.gps_valid) return null
-  const lat = Number(s.lat), lon = Number(s.lon)
+  const lat = Number(s.lat)
+  const lon = Number(s.lon)
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return null
   return { lat, lng: lon }
 }
@@ -489,8 +485,8 @@ const sortedFilteredNearby = computed(() => {
   const own = getOwnPos()
   if (own) {
     list = list.map((d) => {
-      const lat = Number((d as any).lat ?? (d as any).latitude)
-      const lon = Number((d as any).lng ?? (d as any).lon ?? (d as any).longitude)
+      const lat = Number(d.lat ?? d.latitude)
+      const lon = Number(d.lng ?? d.lon ?? d.longitude)
       if (Number.isFinite(lat) && Number.isFinite(lon)) {
         const dist = haversine(own.lat, own.lng, lat, lon)
         const brng = bearing(own.lat, own.lng, lat, lon)
@@ -501,28 +497,22 @@ const sortedFilteredNearby = computed(() => {
   }
   list.sort((a, b) => {
     if (nearbySort.value === 'rssi') {
-      const ra = Number((a as any).rssi)
-      const rb = Number((b as any).rssi)
+      const ra = Number(a.rssi)
+      const rb = Number(b.rssi)
       const na = Number.isFinite(ra) ? ra : -999
       const nb = Number.isFinite(rb) ? rb : -999
       return nb - na
     }
     if (nearbySort.value === 'distance') {
-      const da = Number((a as any)._dist_m)
-      const db = Number((b as any)._dist_m)
+      const da = Number(a._dist_m)
+      const db = Number(b._dist_m)
       const na = Number.isFinite(da) ? da : Number.POSITIVE_INFINITY
       const nb = Number.isFinite(db) ? db : Number.POSITIVE_INFINITY
       return na - nb
     }
-    const rawA = (a as any).last_seen_ts ?? a.last_seen
-    const rawB = (b as any).last_seen_ts ?? b.last_seen
-    let ta: any = rawA, tb: any = rawB
-    if (typeof ta === 'string') { const p = Date.parse(ta); if (!Number.isNaN(p)) ta = p }
-    if (typeof tb === 'string') { const p = Date.parse(tb); if (!Number.isNaN(p)) tb = p }
-    ta = Number(ta); tb = Number(tb)
-    const na = Number.isFinite(ta) ? ta : 0
-    const nb = Number.isFinite(tb) ? tb : 0
-    return nb - na
+    const ta = toTimestamp(a.last_seen_ts ?? a.last_seen) ?? 0
+    const tb = toTimestamp(b.last_seen_ts ?? b.last_seen) ?? 0
+    return tb - ta
   })
   return list
 })
@@ -530,7 +520,7 @@ const sortedFilteredNearby = computed(() => {
 const buildNearbyPopup = (d: NearbyDrone): string => {
   const model = d.aircraft_model_name ?? d.aircraft_model ?? d.model ?? ''
   const manu = d.aircraft_manufacturer ?? d.manufacturer ?? ''
-  const det = d.detection_detail || `${manu} ${model}`.trim() || 'Nearby Remote ID'
+  const det = String(d.detection_detail || `${manu} ${model}`.trim() || 'Nearby Remote ID')
   return [
     '<div style="font-family:ui-monospace,monospace;font-size:11px;line-height:1.4;max-width:160px">',
     `<b>${det.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`,
@@ -541,84 +531,72 @@ const buildNearbyPopup = (d: NearbyDrone): string => {
 const nearbyColors = ['#f59e0b', '#22d3ee', '#a78bfa', '#f43f5e', '#34d399', '#f59e0b']
 
 const syncNearby = () => {
-  if (!link || !map || !props.showNearby || !showNearbyLayer.value) {
-    try {
-      if (nearbyCluster && map) {
-        try { if (typeof nearbyCluster.clearLayers === 'function') nearbyCluster.clearLayers() } catch {}
-        try { if (map.hasLayer(nearbyCluster)) map.removeLayer(nearbyCluster) } catch {}
-      }
-      for (const [k, m] of nearbyMarkers.entries()) {
-        try { if (map) map.removeLayer(m) } catch {}
-        nearbyMarkers.delete(k)
-      }
-    } catch {}
+  if (!map) return
+  if (!link || !props.showNearby || !showNearbyLayer.value) {
+    if (nearbyCluster) {
+      nearbyCluster.clearLayers()
+      if (map.hasLayer(nearbyCluster)) map.removeLayer(nearbyCluster)
+    }
+    for (const marker of nearbyMarkers.values()) {
+      map.removeLayer(marker)
+    }
+    nearbyMarkers.clear()
     return
   }
+  const leaflet = link
   const seen = new Set<string>()
   const list = Array.isArray(sortedFilteredNearby.value) ? sortedFilteredNearby.value : []
-  if ((link as any).MarkerClusterGroup && !nearbyCluster) {
-    try {
-      nearbyCluster = (link as any).markerClusterGroup({
-        disableClusteringAtZoom: 16,
-        iconCreateFunction: function (cluster: any) {
-          const count = cluster.getChildCount()
-          return (link as any).divIcon({
-            html: '<div style="background:rgba(59,130,246,.9);color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:2px solid #bfdbfe;font-weight:600;font-size:12px">' + count + '</div>',
-            className: 'cd-cluster',
-            iconSize: [36, 36]
-          })
-        }
+  if (leaflet.markerClusterGroup && !nearbyCluster) {
+    nearbyCluster = leaflet.markerClusterGroup({
+      disableClusteringAtZoom: 16,
+      iconCreateFunction: (cluster: { getChildCount: () => number }) => leaflet.divIcon({
+        html: '<div style="background:rgba(59,130,246,.9);color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:2px solid #bfdbfe;font-weight:600;font-size:12px">' + cluster.getChildCount() + '</div>',
+        className: 'cd-cluster',
+        iconSize: [36, 36]
       })
-      if (map) map.addLayer(nearbyCluster)
-    } catch {}
+    })
+    map.addLayer(nearbyCluster)
   }
-  if (nearbyCluster && (link as any).MarkerClusterGroup) {
-    try {
-      try { if (typeof nearbyCluster.clearLayers === 'function') nearbyCluster.clearLayers() } catch {}
-      for (let i = 0; i < list.length; i++) {
-        const d = list[i]
-        const lat = Number((d.lat as unknown) ?? (d as Record<string, unknown>).latitude)
-        const lon = Number((d.lng as unknown) ?? (d.lon as unknown) ?? (d as Record<string, unknown>).longitude)
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
-        const key = nearbyKey(d)
-        seen.add(key)
-        let marker = nearbyMarkers.get(key)
-        if (!marker) {
-          try {
-            marker = link.marker([lat, lon], { icon: nearbyIcon ?? undefined })
-            if (marker && typeof marker.on === 'function') marker.on('click', () => { selectedDrone.value = d })
-            if (marker && typeof marker.bindPopup === 'function') marker.bindPopup(buildNearbyPopup(d))
-            nearbyMarkers.set(key, marker)
-          } catch { continue }
-        } else {
-          try {
-            if (marker && typeof (marker as any).setLatLng === 'function') (marker as any).setLatLng([lat, lon])
-            if (marker && typeof (marker as any).setPopupContent === 'function') (marker as any).setPopupContent(buildNearbyPopup(d))
-            if (marker && typeof marker.off === 'function') marker.off('click')
-            if (marker && typeof marker.on === 'function') marker.on('click', () => { selectedDrone.value = d })
-          } catch {}
-        }
-        try { if (marker && typeof nearbyCluster.addLayer === 'function') nearbyCluster.addLayer(marker) } catch {}
+  if (nearbyCluster) {
+    const cluster = nearbyCluster
+    cluster.clearLayers()
+    for (const d of list) {
+      const lat = Number(d.lat ?? d.latitude)
+      const lon = Number(d.lng ?? d.lon ?? d.longitude)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+      const key = nearbyKey(d)
+      seen.add(key)
+      let marker = nearbyMarkers.get(key)
+      if (!marker) {
+        marker = leaflet.marker([lat, lon], { icon: nearbyIcon ?? undefined })
+        marker.on?.('click', () => {
+          selectedDrone.value = d
+        })
+        marker.bindPopup(buildNearbyPopup(d))
+        nearbyMarkers.set(key, marker)
+      } else {
+        marker.setLatLng([lat, lon])
+        marker.setPopupContent(buildNearbyPopup(d))
+        marker.off?.('click')
+        marker.on?.('click', () => {
+          selectedDrone.value = d
+        })
       }
-      // ensure on map
-      try {
-        if (map && !map.hasLayer(nearbyCluster)) map.addLayer(nearbyCluster)
-      } catch {}
-      // cleanup removed
-      for (const [k, m] of nearbyMarkers.entries()) {
-        if (!seen.has(k)) {
-          try { nearbyCluster.removeLayer(m) } catch {}
-          try { if (map) map.removeLayer(m) } catch {}
-          nearbyMarkers.delete(k)
-        }
-      }
-      return
-    } catch {}
+      cluster.addLayer(marker)
+    }
+    // Ensure the cluster group is on the map and drop stale markers.
+    if (!map.hasLayer(cluster)) map.addLayer(cluster)
+    for (const [k, marker] of nearbyMarkers.entries()) {
+      if (seen.has(k)) continue
+      cluster.removeLayer(marker)
+      map.removeLayer(marker)
+      nearbyMarkers.delete(k)
+    }
+    return
   }
-  for (let i = 0; i < list.length; i++) {
-    const d = list[i]
-    const lat = Number((d.lat as unknown) ?? (d as Record<string, unknown>).latitude)
-    const lng = Number((d.lng as unknown) ?? (d.lon as unknown) ?? (d as Record<string, unknown>).longitude)
+  for (const [i, d] of list.entries()) {
+    const lat = Number(d.lat ?? d.latitude)
+    const lng = Number(d.lng ?? d.lon ?? d.longitude)
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) continue
     const key = nearbyKey(d)
     seen.add(key)
@@ -628,7 +606,7 @@ const syncNearby = () => {
     hist.push(pos)
     if (hist.length > MAX_HISTORY) hist.shift()
     if (!nearbyIcon) {
-      nearbyIcon = link.divIcon({
+      nearbyIcon = leaflet.divIcon({
         className: 'cd-cardiv',
         html: '<div class="cd-map-nearby"></div>',
         iconSize: [18, 18],
@@ -636,24 +614,22 @@ const syncNearby = () => {
       })
     }
     if (!nearbyMarkers.has(key)) {
-      const marker = link.marker(pos, { icon: nearbyIcon }).addTo(map)
+      const marker = leaflet.marker(pos, { icon: nearbyIcon }).addTo(map)
       marker.bindPopup(buildNearbyPopup(d))
-      const m = marker as unknown as { on?: (e: string, fn: () => void) => void }
-      m.on?.('click', () => {
+      marker.on?.('click', () => {
         selectedDrone.value = d
         selectedOwn.value = false
       })
       nearbyMarkers.set(key, marker)
     } else {
       const marker = nearbyMarkers.get(key)!
-      const mm = marker as unknown as { setLatLng?: (p: LeafletLatLng) => void }
-      mm.setLatLng?.(pos)
+      marker.setLatLng(pos)
       marker.bindPopup(buildNearbyPopup(d))
     }
     if (showPath.value && hist.length >= 2) {
       const color = nearbyColors[i % nearbyColors.length]
       if (!nearbyPaths.has(key)) {
-        nearbyPaths.set(key, link.polyline(hist, {
+        nearbyPaths.set(key, leaflet.polyline(hist, {
           color,
           weight: 3,
           opacity: 0.9,
@@ -720,23 +696,56 @@ const recenter = () => {
 
 const addTileLayer = () => {
   if (!link || !map) return
+  const leaflet = link
+  const theMap = map
   if (tileLayer) {
-    try { map.removeLayer(tileLayer) } catch {}
+    theMap.removeLayer(tileLayer)
     tileLayer = null
   }
   const url = TILE_URLS[isDark.value ? 'dark' : 'light']
-  tileLayer = link.tileLayer(url, {
+  const layer = leaflet.tileLayer(url, {
     maxZoom: 19,
     attribution: TILE_ATTRIBUTION[isDark.value ? 'dark' : 'light']
-  }).addTo(map)
-  try {
-    tileLayer.on('tileerror', () => {
-      try {
-        if (tileLayer && map) map.removeLayer(tileLayer)
-        tileLayer = link.tileLayer(LOCAL_TILE_FALLBACK, { maxZoom: 18, attribution: 'Offline' }).addTo(map)
-      } catch {}
-    })
-  } catch {}
+  })
+  tileLayer = layer
+  layer.addTo(theMap)
+  layer.on?.('tileerror', () => {
+    // The online tile source failed: switch to the bundled offline tiles.
+    if (tileLayer) theMap.removeLayer(tileLayer)
+    tileLayer = leaflet.tileLayer(LOCAL_TILE_FALLBACK, { maxZoom: 18, attribution: 'Offline' })
+    tileLayer.addTo(theMap)
+  })
+}
+
+interface GeoJsonFeature {
+  type: string
+  properties?: Record<string, unknown>
+  geometry?: unknown
+}
+
+interface GeoJsonCollection {
+  type: string
+  features: GeoJsonFeature[]
+}
+
+interface OsmElement {
+  type?: string
+  id?: number
+  lon?: number
+  lat?: number
+  nodes?: number[]
+  tags?: Record<string, string>
+}
+
+interface OsmResponse {
+  elements?: OsmElement[]
+}
+
+type AirspaceData = GeoJsonCollection | GeoJsonFeature[]
+
+const isAirspaceEmpty = (data: AirspaceData | null): boolean => {
+  if (!data) return true
+  return Array.isArray(data) ? data.length === 0 : data.features.length === 0
 }
 
 const fetchAirspace = async () => {
@@ -747,49 +756,64 @@ const fetchAirspace = async () => {
     const bounds = map.getBounds()
     const sw = bounds.getSouthWest()
     const ne = bounds.getNorthEast()
-    // Try openAIP first
-    let data: any = null
+    // Try openAIP first.
+    let data: AirspaceData | null = null
     try {
       const url = `https://api.openaip.net/api/airspaces?bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}&limit=500`
       const res = await fetch(url, { headers: { Accept: 'application/json' } })
       if (res.ok) {
-        data = await res.json()
+        data = await res.json() as AirspaceData
       }
-    } catch {}
-    // Fallback to Overpass API for airspace
-    if (!data || (Array.isArray(data) && data.length === 0) || (data.features && data.features.length === 0)) {
+    } catch {
+      /* openAIP unreachable: fall through to Overpass */
+    }
+    // Fallback to Overpass API for airspace.
+    if (isAirspaceEmpty(data)) {
       try {
         const query = `[out:json][timeout:25];(way["military"="danger_area"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});way["airspace"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});way["boundary"="protected_area"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});relation["military"="danger_area"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});relation["airspace"](${sw.lat},${sw.lng},${ne.lat},${ne.lng}););out body;>;out skel qt;`
         const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query, headers: { 'Content-Type': 'text/plain' } })
         if (res.ok) {
-          const osm = await res.json()
-          // Convert minimal to GeoJSON
-          const features: any[] = []
+          const osm = await res.json() as OsmResponse
+          // Convert the minimal OSM response to GeoJSON.
+          const features: GeoJsonFeature[] = []
           const nodes: Record<number, [number, number]> = {}
-          for (const el of osm.elements || []) {
-            if (el.type === 'node') nodes[el.id] = [el.lon, el.lat]
+          for (const el of osm.elements ?? []) {
+            if (el.type === 'node' && el.id !== undefined && el.lon !== undefined && el.lat !== undefined) {
+              nodes[el.id] = [el.lon, el.lat]
+            }
           }
-          for (const el of osm.elements || []) {
-            if (el.type === 'way' && el.nodes) {
-              const coords = el.nodes.map((id: number) => nodes[id]).filter(Boolean)
-              if (coords.length > 2) {
-                features.push({ type: 'Feature', properties: { type: el.tags?.airspace || el.tags?.military || 'airspace' }, geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] } })
-              }
+          for (const el of osm.elements ?? []) {
+            if (el.type !== 'way' || !el.nodes) continue
+            const coords = el.nodes
+              .map(id => nodes[id])
+              .filter((coord): coord is [number, number] => coord !== undefined)
+            if (coords.length > 2) {
+              features.push({
+                type: 'Feature',
+                properties: { type: el.tags?.airspace || el.tags?.military || 'airspace' },
+                geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] }
+              })
             }
           }
           if (features.length) data = { type: 'FeatureCollection', features }
         }
-      } catch {}
+      } catch {
+        /* Overpass unreachable: show whatever openAIP returned */
+      }
     }
-    if (airspaceLayer && map) {
-      try { map.removeLayer(airspaceLayer) } catch {}
+    if (airspaceLayer) {
+      map.removeLayer(airspaceLayer)
+      airspaceLayer = null
     }
     if (data) {
-      const geojson = Array.isArray(data) ? (data.length && data[0]?.geometry ? { type: 'FeatureCollection', features: data } : data) : data
-      if (geojson?.features?.length) {
-        airspaceLayer = (link as any).geoJSON(geojson, {
-          style: (feature: any) => {
-            const type = feature?.properties?.type || feature?.properties?.airspaceType || feature?.properties?.category || ''
+      const collection: GeoJsonCollection | null = Array.isArray(data)
+        ? (data.length && data[0]?.geometry ? { type: 'FeatureCollection', features: data } : null)
+        : data
+      if (collection?.features.length && link.geoJSON) {
+        airspaceLayer = link.geoJSON(collection, {
+          style: (feature: unknown) => {
+            const props = (feature as GeoJsonFeature | null)?.properties ?? {}
+            const type = props.type ?? props.airspaceType ?? props.category ?? ''
             let color = '#f59e0b'
             const t = String(type).toUpperCase()
             if (t.includes('RESTRICT') || t.includes('PROHIBIT') || t.includes('DANGER')) color = '#ef4444'
@@ -798,28 +822,32 @@ const fetchAirspace = async () => {
             return { color, weight: 1, fillColor: color, fillOpacity: 0.15 }
           }
         })
-        if (airspaceLayer && map) airspaceLayer.addTo(map)
+        airspaceLayer.addTo(map)
       }
     }
     airspaceLastFetch = now
-  } catch {}
+  } catch {
+    /* geometry/bounds unavailable while the map is initialising */
+  }
 }
 
 const toggleAirspace = () => {
   showAirspace.value = !showAirspace.value
-  if (!showAirspace.value && airspaceLayer && map) {
-    try { map.removeLayer(airspaceLayer); airspaceLayer = null } catch {}
+  if (!showAirspace.value) {
+    if (airspaceLayer && map) {
+      map.removeLayer(airspaceLayer)
+      airspaceLayer = null
+    }
     return
   }
-  if (showAirspace.value) {
-    fetchAirspace()
-    if (map && !(map as any)._airspaceBound) {
-      map.on('moveend', () => {
-        if (airspaceFetchTimeout.value) clearTimeout(airspaceFetchTimeout.value)
-        airspaceFetchTimeout.value = setTimeout(fetchAirspace, 800)
-      })
-      ;(map as any)._airspaceBound = true
-    }
+  if (!map) return
+  fetchAirspace()
+  if (!map._airspaceBound) {
+    map.on('moveend', () => {
+      if (airspaceFetchTimeout.value) clearTimeout(airspaceFetchTimeout.value)
+      airspaceFetchTimeout.value = setTimeout(fetchAirspace, 800)
+    })
+    map._airspaceBound = true
   }
 }
 
@@ -837,34 +865,44 @@ onMounted(async () => {
     attributionControl: true
   })
   try {
-    if (link.control && link.control.zoom) {
-      link.control.zoom({ position: 'topleft' }).addTo(map)
-    }
-  } catch {}
+    link.control?.zoom({ position: 'topleft' }).addTo(map)
+  } catch {
+    /* zoom control is optional */
+  }
   try {
-    if ((link as any).control && (link as any).control.scale) {
-      (link as any).control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map)
-    }
-  } catch {}
+    link.control?.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map)
+  } catch {
+    /* scale control is optional */
+  }
   try {
     const scale = document.querySelector('.leaflet-control-scale')
     if (scale) {
       scale.classList.add('cd-scale')
     }
-  } catch {}
+  } catch {
+    /* scale control not rendered */
+  }
   try {
-    if (!(link as any).MeasureControl) {
-      const head = document.head
-      const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/vendor/leaflet/measure/leaflet-measure.css'; head.appendChild(l)
-      await new Promise((r) => { const s = document.createElement('script'); s.src = '/vendor/leaflet/measure/leaflet-measure.js'; s.onload = r; s.onerror = r; head.appendChild(s) })
+    if (!link.MeasureControl) {
+      appendStylesheet('/vendor/leaflet/measure/leaflet-measure.css')
+      await injectScript('/vendor/leaflet/measure/leaflet-measure.js')
     }
-    if ((link as any).control && (link as any).control.polylineMeasure) {
-      (link as any).control.polylineMeasure({ position: 'topleft' }).addTo(map)
-    } else if ((link as any).MeasureControl) {
-      const measureControl = new (link as any).MeasureControl({ position: 'topleft', primaryLengthUnit: 'meters', secondaryLengthUnit: 'kilometers', primaryAreaUnit: 'sqmeters', activeColor: '#FF0000', completedColor: '#CC0000' })
+    if (link.control?.polylineMeasure) {
+      link.control.polylineMeasure({ position: 'topleft' }).addTo(map)
+    } else if (link.MeasureControl) {
+      const measureControl = new link.MeasureControl({
+        position: 'topleft',
+        primaryLengthUnit: 'meters',
+        secondaryLengthUnit: 'kilometers',
+        primaryAreaUnit: 'sqmeters',
+        activeColor: '#FF0000',
+        completedColor: '#CC0000'
+      })
       map.addControl(measureControl)
     }
-  } catch {}
+  } catch {
+    /* measuring plugin unavailable */
+  }
   mapReady.value = true
   addTileLayer()
   homeIcon = link.divIcon({
@@ -884,21 +922,18 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  try {
-    if (map) {
-      for (const mm of nearbyMarkers.values()) {
-        try { map.removeLayer(mm) } catch {}
-      }
-      nearbyMarkers.clear()
-      try { if (nearbyCluster) { map.removeLayer(nearbyCluster); nearbyCluster = null } } catch {}
-      try { if (pathLine) { map.removeLayer(pathLine); pathLine = null } } catch {}
-      try { if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null } } catch {}
-      try { if (droneMarker) { map.removeLayer(droneMarker); droneMarker = null } } catch {}
-      try { if (takeoffMarker) { map.removeLayer(takeoffMarker); takeoffMarker = null } } catch {}
-      try { if (airspaceLayer) { map.removeLayer(airspaceLayer); airspaceLayer = null } } catch {}
-      map.remove()
-    }
-  } catch {}
+  const theMap = map
+  if (theMap) {
+    for (const marker of nearbyMarkers.values()) theMap.removeLayer(marker)
+    nearbyMarkers.clear()
+    if (nearbyCluster) theMap.removeLayer(nearbyCluster)
+    if (pathLine) theMap.removeLayer(pathLine)
+    if (tileLayer) theMap.removeLayer(tileLayer)
+    if (droneMarker) theMap.removeLayer(droneMarker)
+    if (takeoffMarker) theMap.removeLayer(takeoffMarker)
+    if (airspaceLayer) theMap.removeLayer(airspaceLayer)
+    theMap.remove()
+  }
   map = null
   droneMarker = null
   takeoffMarker = null
@@ -913,27 +948,105 @@ watch(() => props.status, applyStatus, { deep: true })
 watch(() => props.nearbyDrones, () => {
   applyStatus()
   try {
-    if (import.meta.client) {
-      const h = window.location.hash || ''
-      if (h.startsWith('#rx/detections/')) {
-        const id = decodeURIComponent(h.split('#rx/detections/')[1]).trim()
-        if (!id || selectedDrone.value) return
-        const list = Array.isArray(props.nearbyDrones) ? props.nearbyDrones : []
-        const found = list.find((d: any) => {
-          const k = String(d.id || d.uas_id || d.serial_number || d.sn || d.serial || d.uav_id || d.detection_detail || '')
-          return k === id
-        })
-        if (found) {
-          selectedDrone.value = found
-          selectedOwn.value = false
-        }
-      }
+    if (!import.meta.client) return
+    const h = window.location.hash || ''
+    if (!h.startsWith('#rx/detections/')) return
+    const id = decodeURIComponent(h.split('#rx/detections/')[1] ?? '').trim()
+    if (!id || selectedDrone.value) return
+    const found = findNearbyById(id)
+    if (found) {
+      selectedDrone.value = found
+      selectedOwn.value = false
     }
-  } catch {}
+  } catch {
+    /* malformed hash, ignore */
+  }
 }, { deep: true })
 watch(isDark, () => {
   if (mapReady.value) addTileLayer()
 })
+
+const ownSources = computed<Array<string | Record<string, unknown>>>(() => {
+  const src = props.status?.sources
+  return Array.isArray(src) ? src as Array<string | Record<string, unknown>> : []
+})
+
+const toggleShowPath = () => {
+  showPath.value = !showPath.value
+  applyStatus()
+}
+
+const toggleNearbyLayer = () => {
+  showNearbyLayer.value = !showNearbyLayer.value
+  applyStatus()
+}
+
+const resetNorth = () => {
+  if (!map) return
+  if (map.setBearing) {
+    map.setBearing(0)
+  } else if (map.setRotation) {
+    map.setRotation(0)
+  } else {
+    map.panTo(map.getCenter())
+  }
+}
+
+const fitNearby = () => {
+  if (!map || !link) return
+  const list = sortedFilteredNearby.value
+  if (!Array.isArray(list)) return
+  const pts: LeafletLatLng[] = []
+  const own = getOwnPos()
+  if (own) pts.push(link.latLng(own.lat, own.lng))
+  for (const d of list) {
+    const lat = Number(d.lat ?? d.latitude)
+    const lon = Number(d.lng ?? d.lon ?? d.longitude)
+    if (Number.isFinite(lat) && Number.isFinite(lon)) pts.push(link.latLng(lat, lon))
+  }
+  if (pts.length) {
+    map.fitBounds(link.latLngBounds(pts), { padding: [40, 40], maxZoom: 14 })
+  }
+}
+
+const exportStatusJson = () => {
+  try {
+    const blob = new Blob([JSON.stringify(props.status, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'my-drone.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    /* downloads may be blocked by the browser */
+  }
+}
+
+const exportSelectedJson = () => {
+  const d = selectedDrone.value
+  if (!d) return
+  try {
+    const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const id = d.uas_id || d.serial_number || d.id || 'detection'
+    a.download = `omnirid-detection-${id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    /* downloads may be blocked by the browser */
+  }
+}
+
+const toggleSeen = (d: NearbyDrone | null) => {
+  const k = droneKey(d)
+  if (!k) return
+  if (seenSet.value.has(k)) seenSet.value.delete(k)
+  else seenSet.value.add(k)
+  saveSeen()
+}
 </script>
 
 <template>
@@ -1000,7 +1113,7 @@ watch(isDark, () => {
           :icon="showPath ? 'i-lucide-route' : 'i-lucide-route-off'"
           aria-label="Toggle flight path"
           title="Toggle flight path"
-          @click="showPath = !showPath; applyStatus()"
+          @click="toggleShowPath"
         />
         <UButton
           v-if="(props.nearbyDrones?.length || 0) > 0 || props.showNearby"
@@ -1011,7 +1124,7 @@ watch(isDark, () => {
           :icon="showNearbyLayer ? 'i-lucide-radar' : 'i-lucide-radar-off'"
           aria-label="Toggle nearby drones"
           title="Toggle nearby drones"
-          @click="() => { showNearbyLayer = !showNearbyLayer; applyStatus() }"
+          @click="toggleNearbyLayer"
         />
         <UButton
           color="neutral"
@@ -1031,17 +1144,7 @@ watch(isDark, () => {
           icon="i-lucide-compass"
           aria-label="Reset north"
           title="Reset north"
-          @click="() => {
-            try {
-              if (map && typeof (map as any).setBearing === 'function') (map as any).setBearing(0)
-              else if (map && typeof (map as any).setRotation === 'function') (map as any).setRotation(0)
-              else if (map && typeof (map as any).panTo === 'function') {
-                const c = (map as any).getCenter ? (map as any).getCenter() : null
-                if (c) (map as any).panTo(c)
-              }
-            }
-            catch {}
-          }"
+          @click="resetNorth"
         />
         <UButton
           v-if="(props.nearbyDrones?.length || 0) > 0"
@@ -1052,25 +1155,7 @@ watch(isDark, () => {
           icon="i-lucide-layers"
           aria-label="Auto-fit nearby"
           title="Auto-fit to nearby"
-          @click="() => {
-            try {
-              const list = sortedFilteredNearby.value || []
-              if (!map || !link || !Array.isArray(list)) return
-              const pts: any[] = []
-              const own = getOwnPos()
-              if (own) pts.push(link.latLng(own.lat, own.lng))
-              for (const d of list) {
-                const lat = Number((d as any).lat ?? (d as any).latitude)
-                const lon = Number((d as any).lng ?? (d as any).lon ?? (d as any).longitude)
-                if (Number.isFinite(lat) && Number.isFinite(lon)) pts.push(link.latLng(lat, lon))
-              }
-              if (pts.length) {
-                try { (map as any).fitBounds((link as any).latLngBounds(pts), { padding: [40, 40], maxZoom: 14 }) }
-                catch {}
-              }
-            }
-            catch {}
-          }"
+          @click="fitNearby"
         />
       </div>
       <div
@@ -1244,19 +1329,7 @@ watch(isDark, () => {
               color="neutral"
               variant="soft"
               icon="i-lucide-download"
-              @click="() => {
-                try {
-                  const data = JSON.stringify(props.status, null, 2)
-                  const blob = new Blob([data], { type: 'application/json' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = 'my-drone.json'
-                  a.click()
-                  URL.revokeObjectURL(url)
-                }
-                catch {}
-              }"
+              @click="exportStatusJson"
             >
               Export
             </UButton>
@@ -1333,8 +1406,8 @@ watch(isDark, () => {
                 Information Source / Receivers (timeline)
               </p>
               <div class="space-y-1">
-                <template v-if="Array.isArray((status as any).sources) && (status as any).sources.length > 0">
-                  <div v-for="(src, idx) in (status as any).sources" :key="idx" class="flex items-center justify-between gap-2 rounded border border-default/60 px-2 py-1">
+                <template v-if="ownSources.length > 0">
+                  <div v-for="(src, idx) in ownSources" :key="idx" class="flex items-center justify-between gap-2 rounded border border-default/60 px-2 py-1">
                     <p class="break-all font-mono text-highlighted">
                       {{ typeof src === 'string' ? src : JSON.stringify(src) }}
                     </p>
@@ -1442,17 +1515,7 @@ watch(isDark, () => {
             size="xs"
             icon="i-lucide-eye"
             :title="isSeen(selectedDrone) ? 'Mark unseen' : 'Mark seen'"
-            @click="() => {
-              const k = droneKey(selectedDrone)
-              if (!k) return
-              if (isSeen(selectedDrone)) {
-                seenSet.value.delete(k)
-              }
-              else {
-                seenSet.value.add(k)
-              }
-              saveSeen()
-            }"
+            @click="toggleSeen(selectedDrone)"
           />
           <UButton
             color="neutral"
@@ -1570,19 +1633,7 @@ watch(isDark, () => {
               color="neutral"
               variant="soft"
               icon="i-lucide-download"
-              @click="() => {
-                try {
-                  const data = JSON.stringify(props.status, null, 2)
-                  const blob = new Blob([data], { type: 'application/json' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = 'my-drone.json'
-                  a.click()
-                  URL.revokeObjectURL(url)
-                }
-                catch {}
-              }"
+              @click="exportStatusJson"
             >
               Export
             </UButton>
@@ -1626,7 +1677,7 @@ watch(isDark, () => {
                 </p>
                 <div class="flex items-center gap-1.5">
                   <UBadge
-                    v-if="(() => { const raw = selectedDrone.last_seen_ts ?? selectedDrone.last_seen; let ts: any = raw; if (typeof ts === 'string') { const p = Date.parse(ts); if (!Number.isNaN(p)) ts = p; } ts = Number(ts); if (Number.isFinite(ts)) { const diff = Date.now() - ts; if (diff >= 0 && diff < 60000) return true; } return false })()"
+                    v-if="isLiveDrone(selectedDrone)"
                     color="success"
                     variant="soft"
                     size="xs"
@@ -1743,20 +1794,7 @@ watch(isDark, () => {
                 color="neutral"
                 variant="soft"
                 icon="i-lucide-download"
-                @click="() => {
-                  if (!selectedDrone) return
-                  try {
-                    const blob = new Blob([JSON.stringify(selectedDrone, null, 2)], { type: 'application/json' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    const id = selectedDrone.uas_id || selectedDrone.serial_number || selectedDrone.id || 'detection'
-                    a.download = `omnirid-detection-${id}.json`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }
-                  catch {}
-                }"
+                @click="exportSelectedJson"
               >
                 Export JSON
               </UButton>
@@ -1765,12 +1803,7 @@ watch(isDark, () => {
                 :color="isSeen(selectedDrone) ? 'success' : 'neutral'"
                 :variant="isSeen(selectedDrone) ? 'soft' : 'ghost'"
                 :icon="isSeen(selectedDrone) ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-                @click="() => {
-                  if (selectedDrone) {
-                    if (isSeen(selectedDrone)) { const k = droneKey(selectedDrone); seenSet.value.delete(k); saveSeen() }
-                    else { markSeen(selectedDrone) }
-                  }
-                }"
+                @click="toggleSeen(selectedDrone)"
               >
                 {{ isSeen(selectedDrone) ? 'Mark unseen' : 'Mark seen' }}
               </UButton>

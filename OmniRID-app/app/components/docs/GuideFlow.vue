@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { GuideFlow } from '~/config/guide'
+import GuideRichText from '~/components/docs/GuideRichText.vue'
 
 defineProps<{ flow: GuideFlow }>()
 
@@ -93,7 +94,7 @@ const packBadgeColor = (index: number) => stepBadgeColors[index % stepBadgeColor
       <div v-for="(check, i) in flow.checks" :key="check.label" class="flex flex-wrap items-center gap-2">
         <div class="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-default bg-elevated/40 px-3 py-2.5 transition hover:border-amber-500/30">
           <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-[10px] font-bold text-amber-500 ring-1 ring-amber-500/25">{{ i + 1 }}</span>
-          <span class="min-w-0 text-xs font-medium text-highlighted" v-html="check.label" />
+          <GuideRichText class="min-w-0 text-xs font-medium text-highlighted" :html="check.label" />
         </div>
         <UIcon name="i-lucide-arrow-right" class="size-4 shrink-0 text-muted" />
         <UBadge color="success" variant="soft" :label="`Yes · ${check.ok}`" />

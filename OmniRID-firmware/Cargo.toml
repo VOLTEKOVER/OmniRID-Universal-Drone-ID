@@ -6,9 +6,9 @@ members = [
     "outputs/*",
     "external-libs/*",
 ]
-# hardware/* (bsp-esp32, futuri bsp-*) resta fuori: target triple diverso
-# (xtensa/riscv32imc) e toolchain dedicata (espup); crate standalone con il
-# proprio [workspace].
+# hardware/* (bsp-esp32, future bsp-*) stays outside: different target triple
+# (xtensa/riscv32imc) and a dedicated toolchain (espup); it is a standalone
+# crate with its own [workspace].
 exclude = ["hardware"]
 
 [profile.release]

@@ -1,15 +1,15 @@
 # Roadmap
 
-## Short‑term (next 1–2 weeks)
-- Finish fixing strict‑mode TypeScript errors; aim for a clean `pnpm typecheck` pass.
-- Implement OTA UI flow and integrate with the firmware `/ota` endpoint.
-- Add CI pipeline for the PWA (lint, typecheck, build) to GitHub Actions.
+## Short‑term (next 1–2 weeks)
+- ✅ Finish fixing strict‑mode TypeScript errors; `pnpm typecheck`, `pnpm lint` and `pnpm build` pass.
+- Implement OTA UI flow (firmware `/ota` endpoint is implemented; the app upload UI is pending).
+- ✅ Add CI pipeline for the PWA (lint, typecheck, build) to GitHub Actions.
 - ✅ Align Wi‑Fi credential length limits between firmware and UI (completed).
 - **Web UI / ground‑station polish backlog** (issue #54) – improve UX, accessibility, and visual polish.
 - **GNSS advanced options** – expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware.
 - **Docs policy** – keep `docs/` for images only; remove stale documentation links.
-- **Update `sdkconfig.defaults` comment** – adjust reference to removed security‑hardening documentation.
-- **TypeScript 7 migration** – plan upgrade once compatibility issues resolved.
+- ✅ Update `sdkconfig.defaults` comment to reference `SECURITY.md`.
+- **TypeScript 7 migration** – plan upgrade once compatibility issues resolved.
 
 ## Medium‑term (1–2 months)
 - Implement LoRa broadcast support (hardware driver, config UI).

@@ -26,10 +26,10 @@ hardware = ["dep:esp-idf-sys", "dep:esp-idf-svc", "dep:esp-idf-hal", "dep:spin",
 [package.metadata.esp-idf-sys]
 esp_idf_sdkconfig_defaults = ["sdkconfig.defaults"]
 
-# Workspace standalone (fuori dal workspace radice, che lo esclude con
-# exclude = ["hardware"]): target triple diverso (xtensa/riscv32imc) e
-# toolchain dedicata (espup). Le path-dependency verso firmware/* attraversano
-# il confine del workspace: sono consentite.
+# Standalone workspace (outside the root workspace, which excludes it with
+# exclude = ["hardware"]): different target triple (xtensa/riscv32imc) and a
+# dedicated toolchain (espup). Path dependencies into firmware/* cross the
+# workspace boundary: this is allowed.
 [workspace]
 
 # PATCH esp-idf-svc: use the vendored copy in vendor/ with the high-level `bt`

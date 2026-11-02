@@ -48,8 +48,9 @@ const downloadDiagnostics = async () => {
     a.click()
     URL.revokeObjectURL(url)
     notifyInfo('Diagnostics exported', 'Downloaded diagnostics snapshot as JSON.')
-  } catch (e: any) {
-    notifyError('Diagnostics export failed', e?.message || 'Failed to export diagnostics')
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    notifyError('Diagnostics export failed', err?.message || 'Failed to export diagnostics')
   }
 }
 

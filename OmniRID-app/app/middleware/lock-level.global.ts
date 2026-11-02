@@ -6,7 +6,10 @@ export default defineNuxtRouteMiddleware((to) => {
   let entry
   for (const group of pageGroups) {
     for (const p of group.items) {
-      if (p.to === path) { entry = p; break }
+      if (p.to === path) {
+        entry = p
+        break
+      }
     }
     if (entry) break
   }

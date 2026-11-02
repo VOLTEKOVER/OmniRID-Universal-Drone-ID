@@ -3,6 +3,7 @@ import type { GuideSection } from '~/config/guide'
 import GuideCodeBlock from '~/components/docs/GuideCodeBlock.vue'
 import GuideDataTable from '~/components/docs/GuideDataTable.vue'
 import GuideFlow from '~/components/docs/GuideFlow.vue'
+import GuideRichText from '~/components/docs/GuideRichText.vue'
 
 defineProps<{ section: GuideSection }>()
 </script>
@@ -24,7 +25,9 @@ defineProps<{ section: GuideSection }>()
       </div>
 
       <!-- Paragraph -->
-      <p v-else-if="block.type === 'p'" class="text-sm leading-6 text-muted" v-html="block.html" />
+      <p v-else-if="block.type === 'p'" class="text-sm leading-6 text-muted">
+        <GuideRichText :html="block.html" />
+      </p>
 
       <!-- Callout -->
       <UAlert
@@ -36,7 +39,7 @@ defineProps<{ section: GuideSection }>()
         class="rounded-lg"
       >
         <template #description>
-          <span class="text-sm leading-6" v-html="block.html" />
+          <GuideRichText class="text-sm leading-6" :html="block.html" />
         </template>
       </UAlert>
 
@@ -44,7 +47,7 @@ defineProps<{ section: GuideSection }>()
       <ul v-else-if="block.type === 'ul'" class="space-y-2">
         <li v-for="(item, j) in block.items" :key="j" class="flex gap-2 text-sm leading-6 text-muted">
           <UIcon name="i-lucide-check" class="mt-0.5 size-4 shrink-0 text-primary" />
-          <span v-html="item" />
+          <GuideRichText :html="item" />
         </li>
       </ul>
 
@@ -58,7 +61,7 @@ defineProps<{ section: GuideSection }>()
           <span class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary ring-1 ring-primary/20">
             {{ j + 1 }}
           </span>
-          <span class="min-w-0" v-html="item" />
+          <GuideRichText class="min-w-0" :html="item" />
         </li>
       </ol>
 

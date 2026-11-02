@@ -15,13 +15,13 @@
           />
           <div class="flex-1 space-y-1">
             <h3 class="text-base font-semibold text-highlighted">
-              Password per configurazione
+              Configuration password
             </h3>
             <p class="text-sm text-muted">
-              È stata impostata una password di connessione all'app sull'ESPTX. Per accedere a configurazione, firmware, preset, console e logging è necessario inserirla correttamente.
+              An app connection password has been set on the ESP TX. Enter it to access configuration, firmware, presets, console and logging.
             </p>
             <p class="text-xs text-muted">
-              La ricezione e la visualizzazione dei Remote ID sulla Dashboard restano sempre libere.
+              Receiving and viewing Remote ID data on the Dashboard always remains available.
             </p>
           </div>
         </div>
@@ -40,7 +40,7 @@
               v-model="state.password"
               type="password"
               autocomplete="off"
-              placeholder="Inserisci la password"
+              placeholder="Enter the password"
               class="w-full"
               :disabled="loading"
               autofocus
@@ -63,7 +63,7 @@
               :disabled="!state.password.trim()"
               icon="i-lucide-unlock"
             >
-              Sblocca
+              Unlock
             </UButton>
           </div>
         </UForm>

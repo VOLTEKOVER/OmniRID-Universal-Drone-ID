@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { h } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
+import GuideRichText from '~/components/docs/GuideRichText.vue'
 
 const props = defineProps<{
   cols: string[]
@@ -14,7 +15,10 @@ const columns = computed<TableColumn<Record<string, string>>[]>(() =>
     accessorKey: `c${i}`,
     header,
     cell: ({ getValue }: { getValue: () => unknown }) =>
-      h('span', { innerHTML: String(getValue() ?? ''), class: i === 0 ? 'font-medium text-highlighted' : undefined })
+      h(GuideRichText, {
+        html: String(getValue() ?? ''),
+        class: i === 0 ? 'font-medium text-highlighted' : undefined
+      })
   }))
 )
 
@@ -60,7 +64,9 @@ const data = computed(() =>
             <dt class="w-1/3 shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted">
               {{ cols[ci] || `Field ${ci + 1}` }}
             </dt>
-            <dd class="min-w-0 flex-1 break-words text-sm" :class="ci === 0 ? 'font-medium text-highlighted' : 'text-muted'" v-html="cell" />
+            <dd class="min-w-0 flex-1 break-words text-sm" :class="ci === 0 ? 'font-medium text-highlighted' : 'text-muted'">
+              <GuideRichText :html="cell" />
+            </dd>
           </div>
         </template>
       </dl>

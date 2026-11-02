@@ -35,7 +35,7 @@ This project implements a **WiFi AP + REST API** Remote ID transmitter:
 - **Web config server** runs on `192.168.4.1` (AP network) — no inbound internet exposure
 - **Authentication pages** available via Ed25519 signing (ASTM F3411-22a compliant)
 - **3-tier lock system**: Level 0 (open), Level 1 (Ed25519 signed commands), Level 2 (eFuse permanent)
-- **Firmware update** over USB/serial; the `/ota` endpoint is a `501` stub (validators exist, not wired)
+- **Firmware update** over USB/serial, or OTA via `POST /ota` (SHA-256 + Ed25519 validation, dual-OTA partition with rollback)
 - **Key management** — Ed25519 keys stored in NVS (flash encryption on the roadmap, see issue #47)
 
 ### Hardening checklist
@@ -49,10 +49,10 @@ of this file and the firmware backlog in
 1. **Protect the WiFi AP.** The AP password defaults to empty (open network).
    Set a WPA2-PSK password from the configuration, change the SSID, and keep
    the device off untrusted networks.
-2. **Use lock level ≥ 1.** Sensitive writes then require an Ed25519
-   `X-Signature` (`POST /api/config`, `/api/reset`, `/api/command`). Note: the
-   PWA cannot sign requests, so a locked device is configured via the CLI or
-   the Console's manual signature field.
+2. **Use lock level ≥ 1.** Sensitive writes then require either a password-authenticated
+   app session (`X-App-Token`) or an Ed25519 `X-Signature` (`POST /api/config`,
+   `/api/reset`, `/api/command`). The PWA signs in to obtain the session token; the
+   CLI and the Console's manual signature field can be used for Ed25519.
 3. **Enable Secure Boot v2 + Flash Encryption** in production (both protect the
    *device*, not a published `.bin`). They are not enabled in the default
    `sdkconfig` yet — see issue #47.
@@ -103,19 +103,20 @@ edited through the external PWA (or `curl`).
 
 - At **lock level 0**, no authentication is required for config changes.
 - At **lock level ≥ 1**, `POST /api/config`, `POST /api/reset` and signed
-  commands on `POST /api/command` require an `X-Signature` header (Ed25519).
-  Failures share a rate limiter (10 failed attempts / 60 s → HTTP 429).
-- The PWA cannot produce signatures, so a locked device is configured via the
-  CLI or the Console's manual signature field.
+  commands on `POST /api/command` require either a valid `X-App-Token` session
+  or an `X-Signature` header (Ed25519). Failures share a rate limiter
+  (10 failed attempts / 60 s → HTTP 429).
+- The PWA obtains an `X-App-Token` session after password login, so locked
+  devices can also be configured from the browser.
 
 ### Firmware Updates
 
-**OTA is not implemented.** `POST /ota` answers `501` and rejects the body up
-front; firmware is flashed over USB/serial. The validation code (SHA-256 +
-Ed25519, lock-level gate, idle timeout) exists and is tested in
-`firmware/rid-app/src/ota.rs` but is not wired to the HTTP handler. Once
-implemented, the intended flow is `X-Expected-SHA256` (+ `X-Signature` at
-lock ≥ 1) with a dual-OTA partition scheme and rollback.
+**OTA is implemented.** `POST /ota` validates the upload (SHA-256 via
+`X-Expected-SHA256`, Ed25519 via `X-Signature` at lock ≥ 1), writes to the
+inactive OTA partition, selects it and reboots; a failed update keeps the
+running image. The validators are tested in `firmware/rid-app/src/ota.rs`.
+The PWA does not yet expose the OTA upload UI — use USB/WebSerial or call the
+endpoint directly.
 
 ### Security Hardening
 
@@ -126,12 +127,11 @@ lock ≥ 1) with a dual-OTA partition scheme and rollback.
 
 ### Known gaps (tracked, not yet closed)
 
-- **OTA is not wired.** `POST /ota` is a `501` stub; the validators exist but are
-  not connected. Tracked in [`todolist/firmware-todo.md`](todolist/firmware-todo.md).
 - **Flash Encryption / Secure Boot v2 are not enabled** in the default
   `sdkconfig` (issue #47). The Ed25519 private key is stored in NVS in plaintext.
-- **Locked devices cannot be configured from the browser** — the PWA has no
-  signing key; only the CLI or the Console's manual signature works.
-- Not a gap anymore: signature enforcement on `/api/config`, `/api/reset` and
-  `/api/command` (shared rate limiter) **is** wired in
-  `hardware/bsp-esp32/src/web.rs` and tested.
+- Not a gap anymore: locked devices can be configured from the browser after
+  password login (`X-App-Token` session); Ed25519 signatures remain available
+  for CLI/advanced use.
+- Not a gap anymore: `POST /ota` is wired to the validators in
+  `rid-app::ota` (hash/signature checks, dual-OTA partition, reboot). The app
+  upload UI is still pending.

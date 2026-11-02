@@ -11,8 +11,8 @@
 
 extern crate alloc;
 
-pub mod ble4;
 pub mod app_auth;
+pub mod ble4;
 pub mod cli;
 pub mod config;
 pub mod json;
@@ -43,11 +43,11 @@ pub use ota::{
 // Security lives in `rid_core::security` (complete port of `rid_security.c`
 // including `verify_signed_body`, Ed25519 + PEM/DER/PUBLIC_KEYV1); re-exported
 // here so the application layer exposes it.
+pub use app_auth::AppAuthState;
 pub use rid_core::security::{
     b64_decode, bytes_to_hex, hex_to_bytes, verify_sha256, verify_signed_body,
 };
 pub use state::{standard_name, state_to_json, State, FW_VERSION};
-pub use app_auth::AppAuthState;
 pub use web::{json_escape, level_from_line, LogRing, SigRate};
 pub use web_config::{
     command_kind, command_needs_auth, handle_command, normalize_command, signed_action_decision,

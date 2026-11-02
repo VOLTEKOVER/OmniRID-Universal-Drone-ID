@@ -1,16 +1,23 @@
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
 export const usePwaInstall = () => {
-  const deferredPrompt = useState<any>('omnirid-pwa-deferred-prompt', () => null)
+  const deferredPrompt = useState<BeforeInstallPromptEvent | null>('omnirid-pwa-deferred-prompt', () => null)
   const isInstalled = useState<boolean>('omnirid-pwa-installed', () => false)
   const canInstall = computed(() => !!deferredPrompt.value && !isInstalled.value)
 
   if (import.meta.client) {
-    if (window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone) {
+    const standalone = (navigator as Navigator & { standalone?: boolean }).standalone
+    if (window.matchMedia('(display-mode: standalone)').matches || standalone) {
       isInstalled.value = true
     }
 
-    window.addEventListener('beforeinstallprompt', (e: any) => {
-      e.preventDefault()
-      deferredPrompt.value = e
+    window.addEventListener('beforeinstallprompt', (e) => {
+      const event = e as BeforeInstallPromptEvent
+      event.preventDefault()
+      deferredPrompt.value = event
     })
 
     window.addEventListener('appinstalled', () => {
@@ -22,7 +29,7 @@ export const usePwaInstall = () => {
   const install = async () => {
     const promptEvent = deferredPrompt.value
     if (!promptEvent) return false
-    promptEvent.prompt()
+    await promptEvent.prompt()
     const choice = await promptEvent.userChoice
     deferredPrompt.value = null
     if (choice?.outcome === 'accepted') {

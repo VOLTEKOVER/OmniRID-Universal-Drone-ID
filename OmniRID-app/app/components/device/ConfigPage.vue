@@ -71,7 +71,7 @@ const pageId = computed<PageId | undefined>(() => {
 })
 
 const lockLevel = computed(() => {
-  const v = (state as any).lock_level
+  const v = state.lock_level
   const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : 0
   return Number.isFinite(n) ? n : 0
 })
@@ -126,8 +126,9 @@ const restartDevice = async () => {
       color: 'warning'
     })
     notifyWarning('Restarting device', 'The device will reboot shortly.')
-  } catch (error: any) {
-    const msg = error?.data?.error || error?.message || 'Failed to restart device.'
+  } catch (error: unknown) {
+    const err = error as { data?: { error?: string }, message?: string }
+    const msg = err?.data?.error || err?.message || 'Failed to restart device.'
     toast.add({
       title: 'Restart failed',
       description: msg,
@@ -169,8 +170,9 @@ const performFactoryReset = async () => {
       color: 'warning'
     })
     notifyWarning('Factory reset', 'Device configuration reset to defaults.')
-  } catch (error: any) {
-    const msg = error?.data?.error || error?.message || 'Failed to factory reset device.'
+  } catch (error: unknown) {
+    const err = error as { data?: { error?: string }, message?: string }
+    const msg = err?.data?.error || err?.message || 'Failed to factory reset device.'
     toast.add({
       title: 'Factory reset failed',
       description: msg,
@@ -494,23 +496,23 @@ const save = async () => {
   if (loadedSnapshot.value) {
     const changed: string[] = []
     for (const k of Object.keys(payload)) {
-      const a = (payload as any)[k]
-      const b = (loadedSnapshot.value as any)[k]
+      const a = payload[k]
+      const b = loadedSnapshot.value[k]
       if (JSON.stringify(a) !== JSON.stringify(b)) changed.push(k)
     }
     if (changed.length === 0) {
       toast.add({ title: 'No changes', description: 'Configuration is already up to date.', icon: 'i-lucide-info', color: 'neutral' })
       return
     }
-    if ((payload as any).lock_level !== undefined && (payload as any).lock_level !== (loadedSnapshot.value as any).lock_level) {
-      const newLock = Number((payload as any).lock_level)
+    if (payload.lock_level !== undefined && payload.lock_level !== loadedSnapshot.value.lock_level) {
+      const newLock = Number(payload.lock_level)
       if (newLock >= 1) {
         const ok = await securityConfirm(`You are about to change lock_level to ${newLock}.\n\nAt lock level 1+ configuration changes require an authenticated app session (password). Lock level 2 is PERMANENT and irreversible.\n\nContinue?`)
         if (!ok) return
       }
     }
-  } else if ((payload as any).lock_level !== undefined && Number((payload as any).lock_level) >= 1) {
-    const newLock = Number((payload as any).lock_level)
+  } else if (payload.lock_level !== undefined && Number(payload.lock_level) >= 1) {
+    const newLock = Number(payload.lock_level)
     const ok = await securityConfirm(`You are setting lock_level to ${newLock}.\n\nAt lock level 1+ configuration changes require an authenticated app session (password). Lock level 2 is PERMANENT and irreversible.\n\nContinue?`)
     if (!ok) return
   }
@@ -518,8 +520,8 @@ const save = async () => {
   try {
     isSaving.value = true
     const res = await proxyFetch<Record<string, unknown>>('api/config', { method: 'POST', body: payload })
-    if (res && (res as any).ok === false) {
-      throw new Error((res as any).error as string || 'The device rejected the configuration.')
+    if (res && res.ok === false) {
+      throw new Error(typeof res.error === 'string' ? res.error : 'The device rejected the configuration.')
     }
     toast.add({
       title: `${heroTitle.value} saved`,
@@ -529,7 +531,7 @@ const save = async () => {
     })
     notifyInfo(`${heroTitle.value} saved`, 'The device applied and stored the configuration.')
     if (loadedSnapshot.value) {
-      for (const k of Object.keys(payload)) (loadedSnapshot.value as any)[k] = (payload as any)[k]
+      for (const k of Object.keys(payload)) loadedSnapshot.value[k] = payload[k]
     }
   } catch {
     toast.add({

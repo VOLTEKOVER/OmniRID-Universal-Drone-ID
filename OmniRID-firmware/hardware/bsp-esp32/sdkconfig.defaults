@@ -48,7 +48,9 @@ CONFIG_ESP_CONSOLE_NONE=n
 #
 # The full, step-by-step procedure (key generation, keyring, first encrypted
 # flash, eFuse read/write protection, recovery mode, and the exact
-# `idf.py menuconfig` paths) is documented in `docs/security-hardening.md`.
+# `idf.py menuconfig` paths) is documented in `SECURITY.md` under
+# "Security Hardening", together with the ESP-IDF Secure Boot / Flash
+# Encryption guides.
 #
 # What each option protects against:
 #   * Secure Boot   -> prevents RUNNING modified/unauthorised firmware.

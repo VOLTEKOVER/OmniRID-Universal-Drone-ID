@@ -15,7 +15,7 @@ Thanks for your interest in contributing! This guide will help you get started.
 ```bash
 cd OmniRID-firmware
 cargo build --workspace           # host build
-cargo test --workspace            # run all tests (305)
+cargo test --workspace            # run all tests (307)
 cargo clippy --workspace --all-targets -- -D warnings   # lint
 ```
 

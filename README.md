@@ -125,9 +125,9 @@ simulates a GPS patrol.
 | Component | Stack |
 |---|---|
 | **Framework** | Nuxt 4 / Vue 3 (Vite + Nitro static) |
-| **UI** | Nuxt UI (@nuxt/ui) — pannelli configurazione device, checklist, notifiche |
+| **UI** | Nuxt UI (@nuxt/ui) — device configuration panels, checklists, notifications |
 | **PWA** | Nuxt 4 static generate (`nuxt generate`) — service worker + web manifest present (installable when served over HTTPS with correct scope) |
-| **State** | Pinia + composables — stato configurazione e shell dashboard |
+| **State** | Pinia + composables — configuration state and dashboard shell |
 | **Server API** | `OmniRID-app/server/routes/api/esp/[...path].ts` — dev/self-hosted proxy to the device (absent in the static build) |
 
 > **Current boundary**: `OmniRID-app` is a browser **configuration dashboard** for
@@ -246,7 +246,7 @@ git clone https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID.git
 cd OmniRID-Universal-Drone-ID/OmniRID-firmware
 
 cargo build --workspace           # builds all crates for the host
-cargo test --workspace            # runs 305 tests
+cargo test --workspace            # runs 307 tests
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 

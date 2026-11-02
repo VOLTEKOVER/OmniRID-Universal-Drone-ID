@@ -1,10 +1,10 @@
 export const useSecurityConfirm = () => {
   const isOpen = useState<boolean>('omnirid-security-confirm-open', () => false)
-  const pendingPayload = useState<any>('omnirid-security-confirm-payload', () => null)
+  const pendingPayload = useState<unknown>('omnirid-security-confirm-payload', () => null)
   const pendingResolve = useState<((v: boolean) => void) | null>('omnirid-security-confirm-resolve', () => null)
   const message = useState<string>('omnirid-security-confirm-msg', () => '')
 
-  const confirm = (msg: string, payload?: any) => {
+  const confirm = (msg: string, payload?: unknown) => {
     return new Promise<boolean>((resolve) => {
       message.value = msg
       pendingPayload.value = payload ?? null

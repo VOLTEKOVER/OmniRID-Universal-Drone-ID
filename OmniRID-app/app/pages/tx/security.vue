@@ -154,18 +154,19 @@ const saveAppAuth = async () => {
       body
     })
     if (res?.ok === false) {
-      appAuthError.value = (res?.error as string) || 'Impossibile impostare la password'
-      toast.add({ title: 'Errore', description: appAuthError.value, color: 'error', icon: 'i-lucide-circle-alert' })
+      appAuthError.value = (res?.error as string) || 'Unable to set the password'
+      toast.add({ title: 'Error', description: appAuthError.value, color: 'error', icon: 'i-lucide-circle-alert' })
       return
     }
-    toast.add({ title: 'Password aggiornata', description: 'La password per l\'accesso alla configurazione è stata salvata.', color: 'success', icon: 'i-lucide-check' })
+    toast.add({ title: 'Password updated', description: 'The configuration access password has been saved.', color: 'success', icon: 'i-lucide-check' })
     appAuthState.currentPassword = ''
     appAuthState.newPassword = ''
     appAuthState.confirmPassword = ''
     await loadAppAuthStatus()
-  } catch (e: any) {
-    appAuthError.value = e?.data?.error || e?.message || 'Errore durante il salvataggio'
-    toast.add({ title: 'Errore', description: appAuthError.value, color: 'error', icon: 'i-lucide-circle-alert' })
+  } catch (e: unknown) {
+    const err = e as { data?: { error?: string }, message?: string }
+    appAuthError.value = err?.data?.error || err?.message || 'Error while saving'
+    toast.add({ title: 'Error', description: appAuthError.value, color: 'error', icon: 'i-lucide-circle-alert' })
   } finally {
     appAuthLoading.value = false
   }
