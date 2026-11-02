@@ -35,6 +35,14 @@
 - **Docs policy** – keep `docs/` for images only; remove stale documentation links.
 - **`sdkconfig.defaults` comment** – ✅ updated to reference `SECURITY.md`.
 
+
+## In‑progress / pending strategic priorities
+- 🔢 **1. Repository optimization** – distinguishes sources, tools, artifacts; 167K file review; `target/`, `.gitignore`, Cargo cache, Python venvs cleanup; goal: clear separation of sources vs artifacts
+- 🔧 **2. Configuration consistency** – centralize 60+ firmware settings; cross‑check Rust (`device.rs`), TypeScript (`device.ts`, `guide.ts`), Vue (`firmware.vue`); automate convergence validation
+- 🛡️ **3. OTA reliability** – test firmware uploads of varied sizes, wrong hash, missing/invalid signature, device disconnection mid‑upload, reboot after update, rollback/recovery from failed OTA
+- 📊 **4. Hardware compatibility matrix** – verify Wi‑Fi/BLE/UART/DroneCAN/WebSerial per target (ESP32/ESP32-S3/ESP32-C6); fill support matrix; document non‑supported combos
+- ✅ **5. Automated testing** – Rust/TS parameter validation, OPTIONS bitmask, lock levels, OTA security, frontend‑firmware API compat, all three target compatilities
+
 ## Future roadmap (high‑level)
 - **LoRa support**: integrate LoRa radio driver and expose as an additional broadcast medium.
 - **Non‑ASTM encoders**: implement GB 42590 / FRDID encoders (issue #46).
