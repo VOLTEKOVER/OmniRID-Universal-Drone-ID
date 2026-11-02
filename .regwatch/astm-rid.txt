@@ -5409,13 +5409,13 @@ require
 'baseUrl':
 'https\u003A\u002F\u002Fstore.astm.org\u002Fstatic\u002Fversion1792660564\u002Ffrontend\u002FASTM\u002Fdefault\u002Fen_US'
 };
-(window.NREUM||(NREUM={})).init={ajax:{deny_list:["bam.nr-data.net"]}};(window.NREUM||(NREUM={})).loader_config={licenseKey:"NRJS-a5e224d467572511e0e",applicationID:"538041230",browserID:"705950749"};;/*!
+(window.NREUM||(NREUM={})).init={ajax:{deny_list:["bam.nr-data.net"]},feature_flags:["rum_v2"]};(window.NREUM||(NREUM={})).loader_config={licenseKey:"NRJS-a5e224d467572511e0e",applicationID:"538041230",browserID:"705950749"};;/*!
 For
 license
 information
 please
 see
-nr-loader-rum-1.324.0.min.js.LICENSE.txt
+nr-loader-rum-1.324.1.min.js.LICENSE.txt
 */
 (()=>{var
 e={8122(e,t,r){"use
@@ -5458,7 +5458,7 @@ s(e){try{return!!e.licenseKey&&!!e.errorBeacon&&!!e.applicationID}catch(e){retur
 strict";var
 n=r(860);const
 i=1e6,a={[n.K7.logging]:!0,[n.K7.genericEvents]:!0,[n.K7.jserrors]:!0,[n.K7.ajax]:!0};r.d(t,["It",0,i,"KC",0,a,"qh",0,"SESSION_ERROR","zd",0,5e5])},9324(e,t,r){"use
-strict";r.d(t,["xv",0,"1.324.0"])},981(e,t,r){"use
+strict";r.d(t,["xv",0,"1.324.1"])},981(e,t,r){"use
 strict";r.d(t,["R",0,{AJAX:"AjaxRequest",PA:"PageAction",UA:"UserAction",BP:"BrowserPerformance",WS:"WebSocket",SPV:"SecurityPolicyViolation",JSE:"JavaScriptError",LOG:"Log",PVE:"PageView",PVT:"PageViewTiming",SR:"SessionReplay",ST:"SessionTrace",BI:"BrowserInteraction"}])},6154(e,t,r){"use
 strict";var
 n=r(1863);const
@@ -5703,8 +5703,8 @@ i=t[n];if(void
 i.exports;const
 a=t[n]={exports:{}};return
 e[n](a,a.exports,r),a.exports}r.m=e,r.d=(e,t)=>{if(Array.isArray(t))for(var
-n=0;nPromise.all(Object.keys(r.f).reduce((t,n)=>(r.f[n](e,t),t),[])),r.u=e=>"nr-rum-1.324.0.min.js",r.o=(e,t)=>Object.prototype.hasOwnProperty.call(e,t),(()=>{const
-e={},t="NRBA-1.324.0.PROD:";r.l=(n,i,a,s)=>{if(e[n])return
+n=0;nPromise.all(Object.keys(r.f).reduce((t,n)=>(r.f[n](e,t),t),[])),r.u=e=>"nr-rum-1.324.1.min.js",r.o=(e,t)=>Object.prototype.hasOwnProperty.call(e,t),(()=>{const
+e={},t="NRBA-1.324.1.PROD:";r.l=(n,i,a,s)=>{if(e[n])return
 void
 e[n].push(i);let
 o,c;if(void
@@ -5768,7 +5768,7 @@ enabled(){return
 e.feature_flags.includes(c.RESOURCES)||e.experimental.resources},set
 enabled(t){e.experimental.resources=t},asset_types:[],first_party_domains:[],ignore_newrelic:!0}},privacy:{cookies_enabled:!0},proxy:{assets:void
 0,beacon:void
-0},session:{expiresMs:l.wk,inactiveMs:l.BB},session_replay:{autoStart:!0,enabled:!1,preload:!1,sampling_rate:10,error_sampling_rate:100,collect_fonts:!1,inline_images:!1,fix_stylesheets:!0,mask_all_inputs:!0,get
+0},session:{expiresMs:l.wk,inactiveMs:l.BB},session_replay:{autoStart:!0,enabled:!1,preload:!1,collect_fonts:!1,inline_images:!1,fix_stylesheets:!0,mask_all_inputs:!0,get
 mask_text_selector(){return
 e.mask_selector},set
 mask_text_selector(t){d(t)?e.mask_selector="".concat(t,",").concat(p):""===t||null===t?e.mask_selector=p:(0,f.R)(5,t)},get
@@ -6112,7 +6112,7 @@ OptanonWrapper()
 "nonceInjector":
 {
 "nonce":
-"ajVwajY1eXEzd2RmdGNmdXZqNjFwanF5c3dzYnoxcno\u003D"
+"YjkyZ3I1ZW1zbWhmeWw1bmJicmRua3c5Nnlsa29yd3g\u003D"
 }
 }
 }
@@ -6223,7 +6223,7 @@ deps:
 "prolongSession":
 {
 "url":
-"https://store.astm.org/dyxb6q5jxn/common/admin/prolongSession/key/0472cc4eb16e6a592844bfb3d410a4e1db38b5c7141b421ea3a8865cf5fac0d8/"
+"https://store.astm.org/dyxb6q5jxn/common/admin/prolongSession/key/872fe9e217dddf0420c6e3c7afd1a91997209a1a8f3f36f3df7684d48504cb7b/"
 }
 }
 }
@@ -6624,7 +6624,7 @@ $('#search_mini_form-mobile').submit();
 });
 window.checkout
 =
-{"shoppingCartUrl":"https:\/\/store.astm.org\/checkout\/cart\/","checkoutUrl":"https:\/\/store.astm.org\/checkout\/","updateItemQtyUrl":"https:\/\/store.astm.org\/checkout\/sidebar\/updateItemQty\/","removeItemUrl":"https:\/\/store.astm.org\/checkout\/sidebar\/removeItem\/","imageTemplate":"Magento_Catalog\/product\/image_with_borders","baseUrl":"https:\/\/store.astm.org\/","minicartMaxItemsVisible":5,"websiteId":"1","maxItemsToDisplay":10,"storeId":"1","storeGroupId":"1","customerLoginUrl":"https:\/\/store.astm.org\/customer\/account\/login\/","isRedirectRequired":false,"autocomplete":"off","captcha":{"user_login":{"isCaseSensitive":true,"imageHeight":50,"imageSrc":"","refreshUrl":"https:\/\/store.astm.org\/captcha\/refresh\/","isRequired":false,"timestamp":1793018340}}};
+{"shoppingCartUrl":"https:\/\/store.astm.org\/checkout\/cart\/","checkoutUrl":"https:\/\/store.astm.org\/checkout\/","updateItemQtyUrl":"https:\/\/store.astm.org\/checkout\/sidebar\/updateItemQty\/","removeItemUrl":"https:\/\/store.astm.org\/checkout\/sidebar\/removeItem\/","imageTemplate":"Magento_Catalog\/product\/image_with_borders","baseUrl":"https:\/\/store.astm.org\/","minicartMaxItemsVisible":5,"websiteId":"1","maxItemsToDisplay":10,"storeId":"1","storeGroupId":"1","customerLoginUrl":"https:\/\/store.astm.org\/customer\/account\/login\/","isRedirectRequired":false,"autocomplete":"off","captcha":{"user_login":{"isCaseSensitive":true,"imageHeight":50,"imageSrc":"","refreshUrl":"https:\/\/store.astm.org\/captcha\/refresh\/","isRequired":false,"timestamp":1793629724}}};
 {
 "[data-block='minicart']":
 {
@@ -7105,7 +7105,7 @@ window.authenticationPopup
 }
 }
 /**/
-window.NREUM||(NREUM={});NREUM.info={"beacon":"bam.nr-data.net","licenseKey":"NRJS-a5e224d467572511e0e","applicationID":"538041230","transactionName":"bgBTNUQFD0ADBRFaDldKcAJCDQ5dTQUIQE5XCkMOQxAEHAsIAVYZ","queueTime":0,"applicationTime":1104,"atts":"QkdQQwwfHE4=","errorBeacon":"bam.nr-data.net","agent":""}
+window.NREUM||(NREUM={});NREUM.info={"beacon":"bam.nr-data.net","licenseKey":"NRJS-a5e224d467572511e0e","applicationID":"538041230","transactionName":"bgBTNUQFD0ADBRFaDldKcAJCDQ5dTQUIQE5XCkMOQxAEHAsIAVYZ","queueTime":0,"applicationTime":1182,"atts":"QkdQQwwfHE4=","errorBeacon":"bam.nr-data.net","agent":""}
 window.ga4ParentVsChild
 =
 'parent';
