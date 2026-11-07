@@ -96,6 +96,12 @@ impl AppAuthState {
     }
 }
 
+impl Default for AppAuthState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn json_string_field(body: &[u8], field: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_slice(body).ok()?;
     Some(value.get(field)?.as_str()?.into())
@@ -214,11 +220,5 @@ mod tests {
             &stored,
             "abcdefghijklmnopqrstuvwxyz12345x"
         ));
-    }
-}
-
-impl Default for AppAuthState {
-    fn default() -> Self {
-        Self::new()
     }
 }

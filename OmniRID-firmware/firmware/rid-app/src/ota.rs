@@ -164,10 +164,8 @@ where
         return Err(OtaError::HashMismatch);
     }
 
-    if req.lock_level >= 1 {
-        if !verify_signed_hash(&hash, req.signature.unwrap(), req.public_keys) {
-            return Err(OtaError::InvalidSignature);
-        }
+    if req.lock_level >= 1 && !verify_signed_hash(&hash, req.signature.unwrap(), req.public_keys) {
+        return Err(OtaError::InvalidSignature);
     }
 
     Ok(())
