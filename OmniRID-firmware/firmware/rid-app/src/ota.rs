@@ -5,38 +5,34 @@
 //!
 //! 1. lock level >= 2 rejects unconditionally;
 //! 2. lock level >= 1 requires the `X-Signature` header;
-//! 3. the body is streamed chunk by chunk: running SHA-256, buffering for the
-//!    later signature check and a pluggable flash-write sink;
+//! 3. the body is streamed chunk by chunk through SHA-256 and a pluggable
+//!    flash-write sink, with no full-image RAM buffer;
 //! 4. the `X-Expected-SHA256` header is mandatory at every lock level;
-//! 5. the computed hash is compared (mismatch -> `HashMismatch`);
-//! 6. at lock level >= 1 the buffered body is signature-verified;
-//! 7. the upload must be complete (`remaining == 0`).
+//! 5. the declared body length must be received;
+//! 6. the computed hash is compared and, at lock level >= 1, signature-verified.
 
-use alloc::vec::Vec;
 use rid_interface::{FixedKeyStr, NUM_KEYS};
 use sha2::{Digest, Sha256};
 
-use rid_core::security::{hex_to_bytes, verify_signed_body};
+use rid_core::security::{hex_to_bytes, verify_signed_hash};
 
 /// Abort the upload if the client stalls for this many consecutive socket
 /// timeouts (each `httpd_req_recv` timeout is ~5 s, so ~60 s idle).
 pub const OTA_MAX_IDLE_STALLS: usize = 12;
-/// Body buffer size used when no content length is known (`req->content_len`
-/// is 0), matching `OTA_BODY_CAP_DEFAULT` in `rid_ota.c`.
-pub const OTA_BODY_CAP_DEFAULT: usize = 512 * 1024;
-
 /// One receive outcome in the upload loop (mirrors `httpd_req_recv`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecvChunk<'a> {
     /// A chunk of the body.
     Data(&'a [u8]),
+    /// Owned body chunk for readers that reuse their receive buffer.
+    DataOwned(alloc::vec::Vec<u8>),
     /// Socket read timed out (idle); counts toward `OTA_MAX_IDLE_STALLS`.
     Timeout,
     /// Hard socket error; aborts the upload immediately.
     Fatal,
 }
 
-/// Failure modes of `validate_ota_upload`, in C decision order.
+/// Failure modes of `validate_ota_upload`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OtaError {
     /// `lock_level >= 2`: the device is permanently locked.
@@ -53,16 +49,8 @@ pub enum OtaError {
     InvalidSignature,
     /// The stream ended before `content_len` bytes were received.
     UploadIncomplete,
-}
-
-/// Buffer size for the signature body, as in C: the content length when known,
-/// otherwise `OTA_BODY_CAP_DEFAULT`. The caller may clamp it further.
-pub fn ota_body_cap(content_len: usize) -> usize {
-    if content_len > 0 {
-        content_len
-    } else {
-        OTA_BODY_CAP_DEFAULT
-    }
+    /// Zero-byte images are not valid firmware updates.
+    EmptyUpload,
 }
 
 /// Inputs for one OTA upload, assembled by the BSP from the HTTP request
@@ -79,10 +67,26 @@ pub struct OtaUpload<'a> {
     pub expected_sha256: Option<&'a [u8]>,
     /// The `X-Signature` header, `None` if absent or >= 512 bytes.
     pub signature: Option<&'a [u8]>,
-    /// Configured keys checked by `verify_signed_body`.
+    /// Configured keys checked by `verify_signed_hash`.
     pub public_keys: &'a [FixedKeyStr; NUM_KEYS],
-    /// Buffering limit for the signature check (see `ota_body_cap`).
-    pub body_cap: usize,
+}
+
+/// Header and size checks that must run before erasing/opening the OTA
+/// partition. Keep this in sync with the validation state machine.
+pub fn ota_preflight_error(req: &OtaUpload<'_>) -> Option<OtaError> {
+    if req.lock_level >= 2 {
+        return Some(OtaError::PermanentlyLocked);
+    }
+    if req.lock_level >= 1 && req.signature.is_none() {
+        return Some(OtaError::MissingSignature);
+    }
+    if req.expected_sha256.is_none() {
+        return Some(OtaError::MissingExpectedHash);
+    }
+    if req.content_len == 0 {
+        return Some(OtaError::EmptyUpload);
+    }
+    None
 }
 
 /// Validates an OTA upload against the same rules as the C
@@ -102,16 +106,11 @@ pub fn validate_ota_upload<'a, F>(
 where
     F: FnMut(&[u8]) -> bool,
 {
-    if req.lock_level >= 2 {
-        return Err(OtaError::PermanentlyLocked);
-    }
-    if req.lock_level >= 1 && req.signature.is_none() {
-        return Err(OtaError::MissingSignature);
+    if let Some(error) = ota_preflight_error(&req) {
+        return Err(error);
     }
 
     let mut hasher = Sha256::new();
-    let mut body_buf: Option<Vec<u8>> =
-        (req.lock_level >= 1).then(|| Vec::with_capacity(req.body_cap));
     let mut remaining = req.content_len;
     let mut idle_stalls = 0usize;
 
@@ -132,17 +131,26 @@ where
                 let take = buf.len().min(remaining);
                 let buf = &buf[..take];
                 hasher.update(buf);
-                if let Some(v) = body_buf.as_mut() {
-                    if v.len() + buf.len() <= req.body_cap {
-                        v.extend_from_slice(buf);
-                    }
+                if !write(buf) {
+                    return Err(OtaError::WriteFailed);
                 }
+                remaining -= take;
+            }
+            RecvChunk::DataOwned(buf) => {
+                idle_stalls = 0;
+                let take = buf.len().min(remaining);
+                let buf = &buf[..take];
+                hasher.update(buf);
                 if !write(buf) {
                     return Err(OtaError::WriteFailed);
                 }
                 remaining -= take;
             }
         }
+    }
+
+    if remaining > 0 {
+        return Err(OtaError::UploadIncomplete);
     }
 
     if req.expected_sha256.is_none() {
@@ -157,21 +165,11 @@ where
     }
 
     if req.lock_level >= 1 {
-        let body_bytes = body_buf.as_deref().unwrap_or(&[]);
-        // The C code NUL-terminates the buffered body before the signature
-        // check; mirror that truncation.
-        let body_str = match body_bytes.iter().position(|&b| b == 0) {
-            Some(i) => &body_bytes[..i],
-            None => body_bytes,
-        };
-        if !verify_signed_body(body_str, req.signature.unwrap(), req.public_keys) {
+        if !verify_signed_hash(&hash, req.signature.unwrap(), req.public_keys) {
             return Err(OtaError::InvalidSignature);
         }
     }
 
-    if remaining > 0 {
-        return Err(OtaError::UploadIncomplete);
-    }
     Ok(())
 }
 
@@ -182,6 +180,7 @@ mod tests {
     use alloc::format;
     use alloc::string::String;
     use alloc::vec;
+    use alloc::vec::Vec;
     use ed25519_dalek::{Signer, SigningKey};
     use rid_interface::key_str;
 
@@ -202,7 +201,7 @@ mod tests {
         content_len: usize,
         expected_sha256: Option<&'a [u8]>,
         signature: Option<&'a [u8]>,
-        body_cap: usize,
+        _body_cap: usize,
     ) -> OtaUpload<'a> {
         OtaUpload {
             lock_level,
@@ -210,7 +209,6 @@ mod tests {
             expected_sha256,
             signature,
             public_keys: keys(),
-            body_cap,
         }
     }
 
@@ -268,14 +266,14 @@ mod tests {
     }
 
     #[test]
-    fn zero_length_body_allowed_at_lock_0() {
+    fn zero_length_body_is_rejected() {
         assert_eq!(
             validate_ota_upload(
                 req(0, 0, Some(expected_hex(b"").as_bytes()), None, 16),
                 |_| true,
                 [],
             ),
-            Ok(())
+            Err(OtaError::EmptyUpload)
         );
     }
 
@@ -367,19 +365,16 @@ mod tests {
     }
 
     #[test]
-    fn signature_verified_over_nul_truncated_body() {
-        // The C code NUL-terminates the buffered body; the signature must be
-        // over the truncated content.
+    fn signature_covers_complete_binary_including_nul_bytes() {
         let body = b"abc\0def";
-        let truncated = b"abc";
-        let sig_truncated = sign(truncated);
+        let sig_full = sign(body);
         assert_eq!(
             validate_ota_upload(
                 req(
                     1,
                     body.len(),
                     Some(expected_hex(body).as_bytes()),
-                    Some(sig_truncated.as_bytes()),
+                    Some(sig_full.as_bytes()),
                     64,
                 ),
                 |_| true,
@@ -387,13 +382,12 @@ mod tests {
             ),
             Ok(())
         );
-        let sig_full = sign(body);
         let err = validate_ota_upload(
             req(
                 1,
                 body.len(),
                 Some(expected_hex(body).as_bytes()),
-                Some(sig_full.as_bytes()),
+                Some(sign(b"abc").as_bytes()),
                 64,
             ),
             |_| true,
@@ -435,9 +429,6 @@ mod tests {
 
     #[test]
     fn too_many_idle_stalls_abort_as_incomplete() {
-        // Hash check happens before the completeness gate, so the received
-        // bytes must hash to the expected value for `UploadIncomplete` to be
-        // reported (as in C, where a stalled loop reports the mismatch first).
         let fed = b"partial";
         let mut seq = vec![RecvChunk::Data(fed)];
         for _ in 0..OTA_MAX_IDLE_STALLS {
@@ -447,7 +438,7 @@ mod tests {
             req(
                 0,
                 fed.len() + 10,
-                Some(expected_hex(fed).as_bytes()),
+                Some(expected_hex(b"partial plus missing bytes").as_bytes()),
                 None,
                 16,
             ),
@@ -513,22 +504,45 @@ mod tests {
     }
 
     #[test]
-    fn body_buffering_caps_at_body_cap() {
-        // lock >= 1: with body_cap smaller than the body, the buffered bytes
-        // are truncated; a signature over the (invalid) truncated content fails.
-        let body = b"0123456789";
-        let err = validate_ota_upload(
-            req(
-                1,
-                body.len(),
-                Some(expected_hex(body).as_bytes()),
-                Some(sign(body).as_bytes()),
-                4,
+    fn large_streaming_upload_verifies_without_body_buffer_limit() {
+        let body = vec![b'x'; 1024 * 1024];
+        let signature = sign(&body);
+        let expected = expected_hex(&body);
+        let written = core::cell::Cell::new(0);
+        assert_eq!(
+            validate_ota_upload(
+                req(
+                    1,
+                    body.len(),
+                    Some(expected.as_bytes()),
+                    Some(signature.as_bytes()),
+                    1
+                ),
+                |chunk| {
+                    written.set(written.get() + chunk.len());
+                    true
+                },
+                body.chunks(4093).map(RecvChunk::Data),
             ),
-            |_| true,
-            chunks(body),
+            Ok(())
         );
-        assert_eq!(err, Err(OtaError::InvalidSignature));
+        assert_eq!(written.get(), body.len());
+    }
+
+    #[test]
+    fn preflight_rejects_locked_or_missing_headers_before_body() {
+        assert_eq!(
+            ota_preflight_error(&req(2, 1, None, None, 0)),
+            Some(OtaError::PermanentlyLocked)
+        );
+        assert_eq!(
+            ota_preflight_error(&req(1, 1, Some(&[b'0'; 64]), None, 0)),
+            Some(OtaError::MissingSignature)
+        );
+        assert_eq!(
+            ota_preflight_error(&req(0, 1, None, None, 0)),
+            Some(OtaError::MissingExpectedHash)
+        );
     }
 
     fn b64_encode(data: &[u8]) -> String {

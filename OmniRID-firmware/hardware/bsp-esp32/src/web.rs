@@ -124,6 +124,10 @@ fn now_ms() -> u32 {
     unsafe { (esp_idf_svc::sys::esp_timer_get_time() / 1000) as u32 }
 }
 
+fn now_ms_u64() -> u64 {
+    unsafe { (esp_idf_svc::sys::esp_timer_get_time() / 1000) as u64 }
+}
+
 /// Live lock level (clamped to `u8`) plus the authorised public keys.
 fn lock_and_keys(
     state: &SharedState,
@@ -141,14 +145,19 @@ fn app_session_valid(state: &SharedState, token: Option<&str>) -> bool {
             return false;
         }
         let mut auth = state.app_auth.lock();
-        return auth.is_valid(t, now_ms() as u64);
+        return auth.is_valid(t, now_ms_u64());
     }
     false
 }
 
 /// Signed-action gate for a config write or factory reset. At lock level >= 1
 /// prefer valid app session; otherwise fall back to `X-Signature`.
-fn write_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>, app_token: Option<&str>) -> ConfigWrite {
+fn write_decision(
+    state: &SharedState,
+    body: &[u8],
+    sig: Option<&[u8]>,
+    app_token: Option<&str>,
+) -> ConfigWrite {
     let (level, keys) = lock_and_keys(state);
     let mut rate = state.sig_rate.lock();
     let session_ok = app_session_valid(state, app_token);
@@ -156,7 +165,12 @@ fn write_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>, app_toke
 }
 
 /// Command gate for `/api/command`. Prefer app session; fall back to signature.
-fn command_decision(state: &SharedState, body: &[u8], sig: Option<&[u8]>, app_token: Option<&str>) -> CommandOutcome {
+fn command_decision(
+    state: &SharedState,
+    body: &[u8],
+    sig: Option<&[u8]>,
+    app_token: Option<&str>,
+) -> CommandOutcome {
     let (level, keys) = lock_and_keys(state);
     let mut rate = state.sig_rate.lock();
     let session_ok = app_session_valid(state, app_token);
@@ -196,6 +210,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
     for path in [
         "/api/config",
         "/api/status",
+        "/api/memory",
         "/api/capabilities",
         "/api/reset",
         "/api/logs",
@@ -240,7 +255,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                     let token = req.header("X-App-Token");
                     let authed = if let Some(t) = token {
                         let mut auth = state.app_auth.lock();
-                        auth.is_valid(t, now_ms() as u64)
+                        auth.is_valid(t, now_ms_u64())
                     } else {
                         false
                     };
@@ -272,57 +287,49 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         send_json(req, 413, r#"{"error":"payload too large"}"#)?;
                         return Ok(());
                     };
-                    // simple JSON parse for {"password":"..."}
-                    let s = alloc::str::from_utf8(&body).unwrap_or("");
-                    // naive extract
-                    let mut pwd = alloc::string::String::new();
-                    if let Some(i) = s.find("\"password\"") {
-                        let rest = &s[i..];
-                        if let Some(c1) = rest.find(':') {
-                            let rest2 = &rest[c1 + 1..];
-                            // skip spaces
-                            let mut j = 0;
-                            let bytes = rest2.as_bytes();
-                            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'"') {
-                                j += 1;
-                            }
-                            let mut k = j;
-                            while k < bytes.len() && bytes[k] != b'"' && bytes[k] != b',' && bytes[k] != b'}' {
-                                k += 1;
-                            }
-                            if k > j {
-                                pwd.push_str(&rest2[j..k]);
-                            }
-                        }
+                    let Some(pwd) = rid_app::app_auth::json_string_field(&body, "password") else {
+                        send_json(
+                            req,
+                            400,
+                            r#"{"ok":false,"error":"invalid password request"}"#,
+                        )?;
+                        return Ok(());
+                    };
+                    let now = now_ms();
+                    if !state.app_auth.lock().allow_password_attempt(now) {
+                        send_json(
+                            req,
+                            429,
+                            r#"{"ok":false,"error":"too many password attempts"}"#,
+                        )?;
+                        return Ok(());
                     }
                     let ctl = state.ctl.lock();
                     let stored = &ctl.bsp_config.app_password;
-                    // compare
-                    let mut ok = false;
-                    if stored[0] == 0 {
-                        ok = true; // no password set
-                    } else {
-                        let mut m = 0;
-                        let pbytes = pwd.as_bytes();
-                        while m < 32 && stored[m] != 0 && pbytes.get(m) == Some(&stored[m]) {
-                            m += 1;
-                        }
-                        if m > 0 && stored[m] == 0 && pbytes.len() == m {
-                            ok = true;
-                        } else if stored[0] == 0 {
-                            ok = true;
-                        }
-                    }
+                    let ok = stored[0] == 0 || rid_app::app_auth::password_matches(stored, &pwd);
                     drop(ctl);
                     if !ok {
-                        send_json(req, 401, r#"{"ok":false,"authenticated":false,"error":"invalid password"}"#)?;
+                        send_json(
+                            req,
+                            401,
+                            r#"{"ok":false,"authenticated":false,"error":"invalid password"}"#,
+                        )?;
                         return Ok(());
+                    }
+                    state.app_auth.lock().reset_password_attempts(now);
+                    let mut token_bytes = [0u8; 32];
+                    unsafe {
+                        esp_idf_svc::sys::esp_fill_random(
+                            token_bytes.as_mut_ptr().cast(),
+                            token_bytes.len(),
+                        );
                     }
                     let token = {
                         let mut auth = state.app_auth.lock();
-                        auth.create_session(now_ms() as u64, 3600_000)
+                        auth.create_session(now_ms_u64(), 3600_000, token_bytes)
                     };
-                    let resp = alloc::format!(r#"{{"ok":true,"authenticated":true,"token":"{}"}}"#, token);
+                    let resp =
+                        alloc::format!(r#"{{"ok":true,"authenticated":true,"token":"{}"}}"#, token);
                     send_json(req, 200, &resp)?;
                     Ok(())
                 },
@@ -342,46 +349,13 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         send_json(req, 413, r#"{"error":"payload too large"}"#)?;
                         return Ok(());
                     };
-                    let s = alloc::str::from_utf8(&body).unwrap_or("");
-                    let mut new_pwd = alloc::string::String::new();
-                    let mut cur_pwd = alloc::string::String::new();
-                    // naive extract newPassword/currentPassword
-                    if let Some(i) = s.find("\"newPassword\"") {
-                        let rest = &s[i..];
-                        if let Some(c1) = rest.find(':') {
-                            let rest2 = &rest[c1 + 1..];
-                            let mut j = 0;
-                            let bytes = rest2.as_bytes();
-                            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'"') {
-                                j += 1;
-                            }
-                            let mut k = j;
-                            while k < bytes.len() && bytes[k] != b'"' {
-                                k += 1;
-                            }
-                            if k > j {
-                                new_pwd.push_str(&rest2[j..k]);
-                            }
-                        }
-                    }
-                    if let Some(i) = s.find("\"currentPassword\"") {
-                        let rest = &s[i..];
-                        if let Some(c1) = rest.find(':') {
-                            let rest2 = &rest[c1 + 1..];
-                            let mut j = 0;
-                            let bytes = rest2.as_bytes();
-                            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'"') {
-                                j += 1;
-                            }
-                            let mut k = j;
-                            while k < bytes.len() && bytes[k] != b'"' {
-                                k += 1;
-                            }
-                            if k > j {
-                                cur_pwd.push_str(&rest2[j..k]);
-                            }
-                        }
-                    }
+                    let Some(new_pwd) = rid_app::app_auth::json_string_field(&body, "newPassword")
+                    else {
+                        send_json(req, 400, r#"{"ok":false,"error":"new password required"}"#)?;
+                        return Ok(());
+                    };
+                    let cur_pwd = rid_app::app_auth::json_string_field(&body, "currentPassword")
+                        .unwrap_or_default();
                     let (level, _keys) = lock_and_keys(&state);
                     let app_token = req.header("X-App-Token");
                     let session_ok = app_session_valid(&state, app_token);
@@ -389,33 +363,21 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         send_json(req, 401, r#"{"ok":false,"error":"unauthorized"}"#)?;
                         return Ok(());
                     }
-                    // if password currently set, require current password or valid session
-                    {
+                    let current_password_valid = {
                         let ctl = state.ctl.lock();
                         let stored = &ctl.bsp_config.app_password;
-                        if stored[0] != 0 {
-                            // verify current if provided, else rely on session
-                            if !cur_pwd.is_empty() {
-                                let mut m = 0;
-                                let pbytes = cur_pwd.as_bytes();
-                                let mut match_cur = true;
-                                while m < 32 {
-                                    let sb = stored[m];
-                                    let cb = pbytes.get(m).copied().unwrap_or(0);
-                                    if sb == 0 && cb == 0 { break; }
-                                    if sb != cb { match_cur = false; break; }
-                                    m += 1;
-                                    if sb == 0 { break; }
-                                }
-                                if !match_cur {
-                                    send_json(req, 401, r#"{"ok":false,"error":"invalid current password"}"#)?;
-                                    return Ok(());
-                                }
-                            } else if !session_ok {
-                                send_json(req, 401, r#"{"ok":false,"error":"invalid current password"}"#)?;
-                                return Ok(());
-                            }
-                        }
+                        stored[0] == 0
+                            || session_ok
+                            || (!cur_pwd.is_empty()
+                                && rid_app::app_auth::password_matches(stored, &cur_pwd))
+                    };
+                    if !current_password_valid {
+                        send_json(
+                            req,
+                            401,
+                            r#"{"ok":false,"error":"invalid current password"}"#,
+                        )?;
+                        return Ok(());
                     }
                     if new_pwd.is_empty() {
                         send_json(req, 400, r#"{"ok":false,"error":"new password required"}"#)?;
@@ -423,6 +385,14 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                     }
                     if new_pwd.len() > 32 {
                         send_json(req, 400, r#"{"ok":false,"error":"password too long"}"#)?;
+                        return Ok(());
+                    }
+                    if new_pwd.as_bytes().contains(&0) {
+                        send_json(
+                            req,
+                            400,
+                            r#"{"ok":false,"error":"password contains an unsupported character"}"#,
+                        )?;
                         return Ok(());
                     }
                     {
@@ -517,6 +487,26 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                 Method::Get,
                 move |req| -> Result<(), EspIOError> {
                     let json = state.ctl.lock().status_json();
+                    send_json(req, 200, &json)?;
+                    Ok(())
+                },
+            )
+            .expect("register handler");
+    }
+
+    // GET /api/memory
+    {
+        server
+            .fn_handler(
+                "/api/memory",
+                Method::Get,
+                move |req| -> Result<(), EspIOError> {
+                    let caps = esp_idf_svc::sys::MALLOC_CAP_DEFAULT;
+                    let total = unsafe { esp_idf_svc::sys::heap_caps_get_total_size(caps) };
+                    let free = unsafe { esp_idf_svc::sys::heap_caps_get_free_size(caps) };
+                    let minimum_free =
+                        unsafe { esp_idf_svc::sys::heap_caps_get_minimum_free_size(caps) };
+                    let json = web::memory_json(total, free, minimum_free);
                     send_json(req, 200, &json)?;
                     Ok(())
                 },
@@ -652,12 +642,7 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         }
                         CommandOutcome::Ok(CommandKind::Restart) => {
                             send_json(req, 200, r#"{"ok":true}"#)?;
-                            // Reboot only after the HTTP stack has flushed the
-                            // response: the native handler still has to run
-                            // `complete()` (the chunked terminator) after this
-                            // closure returns, so an immediate `esp_restart()`
-                            // here would cut the connection mid-response.
-                            crate::ota::reboot();
+                            crate::ota::reboot_after_response();
                         }
                         CommandOutcome::Ok(CommandKind::Unknown) => {
                             send_json(req, 400, r#"{"error":"unknown command"}"#)?;
@@ -677,7 +662,9 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                 "/ota",
                 Method::Post,
                 move |mut req| -> Result<(), EspIOError> {
-                    use rid_app::ota::{ota_body_cap, validate_ota_upload, OtaError, OtaUpload, RecvChunk};
+                    use rid_app::ota::{
+                        ota_preflight_error, validate_ota_upload, OtaError, OtaUpload, RecvChunk,
+                    };
 
                     let (lock_level, public_keys) = lock_and_keys(&state);
                     let content_len: usize = req
@@ -692,12 +679,30 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         .header("X-Signature")
                         .filter(|s| s.len() < 512)
                         .map(|s| s.as_bytes().to_vec());
-                    if expected_sha256.is_none() {
-                        send_json(req, 400, r#"{"error":"missing X-Expected-SHA256"}"#)?;
+                    let upload = OtaUpload {
+                        lock_level,
+                        content_len,
+                        expected_sha256: expected_sha256.as_deref(),
+                        signature: signature.as_deref(),
+                        public_keys: &public_keys,
+                    };
+                    if let Some(error) = ota_preflight_error(&upload) {
+                        let (status, body) = match error {
+                            OtaError::PermanentlyLocked => {
+                                (403, r#"{"error":"permanently locked"}"#)
+                            }
+                            OtaError::MissingSignature => (401, r#"{"error":"missing signature"}"#),
+                            OtaError::MissingExpectedHash => {
+                                (400, r#"{"error":"missing X-Expected-SHA256"}"#)
+                            }
+                            OtaError::EmptyUpload => (400, r#"{"error":"empty upload"}"#),
+                            _ => (400, r#"{"error":"invalid upload"}"#),
+                        };
+                        send_json(req, status, body)?;
                         return Ok(());
                     }
 
-                    let mut ota_handle = match crate::ota::OtaHandle::begin() {
+                    let mut ota_handle = match crate::ota::OtaHandle::begin(content_len) {
                         Some(h) => h,
                         None => {
                             send_json(req, 500, r#"{"error":"ota begin failed"}"#)?;
@@ -705,31 +710,21 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                         }
                     };
 
-                    let body_cap = ota_body_cap(content_len);
                     let mut buf = [0u8; 1024];
-                    let mut collected: alloc::vec::Vec<alloc::vec::Vec<u8>> = alloc::vec::Vec::new();
-                    loop {
-                        match req.read(&mut buf) {
-                            Ok(0) => break,
-                            Ok(n) => {
-                                let mut v = alloc::vec![0u8; n];
-                                v.copy_from_slice(&buf[..n]);
-                                collected.push(v);
-                            }
-                            Err(_) => break,
+                    let chunks = core::iter::from_fn(|| match req.read(&mut buf) {
+                        Ok(0) => None,
+                        Ok(n) => {
+                            let mut chunk = alloc::vec![0u8; n];
+                            chunk.copy_from_slice(&buf[..n]);
+                            Some(RecvChunk::DataOwned(chunk))
                         }
-                    }
-
-                    let upload = OtaUpload {
-                        lock_level,
-                        content_len,
-                        expected_sha256: expected_sha256.as_deref(),
-                        signature: signature.as_deref(),
-                        public_keys: &public_keys,
-                        body_cap,
-                    };
-
-                    let res = validate_ota_upload(upload, |data| crate::ota::ota_write(&mut ota_handle, data), collected.iter().map(|v| RecvChunk::Data(v.as_slice())));
+                        Err(_) => Some(RecvChunk::Fatal),
+                    });
+                    let res = validate_ota_upload(
+                        upload,
+                        |data| crate::ota::ota_write(&mut ota_handle, data),
+                        chunks,
+                    );
                     match res {
                         Err(OtaError::PermanentlyLocked) => {
                             send_json(req, 403, r#"{"error":"permanently locked"}"#)?;
@@ -759,10 +754,15 @@ pub fn start(state: Arc<SharedState>) -> Result<EspHttpServer<'static>, EspError
                             send_json(req, 400, r#"{"error":"incomplete upload"}"#)?;
                             Ok(())
                         }
+                        Err(OtaError::EmptyUpload) => {
+                            send_json(req, 400, r#"{"error":"empty upload"}"#)?;
+                            Ok(())
+                        }
                         Ok(()) => {
                             if crate::ota::ota_end(ota_handle) {
                                 send_json(req, 200, r#"{"ok":true,"reboot":true}"#)?;
-                                crate::ota::reboot()
+                                crate::ota::reboot_after_response();
+                                Ok(())
                             } else {
                                 send_json(req, 500, r#"{"error":"ota end failed"}"#)?;
                                 Ok(())

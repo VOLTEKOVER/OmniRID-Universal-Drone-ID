@@ -24,8 +24,7 @@ pub struct Capabilities {
     pub led: bool,
     /// HTTP JSON config API (`web.rs`, headless — no embedded page).
     pub web: bool,
-    /// OTA update over Wi-Fi. False until an upload path exists: `/ota`
-    /// currently answers 501 and `ota::check_and_run` only logs (see web.rs).
+    /// OTA update over Wi-Fi via the authenticated `/ota` upload handler.
     pub ota: bool,
     /// Broadcast standards the radio stack can transmit.
     pub standards: &'static [Standard],
@@ -44,7 +43,7 @@ impl Capabilities {
             nvs: true,
             led: true,
             web: true,
-            ota: false,
+            ota: true,
             standards: &[Standard::Astm],
         };
 
@@ -59,7 +58,7 @@ impl Capabilities {
             nvs: true,
             led: true,
             web: true,
-            ota: false,
+            ota: true,
             standards: &[Standard::Astm],
         };
 
@@ -76,7 +75,7 @@ impl Capabilities {
             nvs: true,
             led: true,
             web: true,
-            ota: false,
+            ota: true,
             standards: &[Standard::Astm, Standard::ChnGb, Standard::Frdid],
         };
 
@@ -103,9 +102,8 @@ mod tests {
     }
 
     #[test]
-    fn ota_is_off_until_an_upload_path_exists() {
-        // `/ota` answers 501 and `ota::check_and_run` only logs (see web.rs).
-        assert!(!Capabilities::current().ota);
+    fn ota_is_advertised_when_the_upload_handler_is_available() {
+        assert!(Capabilities::current().ota);
     }
 
     #[test]

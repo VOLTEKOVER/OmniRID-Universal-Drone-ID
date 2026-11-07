@@ -73,6 +73,25 @@ pub const LOG_MSG_MAX: usize = 240;
 /// Ring entry count and the size of the `/api/logs` response buffer.
 pub const LOG_BUF_SIZE: usize = 4096;
 
+/// JSON for the live heap counters exposed by `/api/memory`.
+///
+/// Flash occupancy is intentionally not estimated: the firmware can inspect
+/// partition capacity, but it does not currently have a reliable measure of
+/// bytes used across firmware partitions and NVS.
+pub fn memory_json(
+    total_bytes: usize,
+    free_bytes: usize,
+    minimum_free_bytes: usize,
+) -> alloc::string::String {
+    let total = total_bytes;
+    let free = free_bytes.min(total);
+    let minimum_free = minimum_free_bytes.min(total);
+    alloc::format!(
+        r#"{{"heap":{{"total_bytes":{total},"free_bytes":{free},"used_bytes":{},"minimum_free_bytes":{minimum_free}}},"flash":{{"available":false}},"sd":{{"available":false}}}}"#,
+        total.saturating_sub(free),
+    )
+}
+
 /// Port of `log_entry_t`.
 #[derive(Clone, Copy)]
 pub struct LogEntry {
@@ -387,5 +406,25 @@ mod tests {
             out,
             "[{\"t\":42,\"l\":\"E\",\"m\":\"boom\"},{\"t\":43,\"l\":\"I\",\"m\":\"ok\"}]"
         );
+    }
+
+    #[test]
+    fn memory_json_reports_heap_and_explicitly_unavailable_storage() {
+        let value: serde_json::Value = serde_json::from_str(&memory_json(1024, 640, 512)).unwrap();
+        assert_eq!(value["heap"]["total_bytes"], 1024);
+        assert_eq!(value["heap"]["free_bytes"], 640);
+        assert_eq!(value["heap"]["used_bytes"], 384);
+        assert_eq!(value["heap"]["minimum_free_bytes"], 512);
+        assert_eq!(value["flash"]["available"], false);
+        assert_eq!(value["sd"]["available"], false);
+    }
+
+    #[test]
+    fn memory_json_clamps_inconsistent_heap_values() {
+        let value: serde_json::Value =
+            serde_json::from_str(&memory_json(1024, 2048, 2048)).unwrap();
+        assert_eq!(value["heap"]["free_bytes"], 1024);
+        assert_eq!(value["heap"]["used_bytes"], 0);
+        assert_eq!(value["heap"]["minimum_free_bytes"], 1024);
     }
 }

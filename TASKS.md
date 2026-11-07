@@ -1,10 +1,16 @@
 # Project Tasks & Roadmap
 
-## Completed tasks (as of 2026‑11‑02)
-- **PWA quality gate**: `pnpm typecheck`, `pnpm lint` and `pnpm build` are clean (0 errors/problems); the six `v-html` guide renders now go through a whitelist `GuideRichText` renderer.
-- **CI**: `.github/workflows/pr-checks.yml` runs the PWA lint/typecheck/build with pnpm (matching `packageManager`/`pnpm-lock.yaml`).
-- **Firmware**: `cargo fmt --check`, clippy, build and tests are green; `POST /ota` is wired to `rid_app::ota`; USB re-init is gated by chip/`mavlink_usb_enable`.
-- **Firmware cross-builds**: `esp32`, `esp32s3` and `esp32c6` all build locally with `-Z build-std`; the Xtensa link failure from issue #43 is not reproducible after the build fixes (libc pinned to 0.2.189 for the ESP-IDF `stat` ABI).
+## Completed tasks
+- **PWA quality gate**: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass; CI also runs the device-capability tests.
+- **OTA flow**: the app now uploads `.bin` images through the allowlisted same-origin ESP proxy, computes SHA-256, accepts an optional signature, and reports errors instead of claiming a USB flash succeeded. Firmware OTA validates the expected hash/signature while streaming and aborts failed uploads. Reboots are deferred until the HTTP response can finish.
+- **ESP proxy**: device routes and methods are allowlisted, request/response sizes are bounded, and OTA timeouts are capped. Proxy policy tests pass.
+- **Memory reporting**: the app displays live heap totals/free/minimum-free values from the ESP API; unsupported flash/NVS and SD usage are not estimated or represented as available.
+- **Authentication hardening**: sessions use ESP hardware randomness, password attempts are rate-limited, password parsing uses JSON, and comparisons reject overlong values.
+- **Hardware capability matrix**: ESP32-C6 no longer advertises BLE modes that the firmware does not implement.
+- **Validation**: app lint/typecheck/build and Node policy/capability tests pass; firmware workspace tests and BSP host tests pass. Hardware-target builds and on-device OTA behavior still require the ESP-IDF toolchain/device.
+- **CI**: `.github/workflows/pr-checks.yml` runs the PWA lint/typecheck/build and capability tests with Node 22.
+- **Firmware**: `POST /ota` is wired to `rid_app::ota`; USB re-init is gated by chip/`mavlink_usb_enable`.
+- **Firmware cross-builds**: prior local `esp32`, `esp32s3` and `esp32c6` builds used `-Z build-std`; the Xtensa link failure from issue #43 was not reproduced after the build fixes (libc pinned to 0.2.189 for the ESP-IDF `stat` ABI).
 - **Docs/cleanup**: README/CONTRIBUTING test count corrected to 307; `SECURITY.md` OTA/session text refreshed; `sdkconfig.defaults` points at `SECURITY.md`; root placeholder npm files and committed PWA archives removed.
 - **Firmware** (2026‑10‑30): Updated `cc` crate to v1.10, fixed UART re‑init placeholder after config changes. (Commit `fix(firmware): update cc dependency and re‑init UART via USB CDC`)
 - **PWA** (2026‑10‑30): Enabled strict TypeScript mode, added offline fallback page (`public/offline.html`), enhanced Service Worker caching, upgraded Nuxt to 4.6.3 and related dependencies. (Commit `feat(pwa): enable strict TypeScript, add offline fallback page, improve service worker`)
@@ -13,18 +19,17 @@
 
 ## In‑progress / pending tasks
 - ✅ Resolve strict‑mode TypeScript errors — `pnpm typecheck` is clean.
-- Implement the OTA upload UI in the app (firmware `POST /ota` is implemented and gated by `X-Expected-SHA256` / `X-Signature`; only the app upload UI is pending).
-- **App deep review** – proxy/SSRF handling, service worker caching, auth middleware, polling leaks, and firmware↔app field/limit mismatches.
+- **App deep review** – continue reviewing service worker caching, auth middleware, polling leaks, and firmware↔app field/limit mismatches; proxy route/method/size controls are implemented and tested.
 - ✅ Align Wi‑Fi credential length limits between firmware (MAX_STR_LEN = 63) and UI (now 32).
 - ✅ Add CI job for the PWA (lint, typecheck, build) to the GitHub workflow.
 - ✅ Document OTA workflow and security hardening steps in `SECURITY.md`.
 - **Web UI / ground‑station polish backlog** (issue #54) – UI/UX improvements, polish, accessibility.
-- **Memory usage reporting** – expose real ESP32 flash-partition and NVS usage through the firmware API, then add a detected SD-card usage bar; SD support is pending the user's card model and wiring details.
+- **Memory usage reporting** – live heap reporting is implemented. Flash-partition/NVS use is not exposed yet; SD reporting requires a supported card interface and wiring.
 - **Saved route history download** – persist flight-route history in firmware and expose an authenticated API so the app can request and import saved routes; SD-backed storage depends on selecting the card model and wiring.
 - **GNSS advanced options** – expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware.
-- **DroneCAN AHRS / Identity** – implement AHRS and Identity parsing (issue #52).
+- **DroneCAN AHRS / Identity** – AHRS Solution (DTID 1000) parsing is implemented and host-tested against the DSDL schema pinned in the parser; Identity remains unsupported until its DSDL/signature is confirmed (issue #52).
 - **Non‑ASTM output encoders** – GB 42590 / FRDID support (issue #46).
-- **BLE 5.0 Long Range on ESP32‑C6** – enable and test long‑range BLE.
+- **BLE 5.0 Long Range on ESP32‑C6** – blocked: BLE is not implemented for C6 in the current firmware; do not claim support until a driver and hardware tests exist.
 - **ESP‑NOW mesh relay** – multi‑hop range extension (issue #29).
 - **LoRa SX1262 backup** – integrate LoRa radio backup link (issue #29).
 - **SD‑card + geofence logging** – flight‑log recovery and geofence storage (issue #29).
@@ -33,7 +38,7 @@
 - ✅ **Xtensa cross-build** – `esp32`/`esp32s3` build locally; the issue #43 link failure was not reproduced after the build fixes.
 - **Firmware deep review** – review the firmware core, protocol parsers, `out-astm`, and the `bsp-esp32` web API / FFI.
 - **ESP‑IDF 6 / `esp-idf-sys` 0.38** – address binding and opaque structs issues (issue #43).
-- **TypeScript 7 migration** – upgrade to TS 7 once compatibility issues resolved.
+- **TypeScript 7 migration** – blocked for now: current `typescript-eslint` (8.71.2) rejects TS 7.0.2; remain on TS 6 until the parser supports it.
 - **Docs policy** – keep `docs/` for images only; remove stale documentation links.
 - **`sdkconfig.defaults` comment** – ✅ updated to reference `SECURITY.md`.
 
@@ -41,9 +46,9 @@
 ## In‑progress / pending strategic priorities
 - 🔢 **1. Repository optimization** – distinguishes sources, tools, artifacts; 167K file review; `target/`, `.gitignore`, Cargo cache, Python venvs cleanup; goal: clear separation of sources vs artifacts
 - 🔧 **2. Configuration consistency** – ✅ Completed: TypeScript DEFAULTS verified (60+ settings match Rust defaults); guide.ts documents 43/47 settings (4 public keys need documentation); Vue firmware.vue OTA form implemented. Configuration consistency work finished.
-- 🛡️ **3. OTA reliability** – ✅ Test cases implemented: firmware upload sizes, wrong hash handling, device disconnection scenarios; ⚠️ Signature handling and rollback/recovery need more testing
+- 🛡️ **3. OTA reliability** – streaming upload, hash/signature checks, bounded proxy bodies, and error handling are implemented; host tests pass. On-device disconnect, reboot/response delivery, signature provisioning, partition sizing, and rollback/recovery still need hardware verification.
 - 📊 **4. Hardware compatibility matrix** – verify Wi‑Fi/BLE/UART/DroneCAN/WebSerial per target (ESP32/ESP32-S3/ESP32-C6); fill support matrix; document non‑supported combos
-✅ **5. Automated testing** – ⚠️ Testing infrastructure being set up: will add Cargo test scripts for Rust parameter validation, OPTIONS bitmask validation, lock level verification, OTA security tests, frontend‑firmware API compatibility tests, and all three target (esp32/esp32s3/esp32c6) compatibilities. Plan: implement vitest for app, Cypress E2E for OTA flow, add Rust test scripts.
+✅ **5. Automated testing** – PWA lint/typecheck/build, Node capability/proxy tests, and Rust workspace/BSP host tests run successfully. Browser E2E and hardware-target/device OTA tests remain to be added.
 
 
 
@@ -334,7 +339,7 @@ Over 60 firmware settings must be synchronized across three codebases:
 - **LoRa support**: integrate LoRa radio driver and expose as an additional broadcast medium.
 - **Non‑ASTM encoders**: implement GB 42590 / FRDID encoders (issue #46).
 - **Flash encryption**: enable ESP‑IDF flash encryption (eFuse AES‑256) for secure OTA.
-- **DroneCAN identity**: decode identity/AHRS from DroneCAN (issue #52).
+- **DroneCAN Identity**: decoding remains blocked until the message DSDL/signature is confirmed (issue #52); AHRS Solution parsing is implemented.
 - **Advanced UI polish**: improve UX polish, theme customization, and desktop client.
 - **Security audit**: complete full penetration testing and address all critical findings before any production release.
 

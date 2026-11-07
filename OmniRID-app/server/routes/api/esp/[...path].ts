@@ -1,10 +1,16 @@
 import { isIP } from 'node:net'
+import { Readable } from 'node:stream'
+import type { H3Event } from 'h3'
+import {
+  boundedBodyStream,
+  espTimeoutMs,
+  hasAllowedDeviceApiPath,
+  isAllowedDeviceApiRequest,
+  MAX_API_REQUEST_BYTES,
+  MAX_OTA_REQUEST_BYTES
+} from '../../../utils/espProxyPolicy'
 
 const DEFAULT_ESP_IP = '192.168.4.1'
-const DEFAULT_ESP_TIMEOUT_MS = 4000
-// OTA uploads run through this proxy and legitimately need a long window
-// (the firmware page requests 5 minutes via `x-esp-timeout`).
-const MAX_ESP_TIMEOUT_MS = 300000
 // Upper bound on the proxied response size, to avoid unbounded memory use.
 const MAX_RESPONSE_BYTES = 1024 * 1024
 
@@ -69,6 +75,12 @@ const readLimitedText = async (response: Response, maxBytes: number): Promise<st
   return new TextDecoder().decode(merged)
 }
 
+/** Convert the incoming request into a bounded Web stream for upstream fetch. */
+const boundedRequestBody = (event: H3Event, maxBytes: number, onTooLarge: () => void) => {
+  const source = Readable.toWeb(event.node.req) as ReadableStream<Uint8Array>
+  return boundedBodyStream(source, maxBytes, onTooLarge)
+}
+
 export default defineEventHandler(async (event) => {
   const target = resolveTarget(getHeader(event, 'x-esp-ip'))
   if (!target) {
@@ -81,11 +93,13 @@ export default defineEventHandler(async (event) => {
 
   const path = getRouterParam(event, 'path') ?? ''
   const method = getMethod(event)
+  const routePath = `/${path}`
+  if (!isAllowedDeviceApiRequest(routePath, method)) {
+    event.node.res.statusCode = hasAllowedDeviceApiPath(routePath) ? 405 : 404
+    return { error: hasAllowedDeviceApiPath(routePath) ? 'Method not allowed' : 'Device API route not allowed' }
+  }
 
-  const requestedTimeout = Number(getHeader(event, 'x-esp-timeout') ?? '')
-  const timeoutMs = Number.isFinite(requestedTimeout) && requestedTimeout > 0
-    ? Math.min(requestedTimeout, MAX_ESP_TIMEOUT_MS)
-    : DEFAULT_ESP_TIMEOUT_MS
+  const timeoutMs = espTimeoutMs(getHeader(event, 'x-esp-timeout'))
 
   const query = getQuery(event)
   const search = new URLSearchParams()
@@ -100,6 +114,22 @@ export default defineEventHandler(async (event) => {
   if (method !== 'GET' && method !== 'HEAD') {
     const contentType = getHeader(event, 'content-type')
     if (contentType) headers['content-type'] = contentType
+    const rawContentLength = getHeader(event, 'content-length')
+    const contentLength = rawContentLength === undefined ? undefined : Number(rawContentLength)
+    const maxRequestBytes = routePath === '/ota' ? MAX_OTA_REQUEST_BYTES : MAX_API_REQUEST_BYTES
+    if (routePath === '/ota' && (!Number.isSafeInteger(contentLength) || contentLength! <= 0)) {
+      event.node.res.statusCode = 400
+      return { error: 'OTA upload requires a valid Content-Length' }
+    }
+    if (contentLength !== undefined && (!Number.isSafeInteger(contentLength) || contentLength < 0)) {
+      event.node.res.statusCode = 400
+      return { error: 'Invalid request Content-Length' }
+    }
+    if (contentLength !== undefined && contentLength > maxRequestBytes) {
+      event.node.res.statusCode = 413
+      return { error: 'Request body too large' }
+    }
+    if (contentLength !== undefined) headers['content-length'] = String(contentLength)
     const expectedSha = getHeader(event, 'x-expected-sha256')
     if (expectedSha) headers['x-expected-sha256'] = expectedSha
     // Forward the Ed25519 signature required by locked devices.
@@ -116,21 +146,23 @@ export default defineEventHandler(async (event) => {
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let requestTooLarge = false
 
   try {
-    const rawBody = method !== 'GET' && method !== 'HEAD'
-      ? await readRawBody(event, false).catch(() => undefined)
+    const hasBody = method !== 'GET' && method !== 'HEAD'
+    const maxRequestBytes = routePath === '/ota' ? MAX_OTA_REQUEST_BYTES : MAX_API_REQUEST_BYTES
+    const body = hasBody
+      ? boundedRequestBody(event, maxRequestBytes, () => { requestTooLarge = true })
       : undefined
-    const body = rawBody === undefined ? undefined : new Uint8Array(rawBody)
 
-    const upstream = await fetch(`http://${target}/${path}${queryString}`, {
+    const upstream = await fetch(`http://${target}${routePath}${queryString}`, {
       method,
       headers,
       body,
       signal: controller.signal,
-      redirect: 'manual'
-    })
-    clearTimeout(timer)
+      redirect: 'manual',
+      ...(body ? { duplex: 'half' } : {})
+    } as RequestInit & { duplex?: 'half' })
 
     const text = await readLimitedText(upstream, MAX_RESPONSE_BYTES)
     const upstreamContentType = upstream.headers.get('content-type')
@@ -144,10 +176,15 @@ export default defineEventHandler(async (event) => {
     event.node.res.statusCode = upstream.status
     return text
   } catch (error) {
-    clearTimeout(timer)
     // Keep details server-side; don't leak internal hosts or ports.
     console.error('[esp-proxy]', target, error instanceof Error ? error.message : error)
-    event.node.res.statusCode = 502
-    return { error: 'ESP unreachable' }
+    if (requestTooLarge) {
+      event.node.res.statusCode = 413
+      return { error: 'Request body too large' }
+    }
+    event.node.res.statusCode = controller.signal.aborted ? 504 : 502
+    return { error: controller.signal.aborted ? 'ESP request timed out' : 'ESP unreachable' }
+  } finally {
+    clearTimeout(timer)
   }
 })

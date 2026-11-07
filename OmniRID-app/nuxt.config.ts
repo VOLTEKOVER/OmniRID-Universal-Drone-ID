@@ -47,9 +47,6 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   routeRules: {
-    '/api/**': {
-      cors: true
-    }
     // Legacy paths are redirected client-side by
     // `app/middleware/legacy-redirect.global.ts` only: declaring them here
     // would register extra server routes, duplicating the page routes.

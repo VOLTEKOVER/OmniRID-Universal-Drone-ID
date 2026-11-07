@@ -228,8 +228,11 @@ export const CHIPS: Record<ChipId, ChipInfo> = {
   },
   esp32c6: {
     label: 'ESP32-C6', defaultRxPin: 7, maxGpio: 30, inputOnly: [], reserved: [],
-    features: { ...baseFeatures, ble5LongRange: 'no' },
-    reasons: { ble5LongRange: 'BLE 5.0 Long Range is not implemented yet on the C6' }
+    features: { ...baseFeatures, ble4: 'no', ble5LongRange: 'no' },
+    reasons: {
+      ble4: 'BLE advertising is not implemented on this firmware build for the ESP32-C6',
+      ble5LongRange: 'BLE 5.0 Long Range is not implemented yet on the C6'
+    }
   }
 }
 

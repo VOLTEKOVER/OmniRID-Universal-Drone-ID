@@ -7,6 +7,7 @@
     "build:ssr": "nuxt build",
     "generate": "nuxt generate",
     "obfuscate": "node scripts/obfuscate.mjs",
+    "test:capabilities": "node --experimental-strip-types --test tests/device-capabilities.test.mjs tests/esp-proxy-policy.test.mjs",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",

@@ -2,21 +2,21 @@
 
 ## Short‑term (next 1–2 weeks)
 - ✅ Finish fixing strict‑mode TypeScript errors; `pnpm typecheck`, `pnpm lint` and `pnpm build` pass.
-- Implement OTA UI flow (firmware `/ota` endpoint is implemented; the app upload UI is pending).
+- ✅ OTA upload UI, same-origin ESP proxy, streaming firmware validation, and response-safe reboot are implemented; device-level rollback/disconnection testing remains.
 - ✅ Add CI pipeline for the PWA (lint, typecheck, build) to GitHub Actions.
 - ✅ Align Wi‑Fi credential length limits between firmware and UI (completed).
 - **Web UI / ground‑station polish backlog** (issue #54) – improve UX, accessibility, and visual polish.
 - **GNSS advanced options** – expose constellation/SBAS/NMEA rate/GNSS enable toggles if supported by firmware.
 - **Docs policy** – keep `docs/` for images only; remove stale documentation links.
 - ✅ Update `sdkconfig.defaults` comment to reference `SECURITY.md`.
-- **TypeScript 7 migration** – plan upgrade once compatibility issues resolved.
+- **TypeScript 7 migration** – defer until typescript-eslint supports TS 7.0; the attempted upgrade currently breaks lint.
 
 ## Medium‑term (1–2 months)
 - Implement LoRa broadcast support (hardware driver, config UI).
 - Add non‑ASTM Remote ID encoders (GB 42590, FRDID) (issue #46).
 - Enable flash encryption and secure OTA signatures.
-- Build DroneCAN identity and AHRS support (issue #52).
-- **BLE 5.0 Long Range on ESP32‑C6** – enable and test long‑range BLE.
+- Add DroneCAN Identity parsing (AHRS Solution parsing is implemented; Identity still needs a confirmed DSDL/signature) (issue #52).
+- **BLE 5.0 Long Range on ESP32‑C6** – firmware currently does not implement BLE on C6; do not expose this capability until driver support and hardware tests exist.
 - **ESP‑NOW mesh relay** – multi‑hop range extension (issue #29).
 - **SD‑card + geofence logging** – flight‑log recovery and geofence storage (issue #29).
 - **Ground tools** – timing analysis, NVS provisioning, Meshtastic bridge, mesh mapper (issue #53).

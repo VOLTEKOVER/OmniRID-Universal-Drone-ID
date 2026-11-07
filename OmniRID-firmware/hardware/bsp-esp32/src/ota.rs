@@ -52,27 +52,44 @@ pub fn reboot() -> ! {
     unsafe { sys::esp_restart() }
 }
 
+/// Schedule a reboot after the current HTTP handler has returned so its
+/// response can be finalized and flushed before the connection is closed.
+pub fn reboot_after_response() {
+    crate::core::spawn_background(b"rid_reboot\0", || unsafe {
+        let deadline = sys::esp_timer_get_time() + 500_000;
+        while sys::esp_timer_get_time() < deadline {
+            sys::vTaskDelay(1);
+        }
+        sys::esp_restart();
+    });
+}
+
 /// Minimal OTA write handle wrapping ESP-IDF OTA APIs.
 pub struct OtaHandle {
     handle: sys::esp_ota_handle_t,
     /// Update partition being written; it becomes the boot partition on
     /// success (kept here because `esp_ota_end` consumes the handle only).
     partition: *const sys::esp_partition_t,
+    active: bool,
 }
 
 impl OtaHandle {
     /// Begin an OTA write session to the next update partition.
-    pub fn begin() -> Option<Self> {
+    pub fn begin(image_size: usize) -> Option<Self> {
         unsafe {
             let partition = sys::esp_ota_get_next_update_partition(core::ptr::null());
             if partition.is_null() {
                 return None;
             }
             let mut handle: sys::esp_ota_handle_t = 0;
-            if sys::esp_ota_begin(partition, usize::MAX, &mut handle) != sys::ESP_OK {
+            if sys::esp_ota_begin(partition, image_size, &mut handle) != sys::ESP_OK {
                 return None;
             }
-            Some(Self { handle, partition })
+            Some(Self {
+                handle,
+                partition,
+                active: true,
+            })
         }
     }
 
@@ -82,8 +99,9 @@ impl OtaHandle {
         }
     }
 
-    fn finish(self) -> bool {
+    fn finish(mut self) -> bool {
         let ok = unsafe { sys::esp_ota_end(self.handle) == sys::ESP_OK };
+        self.active = false;
         if ok {
             // Boot the partition that was just written (the update partition
             // chosen in `begin()`), not the running one: pointing the boot
@@ -95,5 +113,16 @@ impl OtaHandle {
             }
         }
         ok
+    }
+}
+
+impl Drop for OtaHandle {
+    fn drop(&mut self) {
+        if self.active {
+            unsafe {
+                sys::esp_ota_abort(self.handle);
+            }
+            self.active = false;
+        }
     }
 }

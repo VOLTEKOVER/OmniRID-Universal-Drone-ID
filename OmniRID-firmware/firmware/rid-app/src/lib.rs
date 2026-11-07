@@ -37,8 +37,7 @@ pub use led_status::{
 };
 pub use nvs::{erase, load, reset_preserve_keys, save, NvsStore};
 pub use ota::{
-    ota_body_cap, validate_ota_upload, OtaError, OtaUpload, RecvChunk, OTA_BODY_CAP_DEFAULT,
-    OTA_MAX_IDLE_STALLS,
+    ota_preflight_error, validate_ota_upload, OtaError, OtaUpload, RecvChunk, OTA_MAX_IDLE_STALLS,
 };
 // Security lives in `rid_core::security` (complete port of `rid_security.c`
 // including `verify_signed_body`, Ed25519 + PEM/DER/PUBLIC_KEYV1); re-exported

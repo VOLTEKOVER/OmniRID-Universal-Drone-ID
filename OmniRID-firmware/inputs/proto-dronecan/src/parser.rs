@@ -16,12 +16,13 @@
 //! - CRC-16/CCITT-FALSE (init 0xFFFF, poly 0x1021, no reflection) over
 //!   `[signature (8 bytes, little-endian)] ++ [transfer payload]`, compared
 //!   against the 2 little-endian bytes prepended to the transfer;
-//! - decode of `uavcan.equipment.gnss.Fix2` (data type id 1063, signature
-//!   `0xca41e7000f37435f`) from its bit-packed DSDL layout;
+//! - decode of `uavcan.equipment.gnss.Fix2` and
+//!   `uavcan.equipment.ahrs.Solution` from their bit-packed DSDL layouts;
 //! - the 5 s freshness window of `rid_dronecan_get` and the `g_active` flag.
 //!
-//! The `uavcan.equipment.ahrs.Solution` (1000) and `org.drone_id.Identity`
-//! (8192) cases of the C switch stay no-ops. `no_std`, allocation-free.
+//! `org.drone_id.Identity` (8192) remains unsupported because its DSDL
+//! definition and signature are not present in the repository. `no_std`,
+//! allocation-free.
 
 use rid_interface::{CanFrame, GpsData};
 
@@ -29,6 +30,12 @@ use rid_interface::{CanFrame, GpsData};
 pub const FIX2_DTID: u16 = 1063;
 /// `uavcan.equipment.gnss.Fix2` data type signature (CRC-64-WE of the DSDL).
 const FIX2_SIGNATURE: u64 = 0xca41e7000f37435f;
+/// `uavcan.equipment.ahrs.Solution` data type id.
+pub const AHRS_SOLUTION_DTID: u16 = 1000;
+/// CRC-64-WE from
+/// https://github.com/DroneCAN/DSDL/blob/3aec7069e389cf571167d2071040b71240fff97e/uavcan/equipment/ahrs/1000.Solution.uavcan
+/// and its pinned `uavcan.Timestamp` dependency.
+const AHRS_SOLUTION_SIGNATURE: u64 = 0xecff99bdcee0235c;
 
 /// Extended-id bit layout (UAVCAN v0): priority in bits 24..28 (not decoded),
 /// `data_type_id` in bits 8..23, `source_node_id` in bits 0..6.
@@ -67,6 +74,22 @@ const NED_VEL_BYTE: usize = 33;
 const SATS_STATUS_BYTE: usize = 45;
 /// Minimum payload a Fix2 transfer can carry to be decodable.
 const FIX2_FIXED_BYTES: usize = 48;
+
+/// Decoded `uavcan.equipment.ahrs.Solution` fields.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct AhrsSolution {
+    /// `uavcan.Timestamp.usec`.
+    pub timestamp_usec: u64,
+    pub orientation_xyzw: [f32; 4],
+    pub orientation_covariance: [f32; 9],
+    pub orientation_covariance_len: u8,
+    pub angular_velocity: [f32; 3],
+    pub angular_velocity_covariance: [f32; 9],
+    pub angular_velocity_covariance_len: u8,
+    pub linear_acceleration: [f32; 3],
+    pub linear_acceleration_covariance: [f32; 9],
+    pub linear_acceleration_covariance_len: u8,
+}
 
 /// One parsed CAN frame (port of libuavcan `RxFrame`).
 #[derive(Clone, Copy, Debug)]
@@ -266,6 +289,7 @@ pub struct DronecanParser {
     transfers: [TransferState; MAX_TRANSFERS],
     gps: GpsData,
     last_update_ms: u32,
+    ahrs: Option<AhrsSolution>,
     active: bool,
 }
 
@@ -289,6 +313,11 @@ impl DronecanParser {
         }
     }
 
+    /// Returns the last valid AHRS Solution transfer, if one has been received.
+    pub fn get_ahrs_solution(&self) -> Option<AhrsSolution> {
+        self.ahrs
+    }
+
     /// Feeds one CAN frame (`rid_dronecan_get`'s `twai_receive` loop).
     pub fn feed(&mut self, can: &CanFrame, now_ms: u32) {
         self.active = true;
@@ -296,8 +325,8 @@ impl DronecanParser {
         let Some(f) = Frame::parse(can) else {
             return;
         };
-        if f.dtid != FIX2_DTID {
-            return; // AHRS/Identity and anything else are no-ops.
+        if f.dtid != FIX2_DTID && f.dtid != AHRS_SOLUTION_DTID {
+            return; // Identity and anything else are unsupported.
         }
 
         let idx = self.get_or_create_context((f.src_node, f.dtid), now_ms);
@@ -341,7 +370,7 @@ impl DronecanParser {
             t.this_transfer_ms = now_ms;
         }
 
-        // Single-frame transfer: no CRC, cannot carry a Fix2 (48+ bytes).
+        // Single-frame transfer: neither supported message fits without CRC.
         if f.sot && f.eot {
             t.prev_transfer_ms = t.this_transfer_ms; // updateTransferTimings()
             t.prepare_for_next();
@@ -358,15 +387,28 @@ impl DronecanParser {
         if f.eot {
             t.prev_transfer_ms = t.this_transfer_ms; // updateTransferTimings()
             let complete = t.buffer_write_pos;
-            let crc_ok = check_payload_crc(&t.buf[..complete], t.this_transfer_crc, FIX2_SIGNATURE);
+            let signature = match t.key.1 {
+                FIX2_DTID => FIX2_SIGNATURE,
+                AHRS_SOLUTION_DTID => AHRS_SOLUTION_SIGNATURE,
+                _ => return,
+            };
+            let crc_ok = check_payload_crc(&t.buf[..complete], t.this_transfer_crc, signature);
             t.prepare_for_next();
             if crc_ok {
-                Self::decode_fix2(
-                    &t.buf[..complete],
-                    now_ms,
-                    &mut self.gps,
-                    &mut self.last_update_ms,
-                );
+                match t.key.1 {
+                    FIX2_DTID => Self::decode_fix2(
+                        &t.buf[..complete],
+                        now_ms,
+                        &mut self.gps,
+                        &mut self.last_update_ms,
+                    ),
+                    AHRS_SOLUTION_DTID => {
+                        if let Some(solution) = Self::decode_ahrs_solution(&t.buf[..complete]) {
+                            self.ahrs = Some(solution);
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -448,6 +490,88 @@ impl DronecanParser {
             *last_update_ms = now_ms;
         }
     }
+
+    fn decode_ahrs_solution(payload: &[u8]) -> Option<AhrsSolution> {
+        let mut bit = 0;
+        let timestamp_usec = read_bits_checked(payload, bit, 56)?;
+        bit += 56;
+
+        let mut solution = AhrsSolution {
+            timestamp_usec,
+            ..AhrsSolution::default()
+        };
+        for value in &mut solution.orientation_xyzw {
+            *value = f16_to_f32(read_bits_checked(payload, bit, 16)? as u16);
+            bit += 16;
+        }
+
+        bit += 4; // void4
+        solution.orientation_covariance_len =
+            read_covariance(payload, &mut bit, &mut solution.orientation_covariance)?;
+
+        for value in &mut solution.angular_velocity {
+            *value = f16_to_f32(read_bits_checked(payload, bit, 16)? as u16);
+            bit += 16;
+        }
+
+        bit += 4; // void4
+        solution.angular_velocity_covariance_len =
+            read_covariance(payload, &mut bit, &mut solution.angular_velocity_covariance)?;
+
+        for value in &mut solution.linear_acceleration {
+            *value = f16_to_f32(read_bits_checked(payload, bit, 16)? as u16);
+            bit += 16;
+        }
+
+        solution.linear_acceleration_covariance_len = read_covariance(
+            payload,
+            &mut bit,
+            &mut solution.linear_acceleration_covariance,
+        )?;
+        Some(solution)
+    }
+}
+
+fn read_bits_checked(data: &[u8], offset: usize, width: usize) -> Option<u64> {
+    if offset.checked_add(width)? > data.len().checked_mul(8)? {
+        return None;
+    }
+    Some(read_bits(data, offset, width))
+}
+
+fn read_covariance(payload: &[u8], bit: &mut usize, out: &mut [f32; 9]) -> Option<u8> {
+    let len = read_bits_checked(payload, *bit, 4)? as usize;
+    *bit += 4;
+    if len > out.len() {
+        return None;
+    }
+    for value in &mut out[..len] {
+        *value = f16_to_f32(read_bits_checked(payload, *bit, 16)? as u16);
+        *bit += 16;
+    }
+    Some(len as u8)
+}
+
+fn f16_to_f32(value: u16) -> f32 {
+    let sign = ((value & 0x8000) as u32) << 16;
+    let exponent = (value >> 10) & 0x1F;
+    let fraction = (value & 0x03FF) as u32;
+    let bits = match exponent {
+        0 if fraction == 0 => sign,
+        0 => {
+            let mut significand = fraction;
+            let mut unbiased_exponent = -14i32;
+            while significand & 0x400 == 0 {
+                significand <<= 1;
+                unbiased_exponent -= 1;
+            }
+            significand &= 0x3FF;
+            sign | (((unbiased_exponent + 127) as u32) << 23) | (significand << 13)
+        }
+        0x1F => sign | (0xFF << 23) | (fraction << 13),
+        _ => sign | (((exponent as u32 + 112) & 0xFF) << 23) | (fraction << 13),
+    };
+    f32::from_bits(bits)
 }
 
 #[cfg(test)]
@@ -529,8 +653,8 @@ pub(crate) mod test_support {
     }
 
     /// Transfer CRC over signature + payload, as the sender computes it.
-    pub fn transfer_crc(payload: &[u8]) -> u16 {
-        let mut crc = transfer_crc_seed(FIX2_SIGNATURE);
+    pub fn transfer_crc_for_signature(payload: &[u8], signature: u64) -> u16 {
+        let mut crc = transfer_crc_seed(signature);
         for &b in payload {
             crc = crc_accumulate(b, crc);
         }
@@ -552,6 +676,17 @@ pub(crate) mod test_support {
         payload: &[u8],
         overrides: &[(usize, FrameOverride)],
     ) -> Vec<CanFrame> {
+        multi_frame_for(FIX2_DTID, FIX2_SIGNATURE, src_node, tid, payload, overrides)
+    }
+
+    pub fn multi_frame_for(
+        dtid: u16,
+        signature: u64,
+        src_node: u8,
+        tid: u8,
+        payload: &[u8],
+        overrides: &[(usize, FrameOverride)],
+    ) -> Vec<CanFrame> {
         let total = payload.len() + TRANSFER_CRC_BYTES;
         let nframes = if total <= 7 {
             1
@@ -566,7 +701,7 @@ pub(crate) mod test_support {
             let count;
             if i == 0 {
                 // First frame: CRC first, then payload.
-                let crc = transfer_crc(payload);
+                let crc = transfer_crc_for_signature(payload, signature);
                 data[0] = crc as u8;
                 data[1] = (crc >> 8) as u8;
                 let n = (payload.len()).min(5);
@@ -596,7 +731,7 @@ pub(crate) mod test_support {
             data[count] = tail;
 
             let mut f = CanFrame {
-                id: fix2_can_id(src_node),
+                id: can_id(dtid, src_node),
                 dlc: (count + 1) as u8,
                 data,
             };
@@ -622,15 +757,29 @@ pub(crate) mod test_support {
             data,
         }
     }
+
+    fn can_id(dtid: u16, src_node: u8) -> u32 {
+        (4u32 << 24) | ((dtid as u32) << 8) | (src_node as u32)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::parser::test_support::{
-        fix2_can_id, multi_frame, pack_fix2, single_frame, Fix2Fields,
+        fix2_can_id, multi_frame, multi_frame_for, pack_fix2, single_frame,
+        transfer_crc_for_signature, Fix2Fields,
     };
     use rid_interface::CanFrame;
+
+    // Wire-format fixture for the DSDL pinned in AHRS_SOLUTION_SIGNATURE:
+    // timestamp 0x01020304050607, quaternion (1, 0, 0, 0), covariances and
+    // vectors chosen to exercise each field and the dynamic-array lengths.
+    const AHRS_FIXTURE: [u8; 42] = [
+        0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00, 0x3c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x30, 0x00, 0x38, 0x00, 0x3c, 0x00, 0x3e, 0x00, 0x3d, 0x00, 0xc0, 0x00, 0x38, 0x20, 0x00,
+        0x34, 0x00, 0x3a, 0x00, 0x00, 0xe6, 0xc8, 0x00, 0x3c, 0x01, 0x00, 0x03,
+    ];
 
     fn default_payload() -> [u8; 48] {
         pack_fix2(&Fix2Fields::default())
@@ -762,13 +911,64 @@ mod tests {
     }
 
     #[test]
-    fn non_fix2_messages_are_ignored() {
+    fn identity_remains_ignored_without_a_schema() {
         let mut p = DronecanParser::new();
-        // A Fix2 CAN id is required; use a bogus dtid instead.
         let mut f = single_frame(1, 0, &[0u8; 7]);
-        f.id = (4u32 << 24) | (1000u32 << 8) | 1; // uavcan.equipment.ahrs.Solution
+        f.id = (4u32 << 24) | (8192u32 << 8) | 1; // org.drone_id.Identity
         p.feed(&f, 1000);
         assert!(p.get(1000).is_none());
+        assert!(p.get_ahrs_solution().is_none());
+    }
+
+    #[test]
+    fn known_ahrs_solution_fixture_decodes() {
+        assert_eq!(
+            transfer_crc_for_signature(&AHRS_FIXTURE, AHRS_SOLUTION_SIGNATURE),
+            0xc99d
+        );
+        let frames = multi_frame_for(
+            AHRS_SOLUTION_DTID,
+            AHRS_SOLUTION_SIGNATURE,
+            1,
+            0,
+            &AHRS_FIXTURE,
+            &[],
+        );
+        // The known transfer CRC for this fixture (little-endian), so the
+        // test checks the pinned DSDL signature as well as payload decoding.
+        let mut frames = frames;
+        frames[0].data[..2].copy_from_slice(&[0x9d, 0xc9]);
+        let mut p = DronecanParser::new();
+        feed_all(&mut p, &frames, 1000);
+
+        let ahrs = p.get_ahrs_solution().expect("decoded AHRS transfer");
+        assert_eq!(ahrs.timestamp_usec, 0x01020304050607);
+        assert_eq!(ahrs.orientation_xyzw, [1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(ahrs.orientation_covariance_len, 3);
+        assert_eq!(&ahrs.orientation_covariance[..3], &[0.5, 1.0, 1.5]);
+        assert_eq!(ahrs.angular_velocity, [1.25, -2.0, 0.5]);
+        assert_eq!(ahrs.angular_velocity_covariance_len, 2);
+        assert_eq!(&ahrs.angular_velocity_covariance[..2], &[0.25, 0.75]);
+        assert_eq!(ahrs.linear_acceleration, [0.0, -9.796875, 1.0]);
+        assert_eq!(ahrs.linear_acceleration_covariance_len, 1);
+        assert_eq!(ahrs.linear_acceleration_covariance[0], 0.125);
+    }
+
+    #[test]
+    fn ahrs_solution_rejects_invalid_dynamic_array_length() {
+        let mut payload = AHRS_FIXTURE;
+        payload[15] = 0xa0; // orientation_covariance length 10 (> DSDL maximum 9)
+        let frames = multi_frame_for(
+            AHRS_SOLUTION_DTID,
+            AHRS_SOLUTION_SIGNATURE,
+            1,
+            0,
+            &payload,
+            &[],
+        );
+        let mut p = DronecanParser::new();
+        feed_all(&mut p, &frames, 1000);
+        assert!(p.get_ahrs_solution().is_none());
     }
 
     #[test]

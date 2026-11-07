@@ -344,6 +344,7 @@ const _useEspConnection = () => {
         return { ...virtualConfig() } as T
       }
       if (path === 'api/status') return virtualTelemetry() as T
+      if (path === 'api/memory') return { heap: null, flash: { available: false }, sd: { available: false }, simulated: true } as T
       return { ok: true, virtual: true } as T
     }
 

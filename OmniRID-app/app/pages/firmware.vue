@@ -1,65 +1,84 @@
 <script setup lang="ts">
-import { installTargets, processSteps } from '~/config/content'
+import { processSteps } from '~/config/content'
 import { pageForRoute, pageStatusMeta } from '~/pages.config'
 
-const { espIp, isEspConnected, isChecking, lastError, isWifiTransport, canFlashUsb, refresh } = useEspConnection()
+const { espIp, isEspConnected, isChecking, lastError, isWifiTransport, isSimulated, refresh } = useEspConnection()
 const route = useRoute()
 
-const selectedTarget = ref('esp32')
 const heroStatus = computed(() => {
   const page = pageForRoute(route.path)
   return page ? pageStatusMeta(page.status) : undefined
 })
 
-const USB_PORT_KEY = 'omnirid:usb-port'
-const usbPort = ref('COM3')
-const isFlashing = ref(false)
-const flashProgress = ref(0)
-const flashMessage = ref<string | null>(null)
+const otaFile = ref<File | null>(null)
+const otaFileInput = ref<HTMLInputElement | null>(null)
+const otaHash = ref('')
+const otaSignature = ref('')
+const isUploadingOta = ref(false)
+const otaMessage = ref<string | null>(null)
 const toast = useToast()
 const { notifyInfo } = useNotifications()
 
-onMounted(() => {
-  if (import.meta.client) {
-    usbPort.value = localStorage.getItem(USB_PORT_KEY) || 'COM3'
-  }
-})
+const selectOtaFile = async (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0] ?? null
+  otaFile.value = file
+  otaHash.value = ''
+  otaMessage.value = null
+  if (!file) return
 
-const flashStatus = computed(() => {
-  if (isFlashing.value) {
-    if (flashProgress.value < 20) return 'Erasing flash…'
-    if (flashProgress.value < 85) return 'Writing firmware…'
-    if (flashProgress.value < 100) return 'Verifying…'
-    return 'Finishing up…'
+  if (!globalThis.crypto?.subtle) {
+    otaMessage.value = 'SHA-256 is unavailable. Open the app in a secure context (HTTPS or localhost).'
+    return
   }
-  if (flashMessage.value) return flashMessage.value
-  return canFlashUsb.value ? `Ready to flash ${usbPort.value}` : 'Waiting for a USB connection'
-})
 
-const flashFirmware = async () => {
-  if (!canFlashUsb.value || isFlashing.value) return
-  const target = installTargets.find(item => item.value === selectedTarget.value)?.name ?? 'ESP32'
-  isFlashing.value = true
-  flashMessage.value = null
-  flashProgress.value = 0
-  await new Promise<void>((resolve) => {
-    const timer = setInterval(() => {
-      flashProgress.value = Math.min(100, flashProgress.value + Math.round(Math.random() * 12) + 4)
-      if (flashProgress.value >= 100) {
-        clearInterval(timer)
-        resolve()
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    otaHash.value = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+  } catch {
+    otaMessage.value = 'Could not compute the firmware SHA-256 hash.'
+  }
+}
+
+const uploadOTA = async () => {
+  if (!otaFile.value || !otaHash.value || !isWifiTransport.value || isSimulated.value || isUploadingOta.value) return
+
+  isUploadingOta.value = true
+  otaMessage.value = null
+  try {
+    const headers: Record<string, string> = {
+      'content-type': 'application/octet-stream',
+      'x-esp-ip': espIp.value,
+      'x-esp-timeout': '900000',
+      'x-expected-sha256': otaHash.value
+    }
+    if (otaSignature.value.trim()) headers['x-signature'] = otaSignature.value.trim()
+
+    const response = await fetch('/api/esp/ota', {
+      method: 'POST',
+      headers,
+      body: otaFile.value,
+      signal: AbortSignal.timeout(900000)
+    })
+    const responseText = await response.text()
+    if (!response.ok) {
+      let message = responseText || `Device returned HTTP ${response.status}`
+      try {
+        const payload = JSON.parse(responseText) as { error?: string }
+        message = payload.error || message
+      } catch {
+        // Keep the plain-text response.
       }
-    }, 220)
-  })
-  isFlashing.value = false
-  flashMessage.value = `Flashed ${target} over ${usbPort.value}`
-  toast.add({
-    title: `${target} flashed`,
-    description: `Firmware written over ${usbPort.value} (WebSerial).`,
-    icon: 'i-lucide-check',
-    color: 'success'
-  })
-  notifyInfo(`${target} flashed`, `Firmware written over ${usbPort.value} (WebSerial).`)
+      throw new Error(message)
+    }
+
+    otaMessage.value = 'Upload verified. The device is rebooting into the new firmware.'
+    toast.add({ title: 'OTA update accepted', description: otaMessage.value, icon: 'i-lucide-check', color: 'success' })
+    notifyInfo('OTA update accepted', otaMessage.value)
+  } catch (error) {
+    otaMessage.value = error instanceof Error ? error.message : 'OTA upload failed.'
+  } finally {
+    isUploadingOta.value = false
+  }
 }
 </script>
 
@@ -69,7 +88,7 @@ const flashFirmware = async () => {
       <div class="mx-auto w-full max-w-[1400px] space-y-6 px-4 pb-16 sm:px-6 lg:px-10">
         <PageHero
           title="Firmware & OTA updates"
-          description="Flash over USB with WebSerial. The firmware validates OTA uploads server-side (SHA-256 hash + Ed25519 signature), but this app build does not expose the upload UI yet."
+          description="Upload a firmware image over WiFi. The device validates its SHA-256 hash and, when required by its lock level, an Ed25519 signature."
           :status="heroStatus"
           size="sm"
         >
@@ -88,108 +107,18 @@ const flashFirmware = async () => {
         <section class="grid gap-6 lg:grid-cols-2">
           <ContentSection
             title="Install via USB"
-            description="First flash or recovery using WebSerial, straight from the browser."
+            description="USB/WebSerial flashing is not implemented in this app."
             icon="i-lucide-usb"
             heading="md"
           >
-            <div class="space-y-4">
-              <div class="flex flex-wrap gap-2">
-                <UButton
-                  v-for="target in installTargets"
-                  :key="target.value"
-                  :color="selectedTarget === target.value ? 'primary' : 'neutral'"
-                  :variant="selectedTarget === target.value ? 'solid' : 'soft'"
-                  :label="target.name"
-                  @click="selectedTarget = target.value"
-                />
-                <UButton
-                  color="neutral"
-                  variant="ghost"
-                  icon="i-lucide-clock"
-                  label="Future devices"
-                  disabled
-                />
-              </div>
-
-              <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default bg-elevated/40 p-4">
-                <div class="flex items-center gap-3">
-                  <span class="relative flex size-2.5">
-                    <span v-if="canFlashUsb" class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-                    <span class="relative inline-flex size-2.5 rounded-full" :class="canFlashUsb ? 'bg-emerald-500' : isWifiTransport ? 'bg-sky-500' : 'bg-red-500'" />
-                  </span>
-                  <div>
-                    <p class="text-sm font-medium text-highlighted">
-                      {{ canFlashUsb ? 'USB ready' : isWifiTransport ? 'Connected over WiFi' : 'USB not connected' }}
-                    </p>
-                    <p class="truncate text-xs text-muted">
-                      {{ canFlashUsb ? `${usbPort} · WebSerial` : 'Serial flashing needs a USB connection.' }}
-                    </p>
-                  </div>
-                </div>
-                <UButton
-                  size="sm"
-                  color="neutral"
-                  variant="outline"
-                  icon="i-lucide-refresh-cw"
-                  label="Re-check"
-                  :loading="isChecking"
-                  @click="refresh()"
-                />
-              </div>
-
-              <div class="relative overflow-hidden rounded-lg border border-default bg-elevated/40 p-5">
-                <div
-                  v-if="isFlashing"
-                  class="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent motion-safe:animate-pulse"
-                />
-                <div class="relative flex items-center gap-4">
-                  <div class="relative flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
-                    <UIcon
-                      name="i-lucide-cpu"
-                      class="size-6"
-                      :class="isFlashing ? 'animate-pulse' : ''"
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium text-highlighted">
-                      {{ flashStatus }}
-                    </p>
-                    <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-accented">
-                      <div class="h-full rounded-full bg-primary transition-all duration-300" :style="{ width: `${flashProgress}%` }" />
-                    </div>
-                    <p class="mt-1 font-mono text-[11px] tabular-nums text-muted">
-                      {{ flashProgress }}%
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <UAlert
-                v-if="!canFlashUsb"
-                color="info"
-                icon="i-lucide-usb"
-                title="USB connection required"
-              >
-                Serial flashing and recovery use a direct USB connection. Switch the connection to USB on the board to flash over serial.
-              </UAlert>
-
-              <UButton
-                color="primary"
-                size="lg"
-                class="w-full"
-                icon="i-lucide-plug-zap"
-                :label="isFlashing ? 'Flashing…' : 'Flash firmware'"
-                :disabled="!canFlashUsb || isFlashing"
-                :loading="isFlashing"
-                @click="flashFirmware"
-              />
-            </div>
+            <UAlert color="warning" icon="i-lucide-usb" title="No USB flash action available">
+              This page does not write firmware over USB. Use the supported OTA upload below, or use an external flashing tool for first install and recovery.
+            </UAlert>
           </ContentSection>
 
           <ContentSection
             title="Update over WiFi (OTA)"
-            description="Server-side OTA is implemented; the app upload UI is not wired up in this build. Use USB/WebSerial for now."
+            description="Upload a .bin image through the self-hosted app proxy to the connected device."
             icon="i-lucide-cloud-upload"
             icon-class="bg-amber-500/10 text-amber-500 ring-amber-500/20"
             heading="md"
@@ -237,51 +166,64 @@ const flashFirmware = async () => {
                 :description="lastError"
               />
               <UAlert
+                v-if="isSimulated"
                 color="warning"
                 icon="i-lucide-info"
-                title="OTA upload UI available"
+                title="Simulation mode"
               >
-                The firmware accepts OTA uploads with hash/signature validation. Use the form below to upload firmware over WiFi.
+                Simulated connections cannot install firmware. Switch to a real device connection to use OTA.
               </UAlert>
 
-              <div class="mt-4 p-4 bg-elevated/5 rounded">
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm text-muted mb-2">Firmware binary</label>
-                    <UInput
-                      type="file"
-                      accept=".bin,.hex,.elf"
-                      class="w-full"
-                    />
-                    <p class="text-xs text-muted mt-1">
-                      Select a compiled firmware binary
-                    </p>
-                  </div>
-                  <div>
-                    <label class="block text-sm text-muted mb-2">SHA-256 hash</label>
-                    <UInput
-                      v-model="otaHash"
-                      class="w-full"
-                      :placeholder="computedHash || 'Enter hash...'"
-                    />
-                    <p class="text-xs text-muted mt-1">
-                      SHA-256 of the firmware binary
-                    </p>
-                  </div>
-                </div>
-                <div class="mt-4">
-                  <UButton
-                    color="primary"
-                    size="lg"
-                    class="w-full"
-                    icon="i-lucide-upload"
-                    @click="uploadOTA"
+              <div class="space-y-4 rounded-lg border border-default bg-elevated/40 p-4">
+                <label class="block space-y-2 text-sm text-muted">
+                  <span>Firmware binary (.bin)</span>
+                  <input
+                    ref="otaFileInput"
+                    type="file"
+                    accept=".bin,application/octet-stream"
+                    class="block w-full text-sm"
+                    :disabled="isUploadingOta"
+                    @change="selectOtaFile"
                   >
-                    Upload Firmware
-                  </UButton>
+                </label>
+                <div v-if="otaFile" class="space-y-1 text-xs text-muted">
+                  <p>
+                    {{ otaFile.name }} · {{ (otaFile.size / 1024 / 1024).toFixed(2) }} MiB
+                  </p>
+                  <p class="break-all font-mono">
+                    SHA-256: {{ otaHash || 'Computing…' }}
+                  </p>
                 </div>
-                <p class="text-sm text-muted mt-2">
-                  The firmware will validate the hash and optional signature. Updates at lock level &ge; 1 require a valid Ed25519 signature.
+                <label class="block space-y-2 text-sm text-muted">
+                  <span>Ed25519 signature (base64; required by the device at lock level ≥ 1)</span>
+                  <textarea
+                    v-model="otaSignature"
+                    class="w-full rounded-md border border-default bg-default px-3 py-2 font-mono text-xs"
+                    rows="3"
+                    autocomplete="off"
+                    spellcheck="false"
+                    :disabled="isUploadingOta"
+                    placeholder="Paste a signature over the SHA-256 digest, if required"
+                  />
+                </label>
+                <UAlert
+                  v-if="otaMessage"
+                  :color="otaMessage.startsWith('Upload verified') ? 'success' : 'error'"
+                  icon="i-lucide-info"
+                  :description="otaMessage"
+                />
+                <UButton
+                  color="primary"
+                  size="lg"
+                  class="w-full"
+                  icon="i-lucide-upload"
+                  :label="isUploadingOta ? 'Uploading and verifying…' : 'Upload firmware over WiFi'"
+                  :disabled="!isEspConnected || !isWifiTransport || isSimulated || !otaFile || !otaHash || isUploadingOta"
+                  :loading="isUploadingOta"
+                  @click="uploadOTA"
+                />
+                <p class="text-xs text-muted">
+                  The device verifies the complete binary hash and enforces signature requirements from its lock level. Failed or interrupted uploads do not select the new partition.
                 </p>
               </div>
             </div>

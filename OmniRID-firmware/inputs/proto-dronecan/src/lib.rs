@@ -12,10 +12,12 @@
 //!   the TID timeout and the transfer CRC check;
 //! - decode of `uavcan.equipment.gnss.Fix2` (data type id 1063, signature
 //!   `0xca41e7000f37435f`) from its bit-packed DSDL layout;
+//! - decode of `uavcan.equipment.ahrs.Solution` (data type id 1000), using
+//!   the DSDL pinned in `parser.rs`;
 //! - the 5 s freshness window of the C `rid_dronecan_get`.
 //!
-//! The `org.drone_id.Identity` and `uavcan.equipment.ahrs.Solution` messages
-//! of the C switch stay no-ops (no decode). `no_std`, allocation-free.
+//! `org.drone_id.Identity` remains unsupported because its DSDL definition
+//! and signature are not available in the repository. `no_std`, allocation-free.
 
 #![no_std]
 
@@ -25,5 +27,5 @@ extern crate std;
 pub mod parser;
 pub mod source;
 
-pub use parser::DronecanParser;
+pub use parser::{AhrsSolution, DronecanParser};
 pub use source::DronecanSource;

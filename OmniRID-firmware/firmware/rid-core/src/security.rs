@@ -177,7 +177,22 @@ pub fn verify_signed_body(
     sig_b64: &[u8],
     public_keys: &[FixedKeyStr; NUM_KEYS],
 ) -> bool {
-    if body.is_empty() || sig_b64.is_empty() || sig_b64[0] == 0 {
+    if body.is_empty() {
+        return false;
+    }
+
+    verify_signed_hash(&sha256(body), sig_b64, public_keys)
+}
+
+/// Verify an Ed25519 signature over a SHA-256 digest using every configured
+/// public key. This lets streamed payloads be authenticated without buffering
+/// the complete body in memory.
+pub fn verify_signed_hash(
+    hash: &[u8; 32],
+    sig_b64: &[u8],
+    public_keys: &[FixedKeyStr; NUM_KEYS],
+) -> bool {
+    if sig_b64.is_empty() || sig_b64[0] == 0 {
         return false;
     }
 
@@ -189,8 +204,6 @@ pub fn verify_signed_body(
         return false;
     };
 
-    let hash = sha256(body);
-
     for key in public_keys {
         if key.c_is_empty() {
             continue;
@@ -198,7 +211,7 @@ pub fn verify_signed_body(
         let Some(vk) = parse_public_key(key) else {
             continue;
         };
-        if vk.verify(&hash, &Signature::from_bytes(&sig)).is_ok() {
+        if vk.verify(hash, &Signature::from_bytes(&sig)).is_ok() {
             return true;
         }
     }
