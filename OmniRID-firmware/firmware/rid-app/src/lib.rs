@@ -1,8 +1,6 @@
-//! Board-agnostic Remote ID application layer, port of the pure parts of
-//! `components/esp_remote_id` (BSP application logic that does not touch
-//! hardware): firmware config (`rid_config_t`), the web JSON config API, the
-//! console CLI, security primitives, the runtime state JSON, the NVS storage
-//! contract and the BLE 4.x legacy advertisement framing.
+//! Board-agnostic Remote ID application layer: firmware configuration, web
+//! JSON API, console CLI, security primitives, runtime state, NVS contract,
+//! and BLE 4.x legacy advertisement framing.
 //!
 //! The crate is `no_std` + `alloc` and has no ESP-IDF dependency: it builds
 //! and tests on any host. Board glues are thin adapters on top of it:
@@ -39,9 +37,7 @@ pub use nvs::{erase, load, reset_preserve_keys, save, NvsStore};
 pub use ota::{
     ota_preflight_error, validate_ota_upload, OtaError, OtaUpload, RecvChunk, OTA_MAX_IDLE_STALLS,
 };
-// Security lives in `rid_core::security` (complete port of `rid_security.c`
-// including `verify_signed_body`, Ed25519 + PEM/DER/PUBLIC_KEYV1); re-exported
-// here so the application layer exposes it.
+// Re-export security helpers so the application layer exposes them.
 pub use app_auth::AppAuthState;
 pub use rid_core::security::{
     b64_decode, bytes_to_hex, hex_to_bytes, verify_sha256, verify_signed_body,

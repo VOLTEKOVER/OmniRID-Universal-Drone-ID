@@ -1,0 +1,38 @@
+diff --git a/dist/cjs/index.js b/dist/cjs/index.js
+index 4047435046a30bede18b1b88a86310bf6180f24f..c224a4f081bb22e5c23d9cde9dcf0268a0cd3ace 100644
+--- a/dist/cjs/index.js
++++ b/dist/cjs/index.js
+@@ -8 +7,0 @@
+-var deepMerge = require('deepmerge');
+@@ -1084 +1083,8 @@
+-const DEFAULTS = deepFreeze(deepMerge({}, defaults));
++const DEFAULTS = deepFreeze({
++  ...defaults,
++  dedupe: [...defaults.dedupe],
++  extensions: [...defaults.extensions],
++  resolveOnly: [...defaults.resolveOnly],
++  moduleDirectories: [...defaults.moduleDirectories],
++  modulePaths: [...defaults.modulePaths]
++});
+diff --git a/dist/es/index.js b/dist/es/index.js
+index 6c22eb316dfa46659051b84baca173ba8609081e..fc3a3872a4d50ba9aa4585c6ea5b97c0f20c55a8 100644
+--- a/dist/es/index.js
++++ b/dist/es/index.js
+@@ -3 +2,0 @@
+-import deepMerge from 'deepmerge';
+@@ -1080 +1079,8 @@
+-const DEFAULTS = deepFreeze(deepMerge({}, defaults));
++const DEFAULTS = deepFreeze({
++  ...defaults,
++  dedupe: [...defaults.dedupe],
++  extensions: [...defaults.extensions],
++  resolveOnly: [...defaults.resolveOnly],
++  moduleDirectories: [...defaults.moduleDirectories],
++  modulePaths: [...defaults.modulePaths]
++});
+diff --git a/package.json b/package.json
+index 714bdd2c0ee3a3d393205bba59fdbed1b2db4712..d09936151040986fccf36aaba3502c28b73def74 100644
+--- a/package.json
++++ b/package.json
+@@ -51 +50,0 @@
+-    "deepmerge": "^4.2.2",

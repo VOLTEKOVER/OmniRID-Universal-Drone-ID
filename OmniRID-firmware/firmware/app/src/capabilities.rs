@@ -32,17 +32,17 @@ pub const OPTIONS: [(u16, &str); 9] = [
     (OPT_IDENTITY_READY_GATE, "IDENTITY_READY_GATE"),
 ];
 
-/// Region names in `rid_region_t` order (port of `g_region_names`).
+/// Region names in [`Region`] order.
 pub fn region_names() -> [&'static str; Region::COUNT] {
     core::array::from_fn(|i| hub::region_name(Region::from_raw(i as u8).unwrap()))
 }
 
-/// Standard names in `rid_standard_t` order (port of `g_standard_names`).
+/// Standard names in [`Standard`] order.
 pub fn standard_names() -> [&'static str; Standard::COUNT] {
     core::array::from_fn(|i| hub::standard_name(Standard::from_raw(i as u8).unwrap()))
 }
 
-/// Encoder availability per standard (`rid_output_has_encoder`).
+/// Encoder availability per standard.
 pub fn encoder_support() -> [bool; Standard::COUNT] {
     core::array::from_fn(|i| hub::has_encoder(Standard::from_raw(i as u8).unwrap()))
 }

@@ -3,7 +3,7 @@
  * sizeof/offsetof values the C compiler produces so the Rust FFI bindings
  * (lib.rs) can assert byte-for-byte layout parity in their tests.
  *
- * Part of the ESP32_DRONE_ID port; not part of the upstream OpenDroneID lib.
+ * Part of the OmniRID ESP32 port; not part of the upstream OpenDroneID library.
  */
 #include "opendroneid.h"
 #include <stddef.h>

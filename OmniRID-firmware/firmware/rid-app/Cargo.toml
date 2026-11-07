@@ -2,7 +2,7 @@
 name = "rid-app"
 version = "0.1.0"
 edition = "2021"
-description = "Board-agnostic Remote ID application layer, ported from components/esp_remote_id (config, web JSON API, CLI, security primitives, state, NVS contract, BLE framing). Pure no_std+alloc: builds and tests on any host."
+description = "Board-agnostic Remote ID application layer for configuration, web JSON API, CLI, security, runtime state, NVS, and BLE framing. Pure no_std+alloc: builds and tests on any host."
 license = "MIT"
 
 [dependencies]

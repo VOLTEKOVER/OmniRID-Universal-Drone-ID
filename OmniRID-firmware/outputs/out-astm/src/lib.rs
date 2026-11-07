@@ -1,6 +1,6 @@
 //! ASTM F3411-22a broadcast encoder.
 //!
-//! Port of the encode side of `odid_common.c` / `rid_output.c`:
+//! ASTM message and frame encoding built on the Open Drone ID data model:
 //! - `uas::build_uas_data` fills the normative `ODID_UAS_Data` from the neutral
 //!   `GpsData`/`Identity` types (including the region gating already applied
 //!   by the hourglass hub in `rid-core`);

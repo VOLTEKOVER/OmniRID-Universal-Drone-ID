@@ -20,7 +20,7 @@ OmniRID is an **open-source Drone ID transmitter** for ESP32 that turns any flig
 
 - **Input** from any flight controller or direct GPS module: **MAVLink · MSP · NMEA · DroneCAN**
 - **Output** to the Remote ID standard: **ASTM F3411-22a** (GB 42590-2023 and FRDID encoders on the roadmap, see issue #46)
-- **Broadcast** via **WiFi Beacon + NAN + BLE 4.0/5.0**
+- **Broadcast** via **WiFi Beacon + NAN**; BLE support depends on the ESP32 chip
 
 <p align="center">
   <a href="https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID"><b>Source</b></a>&nbsp;&nbsp;
@@ -81,7 +81,7 @@ simulates a GPS patrol.
 | **MAVLink v2** | ArduPilot/PX4        | `GPS_RAW_INT`, `GLOBAL_POSITION_INT`, `HEARTBEAT`, `OPEN_DRONE_ID_*`               |
 | **MSP**        | Betaflight/iNAV      | `MSP_RAW_GPS` (106), `MSP_ATTITUDE` (108), `MSP_STATUS` (101)                     |
 | **NMEA 0183**  | Direct GPS module    | `$GPGGA`, `$GNGGA`, `$GPRMC`, `$GNRMC`, `$GPVTG`, `$GNVTG`                        |
-| **DroneCAN**   | CAN bus              | `uavcan.equipment.gnss.Fix2` (TWAI decode)                                        |
+| **DroneCAN**   | CAN bus              | `uavcan.equipment.gnss.Fix2`; AHRS Solution (DTID 1000)                           |
 
 ### Output (Remote ID broadcast)
 
@@ -89,8 +89,8 @@ simulates a GPS patrol.
 |---------------|-------------------|-----------------------------|
 | **WiFi Beacon** | IEEE 802.11 Mgmt | ~100 m (typical)            |
 | **WiFi NAN**    | Service Discovery | ~100 m                       |
-| **BLE 4.0**      | Legacy advertising | ~50 m                        |
-| **BLE 5.0**      | Coded PHY (S3)      | ~200 m+ (LR mode)           |
+| **BLE 4.x**      | Legacy advertising (ESP32 / S3) | ~50 m                |
+| **BLE 5.x**      | Extended advertising (S3) | Hardware and regulatory conditions apply |
 | **LoRa**         | (planned)          | ~1000 m                      |
 
 ### Protocol Versions
@@ -101,7 +101,7 @@ simulates a GPS patrol.
 
 | Feature               | Details                                                                                         |
 |----------------------|--------------------------------------------------------------------------------------------------|
-| **Broadcast**        | WiFi Beacon (802.11 mgmt) + WiFi NAN + BLE 4.0 Legacy + BLE 5.0 Long Range (S3; C6 pending)      |
+| **Broadcast**        | WiFi Beacon + WiFi NAN; BLE legacy on ESP32/S3 and extended advertising on S3. BLE is not implemented on C6. |
 | **Input protocols** | MAVLink v2 (ArduPilot/PX4), MSP (Betaflight/iNAV), NMEA, DroneCAN/CAN bus — auto‑detected         |
 | **GPS source**       | From flight controller (MAVLink/MSP/NMEA/CAN) or a direct GPS module, with takeoff‑location capture |
 | **Position filter** | 1D × 3 Kalman filter (lat/lon/alt) with velocity prediction, 3 s timeout                         |
@@ -112,14 +112,14 @@ simulates a GPS patrol.
 |---|---|
 | **Authentication** | Ed25519 signing (ASTM F3411-22a compliant), 4 pages per broadcast cycle |
 | **Lock levels** | 3 tiers: Normal / Ed25519 signed / eFuse permanent |
-| **Firmware update** | USB/serial flashing; the `/ota` endpoint is a `501` stub (validators exist, not wired) |
-| **Hardening** | Safe JSON parsing, rate limiting (10 failed attempts/60 s), bounded strings |
+| **Firmware update** | WiFi OTA streams the image and verifies SHA-256; Ed25519 signatures are required at lock level 1. USB flashing is external. |
+| **Hardening** | JSON parsing, rate limits, bounded upload sizes, random session tokens and bounded strings |
 
 ---
 
 ## Ground Station (Web App / PWA)
 
-**New:** The PWA now includes an **offline fallback page** (`offline.html`). The Service Worker caches the app shell and serves this page when the network is unavailable. The build now runs with **strict TypeScript** (`tsconfig.json` `"strict": true`). Dependency upgrades: Nuxt 4.6.3, `@iconify-json/lucide` 1.2.149, and `@types/node` 26.6.6.
+The PWA includes an **offline fallback page** (`offline.html`) and strict TypeScript checking. It provides device configuration, a live readiness checklist, heap reporting, logs, route history stored in the browser, and firmware OTA upload.
 
 
 | Component | Stack |
@@ -128,7 +128,7 @@ simulates a GPS patrol.
 | **UI** | Nuxt UI (@nuxt/ui) — device configuration panels, checklists, notifications |
 | **PWA** | Nuxt 4 static generate (`nuxt generate`) — service worker + web manifest present (installable when served over HTTPS with correct scope) |
 | **State** | Pinia + composables — configuration state and dashboard shell |
-| **Server API** | `OmniRID-app/server/routes/api/esp/[...path].ts` — dev/self-hosted proxy to the device (absent in the static build) |
+| **Server API** | `OmniRID-app/server/routes/api/esp/[...path].ts` — allowlisted, size-bounded proxy used for OTA and same-origin device access; host the Nuxt server to use it |
 
 > **Current boundary**: `OmniRID-app` is a browser **configuration dashboard** for
 > the OmniRID ESP32 device. It does **not** contain a browser-side ASTM decoder,
@@ -155,25 +155,24 @@ pnpm lint
    (`192.168.4.1` by default), verified by a live `GET /api/capabilities`.
    The address popover persists the value in `localStorage` and retries the
    connection; state changes raise info/error notifications.
-2. **Configuration checklist** — Security, identity, flight controller and
-   transmission items are checked manually; the percentage is computed in the
-   browser and is not derived from the device config yet.
-3. **Configuration pages** — Grouped fields from the shared `ConfigPage`
-   component. Values are loaded with `GET /api/config`, validated on blur
-   (SSID, password, GPS bounds, GPIO ranges, channel, …) and saved with
-   `POST /api/config`; save is blocked while the device is offline.
-4. **Notifications** — Real events (connection loss/gain, config saved, preset
+2. **Readiness checklist** — A side panel reports checks and actionable
+   configuration issues, including device capability and conflicting options.
+   Live device checks require a connected ESP.
+3. **Configuration pages** — Settings load from `GET /api/config`, are
+   validated before saving, and are sent with `POST /api/config`; saving is
+   blocked while the device is offline.
+4. **Notifications** — Connection and configuration events (connection loss/gain, config saved, preset
    applied, import/export) feed the three-level slideover; unread badge,
    mark-all-read and clear are supported.
-5. **Tools** — Console streams `GET /api/logs`, keeps command history (↑/↓) and
-   posts to `POST /api/command` with an optional manual `X-Signature`; Presets
-   round-trip `/api/config`; Logging records `/api/status` telemetry and
-   exports CSV.
-6. **Firmware page** — Presentational: the install flow via WebSerial and the
-   OTA progress bar are pending (firmware `/ota` currently answers `501`).
+5. **Tools and memory** — Console reads logs and sends commands; logging
+   exports status telemetry as CSV. Memory displays live heap metrics; flash,
+   NVS and SD usage are not reported because the firmware does not expose
+   reliable usage data for them.
+6. **Firmware page** — Uploads `.bin` images through the same-origin proxy in a
+   self-hosted Nuxt deployment.
+   The app computes SHA-256; the device verifies the digest and requires
+   Ed25519 at lock level 1. USB flashing and recovery use an external tool.
 7. **Theme** — Light/dark switch shared by header and sidebar.
-
-> Debug harness (CDP) lives in the OS temp dir, not in the repo; no commits.
 
 ---
 
@@ -185,7 +184,6 @@ pnpm lint
 
 The firmware has a built-in **demo mode** (Options bit 3, or the `demo` CLI
 command) that simulates a GPS patrol, so no flight controller is required.
-The old standalone HTML demo was removed with the static docs site.
 
 ### CLI commands (after flashing)
 
@@ -234,8 +232,8 @@ it remains in git history).
 
 ### CI (no local toolchain)
 
-Every push to `omnirid-webapp-pwa` runs host tests + the three ESP32 cross-builds
-via GitHub Actions. The host build and all three ESP32 targets (`esp32`,
+Every push to `omnirid-webapp-pwa` runs host tests, Clippy and the three ESP32
+cross-builds via GitHub Actions. The host build and all three ESP32 targets (`esp32`,
 `esp32s3`, `esp32c6`) build locally; see the
 [latest builds](https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID/actions/workflows/esp32-build.yml)
 for the current CI result.
@@ -247,7 +245,7 @@ git clone https://github.com/VOLTEKOVER/OmniRID-Universal-Drone-ID.git
 cd OmniRID-Universal-Drone-ID/OmniRID-firmware
 
 cargo build --workspace           # builds all crates for the host
-cargo test --workspace            # runs 307 tests
+cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
@@ -266,8 +264,8 @@ RUSTC_BOOTSTRAP=1 cargo +esp build -Z build-std=std,panic_abort \
 RUSTC_BOOTSTRAP=1 cargo +esp build -Z build-std=std,panic_abort \
   --no-default-features --features esp32s3,hardware --target xtensa-esp32s3-espidf
 
-# ESP32-C6 (RISC-V, nightly + rust-src)
-RUSTC_BOOTSTRAP=1 cargo +nightly build -Z build-std=std,panic_abort \
+# ESP32-C6 (RISC-V, pinned nightly + rust-src)
+RUSTC_BOOTSTRAP=1 cargo +nightly-2026-04-15 build -Z build-std=std,panic_abort \
   --no-default-features --features esp32c6,hardware --target riscv32imac-esp-espidf
 ```
 
@@ -366,20 +364,18 @@ OmniRID-Universal-Drone-ID/
 
 ### OTA updates
 
-> **Not implemented yet.** `POST /ota` on the device currently answers
-> `501 {"error":"OTA not implemented; flash via serial/USB"}`. The validation
-> logic (SHA-256 + Ed25519, lock-level gate, idle timeout) exists and is tested
-> in `firmware/rid-app/src/ota.rs`, but it is not wired to the HTTP handler.
-> Flash over USB/serial for now. Tracked in
-> [`TASKS.md`](TASKS.md).
+`POST /ota` is implemented as a streamed firmware upload. The app computes the
+image digest and forwards the binary through the allowlisted proxy; the device
+checks the expected digest, declared length and signature policy before
+finishing the update. A reboot is deferred until the HTTP response can finish.
+Use USB/serial flashing for first installation and recovery. Device-level
+disconnection and rollback behavior still require hardware verification.
 
-The intended design, once wired:
-
-- **Client-side SHA-256** computed via the Web Crypto API (`crypto.subtle.digest`)
-- **`X-Expected-SHA256`** header (hex-encoded SHA-256 of the firmware body)
-- **`X-Signature`** header (Ed25519 signature, when lock level ≥ 1)
-- Server-side SHA-256 + Ed25519 verification via the shared security module
-- Dual-OTA partition scheme with automatic rollback on failure
+- **Client-side SHA-256** computed with the Web Crypto API
+- **`X-Expected-SHA256`** header (required at every lock level)
+- **`X-Signature`** header (required when lock level ≥ 1; level 2 blocks OTA)
+- Server-side SHA-256 and Ed25519 verification during streaming
+- Rollback/recovery remains hardware-dependent and needs on-device verification
 
 ### Hardening
 

@@ -1,7 +1,6 @@
 //! ESP-IDF LED status output: LEDC PWM for the RGB status LED.
 //!
-//! Port of the LED glue of `led_status.c`.  The pure-logic colour mapping
-//! lives in `rid_app::led_status`.
+//! Hardware LED control; the pure color mapping lives in `rid_app::led_status`.
 
 use esp_idf_svc as _;
 use esp_idf_svc::sys::{self as sys};
@@ -18,7 +17,6 @@ static mut LED_G: LedcChannel = LedcChannel { gpio: -1, channel: 1, timer: 0 };
 static mut LED_B: LedcChannel = LedcChannel { gpio: -1, channel: 2, timer: 0 };
 
 /// Initialise LEDC timers and channels for the RGB LED.
-/// Port of the LED init from `esp_rid_init`.
 pub fn init(r_gpio: i8, g_gpio: i8, b_gpio: i8) {
     unsafe {
         LED_R.gpio = r_gpio;

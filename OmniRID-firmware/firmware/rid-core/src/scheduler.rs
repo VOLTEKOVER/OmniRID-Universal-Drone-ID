@@ -1,5 +1,4 @@
-//! Central scheduler loop, port of `rid_task()` in `esp_remote_id.c` with
-//! 100% equivalent logic.
+//! Central scheduler loop for ingesting telemetry and producing broadcasts.
 //!
 //! One `tick()` processes one loop iteration: ingest the input sample (from a
 //! `GpsSource`), merge it into the state (takeoff capture, relative altitude,
@@ -20,7 +19,7 @@ use crate::kalman::{Kalman3d, KalmanCovariance};
 use crate::patrol::Patrol;
 use crate::{hub, readiness};
 
-/// Absolute GPS timeout, port of the hardcoded 10 s in `rid_task`.
+/// Absolute GPS timeout.
 pub const GPS_STALE_TIMEOUT_MS: u32 = 10_000;
 
 /// LED status selected by the scheduler (port of the `led_status_set_state`
@@ -49,14 +48,11 @@ pub struct TickOutcome {
     pub periodic_system: bool,
 }
 
-/// Central scheduler, port of the `g_state`/`g_kalman` globals plus the
-/// static TX rate timers of `esp_remote_id.c`.
+/// Central scheduler state, filter, and per-transport transmission timers.
 ///
 /// # Concurrency invariant (issue #49)
 ///
-/// In the C firmware the Kalman task wrote `g_state.gps` without holding
-/// `g_lock` while TX builders read it — a data race. In this port the
-/// filter and the state live in the *same* struct and are only ever
+/// The filter and state live in the same struct and are only ever
 /// touched through `&mut self`: `tick()` applies the Kalman output to
 /// `state.gps` and builds the TX frames from it in one exclusive step, so
 /// readers can never observe a torn GPS snapshot. Owners must keep this
@@ -81,7 +77,7 @@ pub struct Scheduler {
     alt_initialized: bool,
 }
 
-/// Port of `rate_allowed()` in `esp_remote_id.c`.
+/// Check whether a transmission is due for the configured rate.
 pub fn rate_allowed(last_us: &mut u64, now_us: u64, rate_hz: f32) -> bool {
     if rate_hz <= 0.0 {
         return false;
@@ -112,7 +108,7 @@ impl Scheduler {
         }
     }
 
-    /// Port of the standard/fallback binding in `esp_rid_set_config()`.
+    /// Bind the active standard and determine whether an encoder is available.
     pub fn apply_config(&mut self, config: &Config) {
         self.state.active_standard = hub::active_standard(config.region);
         self.state.standard_fallback = !hub::has_encoder(self.state.active_standard);
@@ -129,7 +125,7 @@ impl Scheduler {
         }
     }
 
-    /// Port of `update_transmissions()` in `esp_remote_id.c`.
+    /// Update transmission counters and send any due messages.
     fn update_transmissions(
         &mut self,
         config: &Config,
@@ -193,7 +189,7 @@ impl Scheduler {
         tx
     }
 
-    /// Port of one `rid_task` loop iteration.
+    /// Process one scheduler loop iteration.
     pub fn tick(
         &mut self,
         input: &InputSample,
@@ -410,8 +406,8 @@ impl Scheduler {
         }
     }
 
-    /// Port of the identity-from-config build in `rid_task`. `demo` mirrors
-    /// the demo branch which sets one fewer field (`uas_id_2` untouched).
+    /// Build the current identity from configuration and runtime telemetry.
+    /// Demo mode leaves `uas_id_2` untouched.
     fn build_identity_from_config(&mut self, config: &Config, demo: bool) {
         let ident = &mut self.state.identity;
         ident.uas_id = config.uas_id;

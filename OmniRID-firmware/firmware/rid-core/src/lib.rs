@@ -1,6 +1,5 @@
-//! Central processing, ported from `ESP32_DRONE_REMOTE_ID_Firmware` with
-//! 100% equivalent logic. No hardware dependencies; compiles identically on
-//! the real BSP and on the host simulator.
+//! Central processing for the Remote ID firmware. No hardware dependencies;
+//! compiles identically on the real BSP and on the host simulator.
 #![no_std]
 
 extern crate alloc;

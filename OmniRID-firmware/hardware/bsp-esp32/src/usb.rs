@@ -1,8 +1,7 @@
 //! ESP-IDF USB CDC ACM transport for MAVLink.
 //!
-//! Port of `rid_mavlink_usb.c`: provides a byte sink (`UsbCdcTx`) backed by
-//! the ESP-IDF USB Serial/JTAG driver.  Also provides a byte source (`UsbCdcRx`)
-//! for incoming MAVLink data from the flight controller.
+//! Provides byte source/sink adapters backed by the ESP-IDF USB Serial/JTAG
+//! driver for MAVLink communication with a flight controller.
 //!
 //! The USB Serial/JTAG peripheral only exists on ESP32-S3/C6 (not classic
 //! ESP32), so `lib.rs` only declares this module for those targets.

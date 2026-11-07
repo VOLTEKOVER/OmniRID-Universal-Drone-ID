@@ -1,9 +1,8 @@
 //! Builds the vendored Open Drone ID C library (official Intel code, see
 //! `vendor/opendroneid.c` header) plus the layout probe used by the tests.
 //!
-//! The upstream source is pinned in `vendor/` (identical to
-//! `ESP32_DRONE_REMOTE_ID_Firmware/components/esp_remote_id/src/opendroneid.c`
-//! + `include/opendroneid.h`); no network fetch is required.
+//! The upstream source and headers are pinned in `vendor/`; no network fetch
+//! is required.
 //!
 //! Upstream: https://github.com/opendroneid/OpenDroneID
 //! Auto-fetch would be:

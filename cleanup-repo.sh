@@ -4,7 +4,7 @@
 
 set -e
 
-echo "=== ESP32_DRONE_ID Repository Cleanup ==="
+echo "=== OmniRID Repository Cleanup ==="
 echo ""
 
 # Verify gitignored artifacts are indeed ignored

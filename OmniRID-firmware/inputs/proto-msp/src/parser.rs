@@ -1,14 +1,13 @@
-//! Streaming MSP parser, port of `msp_parser.c`.
+//! Streaming MSP parser.
 //!
 //! Behavioural parity notes:
 //! - Frame layout follows standard MSP v1: `$M<` + size + type + payload +
 //!   crc (total `6 + size` bytes, crc at `5 + size`). The CRC covers the
-//!   payload only. This fixes the C parser's off-by-one framing (size was read
-//!   from `buf[4]` and the CRC covered the extra byte), which meant a real
-//!   Betaflight/iNav `$M<` stream never decoded.
+//!   payload only. The frame length and checksum positions follow the MSP v1
+//!   wire format.
 //! - The frame is parsed as soon as the byte after the checksum arrives
 //!   (`g_buf_idx >= 6 + size`); the checksum is the last byte read.
-//! - A `$` byte re-syncs: buffer reset and `g_in_message = true`.
+//! - A `$` byte re-syncs the parser.
 //! - Only MSP_RAW_GPS (106), MSP_ATTITUDE (108) and MSP_STATUS (101) are
 //!   handled; RAW_GPS requires >= 16 payload bytes, ATTITUDE >= 6, STATUS
 //!   >= 10.
@@ -18,16 +17,16 @@
 
 use rid_interface::GpsData;
 
-/// `MSP_BUF_SIZE` from the C source.
+/// Maximum MSP frame buffer size.
 pub const MSP_BUF_SIZE: usize = 256;
-/// `MSP_RAW_GPS` from the C source.
+/// MSP_RAW_GPS message ID.
 const MSP_RAW_GPS: u8 = 106;
-/// `MSP_ATTITUDE` from the C source.
+/// MSP_ATTITUDE message ID.
 const MSP_ATTITUDE: u8 = 108;
-/// `MSP_STATUS` from the C source.
+/// MSP_STATUS message ID.
 const MSP_STATUS: u8 = 101;
 
-/// `msp_crc()`: XOR checksum over `data[0..len]`.
+/// MSP v1 XOR checksum over `data[0..len]`.
 fn msp_crc(data: &[u8]) -> u8 {
     data.iter().fold(0u8, |c, &b| c ^ b)
 }

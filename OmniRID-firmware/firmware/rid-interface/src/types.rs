@@ -1,4 +1,4 @@
-//! Neutral data types, port of `esp_remote_id.h`.
+//! Neutral data types shared by the firmware layers.
 //!
 //! Fixed-size string fields mirror the C `char[...]` arrays (NUL-terminated,
 //! truncated to `MAX_STR_LEN`). Authentication pages mirror
@@ -7,11 +7,11 @@
 use crate::region::Region;
 use crate::region::Standard;
 
-/// `ESP_RID_MAX_STR_LEN` from the C header.
+/// Maximum number of bytes stored in a fixed-size string.
 pub const MAX_STR_LEN: usize = 63;
-/// `ESP_RID_MAX_KEY_LEN` from the C header.
+/// Maximum number of bytes stored in a public key.
 pub const MAX_KEY_LEN: usize = 256;
-/// `ESP_RID_NUM_KEYS` from the C header.
+/// Number of public keys supported by the firmware.
 pub const NUM_KEYS: usize = 5;
 /// `ODID_AUTH_MAX_PAGES` (ASTM F3411-22a).
 pub const AUTH_MAX_PAGES: usize = 16;
@@ -212,7 +212,7 @@ impl Default for Identity {
     }
 }
 
-/// Firmware configuration (core subset), port of `rid_config_t`.
+/// Configuration fields consumed by the core.
 ///
 /// Transport/pin fields arrive with the BSP phase; this carries the fields
 /// the hub, the identity readiness gate and the operator-location loop use.
@@ -250,7 +250,7 @@ pub struct Config {
 }
 
 impl Default for Config {
-    /// Mirrors `default_config()` in `esp_remote_id.c` for the core fields.
+    /// Default values used by the core configuration.
     fn default() -> Self {
         Self {
             region: Region::Auto,
@@ -305,7 +305,7 @@ pub struct Stats {
     pub ota_count: u32,
 }
 
-/// Runtime state, port of `rid_state_t`.
+/// Runtime state shared by the scheduler and hardware adapters.
 #[derive(Clone, PartialEq, Debug)]
 pub struct State {
     pub gps: GpsData,
@@ -365,8 +365,7 @@ impl Default for State {
             operator_position_updated_ms: 0,
             operator_location_type: 0,
             auth_enabled: false,
-            // `esp_rid_init` clears g_state after binding region; the memset
-            // leaves ASTM (0) and no fallback.
+            // The default region binding uses ASTM (0) without a fallback.
             active_standard: Standard::Astm,
             standard_fallback: false,
             takeoff_lat: 0.0,

@@ -1,5 +1,4 @@
-//! Runtime state, port of `rid_state_t` from `esp_remote_id.h` and of
-//! `state_to_json()` from `web_config.c` (the `/api/status` response).
+//! Runtime state and JSON representation returned by `/api/status`.
 
 use alloc::string::String;
 use rid_interface::{GpsData, Identity, Protocol, Standard, Stats};
@@ -7,10 +6,10 @@ use serde_json::{Map, Value};
 
 use crate::json::{num1, num6};
 
-/// Mirror of `ESP_RID_VERSION` from `esp_remote_id.h`.
+/// Firmware version reported by the runtime API.
 pub const FW_VERSION: &str = "v0.3";
 
-/// Full BSP runtime snapshot, mirror of `rid_state_t`.
+/// Full BSP runtime snapshot.
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct State {
     pub gps: GpsData,
@@ -41,7 +40,7 @@ pub struct State {
     pub stats: Stats,
 }
 
-/// Same names as `g_standard_names` in `rid_output.c`, in `rid_standard_t` order.
+/// Standard names in [`Standard`] order.
 const STANDARD_NAMES: [&str; 3] = ["ASTM F3411-22a", "China GB 42590", "FRDID"];
 
 /// Port of `rid_output_standard_name()`.

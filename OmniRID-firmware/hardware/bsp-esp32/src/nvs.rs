@@ -1,7 +1,7 @@
 //! ESP-IDF NVS implementation of the [`NvsStore`] trait.
 //!
-//! Port of `nvs_storage.c` hardware glue: wraps `esp_idf_svc::nvs` to provide
-//! the abstract key/value store that `rid_app::nvs::{save,load,erase}` uses.
+//! Wraps `esp_idf_svc::nvs` to provide the key/value store used by
+//! `rid_app::nvs::{save,load,erase}`.
 
 use esp_idf_svc as _;
 use esp_idf_svc::nvs::{EspNvsPartition, NvsDefault};

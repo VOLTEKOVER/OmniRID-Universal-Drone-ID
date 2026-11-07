@@ -1,11 +1,7 @@
-//! HTTP endpoint decision logic, port of the host-testable parts of
-//! `web_config.c`: the signed-action gate shared by `handle_post_config` and
-//! `handle_factory_reset` (lock level + signature rate limiter) and the
-//! `/api/command` parsing/dispatch. HTTP plumbing and state/JSON rendering
-//! live in the BSP and the `web`/`json`/`state` modules.
-//!
-//! The C `get_lock_level()` (eFuse magic -> 2, else `cfg.lock_level`) is
-//! evaluated by the caller and passed in as `lock_level`.
+//! Host-testable HTTP endpoint decision logic: the signed-action gate shared
+//! by config writes and factory reset, plus `/api/command` parsing/dispatch.
+//! HTTP plumbing and state/JSON rendering live in the BSP and the
+//! `web`/`json`/`state` modules.
 
 use rid_core::security::verify_signed_body;
 use rid_interface::{FixedKeyStr, NUM_KEYS};

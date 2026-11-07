@@ -1,7 +1,7 @@
 //! ESP-IDF WiFi glue: AP-mode init, 802.11 beacon/action-frame injection,
 //! and the Wi-Fi side of the [`Transmitter`] trait.
 //!
-//! Port of `wifi.c` / `wifi_tx.c` from the C firmware.
+//! Implements WiFi initialization and broadcast transmission.
 
 use esp_idf_svc as _;
 use esp_idf_svc::hal::peripherals::Peripherals;

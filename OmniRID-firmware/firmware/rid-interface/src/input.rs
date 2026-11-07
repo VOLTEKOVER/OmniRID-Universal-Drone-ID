@@ -19,9 +19,8 @@ pub struct OperatorLocation {
 
 /// One loop iteration of input data, as produced by the active input source.
 ///
-/// Port of the parser polling + auto-detect in `rid_task`: the source resolves
-/// the configured protocol (AUTO -> detected) and returns the resolved
-/// `proto` plus the parser's results.
+/// One input-source result. The source resolves the configured protocol
+/// (AUTO -> detected) and returns the selected protocol with parsed data.
 #[derive(Clone, Copy, Debug)]
 pub struct InputSample {
     /// Protocol that produced `gps` (NMEA/MSP/MAVLINK, or `Unknown` when

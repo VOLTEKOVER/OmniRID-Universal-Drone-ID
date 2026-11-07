@@ -1,5 +1,5 @@
-//! Ed25519 authentication signer, port of `rid_auth.c` (mbedtls -> dalek).
-//! The UAS ID is signed with the configured Ed25519 key and the signature is
+//! Ed25519 authentication signer. The UAS ID is signed with the configured
+//! Ed25519 key and the signature is
 //! split into ODID Authentication data pages (AuthType =
 //! `ODID_AUTH_UAS_ID_SIGNATURE`).
 
@@ -15,16 +15,15 @@ pub const AUTH_KEY_SIZE: usize = 32;
 /// `RID_AUTH_SIG_SIZE` (Ed25519 signature length)
 pub const AUTH_SIG_SIZE: usize = 64;
 
-/// Port of the global `g_pk`/`g_auth_*` state of `rid_auth.c`.
+/// Authentication signing state.
 #[derive(Default)]
 pub struct AuthSigner {
     signing_key: Option<SigningKey>,
 }
 
 impl AuthSigner {
-    /// Port of `rid_auth_init()`. Returns true when the PEM private key was
-    /// parsed and is an Ed25519 key (mbedtls rejects any key whose bit length
-    /// is not 256; dalek's Ed25519 parser rejects every other algorithm).
+    /// Parse and store the PEM private key. Returns true when it contains an
+    /// Ed25519 key.
     pub fn init(&mut self, pem_key: Option<&str>) -> bool {
         let Some(pem) = pem_key else {
             self.signing_key = None;

@@ -1,5 +1,4 @@
-//! BLE 4.x legacy advertisement framing, port of the framing part of
-//! `build_legacy_adv` from `ble_tx.c`.
+//! BLE 4.x legacy advertisement framing.
 //!
 //! Legacy advertising data is limited to 31 bytes, so exactly one 25-byte ODID
 //! message fits per advertisement, sent as a Service Data AD structure on the

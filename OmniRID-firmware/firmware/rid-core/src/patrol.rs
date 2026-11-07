@@ -1,6 +1,5 @@
-//! Demo-mode patrol trajectory, port of `rid_patrol.c` with 100% equivalent
-//! logic. Used by the scheduler when `OPT_DEMO_MODE` is set and no GPS fix is
-//! available. `no_std` float math via `libm`.
+//! Demo-mode patrol trajectory used by the scheduler when `OPT_DEMO_MODE` is
+//! set and no GPS fix is available. `no_std` float math via `libm`.
 
 use rid_interface::GpsData;
 
@@ -9,7 +8,7 @@ const PATROL_HOME_LON: f32 = 12.4964;
 const PATROL_RADIUS: f32 = 0.003;
 const PATROL_SPEED: f32 = 6.0;
 
-/// Port of the `static float angle` in `rid_patrol_tick()`.
+/// State for the simulated patrol path.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Patrol {
     angle: f32,

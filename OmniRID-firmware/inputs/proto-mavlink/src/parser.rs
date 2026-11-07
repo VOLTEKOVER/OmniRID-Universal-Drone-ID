@@ -1,9 +1,8 @@
 //! Pure-Rust MAVLink v1/v2 parser.
 //!
-//! Port of `mavlink_parser.c` (ESP32_DRONE_REMOTE_ID_Firmware). The framing
-//! state machine mirrors the C-MAVLink helpers (`mavlink_helpers.h`,
-//! `checksum.h`, `mavlink_types.h`); the per-message handling mirrors the
-//! `switch (msg.msgid)` in `mavlink_parser.c`.
+//! The framing state machine follows the C-MAVLink helpers
+//! (`mavlink_helpers.h`, `checksum.h`, `mavlink_types.h`) and decodes the
+//! message types consumed by the firmware.
 //!
 //! Only the messages the firmware consumes are in the CRC table; any other
 //! message id is treated as unknown (bad CRC, frame discarded), which cannot
@@ -155,9 +154,8 @@ fn rd_f32(p: &[u8], o: usize) -> f32 {
     f32::from_le_bytes([p[o], p[o + 1], p[o + 2], p[o + 3]])
 }
 
-/// `att.yaw * 180.0f / 3.14159f` in mavlink_parser.c: degrees from radians,
-/// truncated to integer (as the C `(int16_t)` cast), normalized to 0..360.
-/// The literal matches the C exactly (f32 rounding parity with the firmware).
+/// Convert yaw from radians to degrees, truncate to an integer, and normalize
+/// to 0..360. The literal preserves the firmware's f32 rounding behavior.
 #[allow(clippy::approx_constant)]
 fn heading_from_rad(yaw: f32) -> i16 {
     let mut heading = (yaw * 180.0 / 3.14159) as i16;
@@ -169,11 +167,9 @@ fn heading_from_rad(yaw: f32) -> i16 {
 
 /// MAVLink parser: framing state machine + the firmware's message handling.
 ///
-/// `feed` consumes a byte stream (any framing/CRC error resyncs like the C);
-/// the `get_*` methods reproduce `mavlink_parser_get`, `get_armed`,
-/// `get_sysid`, `get_identity` and `get_operator_location` with their
-/// freshness windows. `now_ms` is the monotonic millisecond clock of the
-/// current poll (port of `xTaskGetTickCount() * portTICK_PERIOD_MS`).
+/// `feed` consumes a byte stream and resynchronizes after framing or CRC
+/// errors. Accessors expose parsed telemetry with freshness windows.
+/// `now_ms` is the monotonic millisecond clock of the current poll.
 #[derive(Debug)]
 pub struct MavlinkParser {
     parse_state: ParseState,
@@ -192,7 +188,7 @@ pub struct MavlinkParser {
     signature: [u8; SIGNATURE_BLOCK_LEN],
     signature_wait: usize,
 
-    // Extended output state (static globals in the C parser).
+    // Extended telemetry state.
     gps: GpsData,
     identity: Identity,
     last_update: u32,

@@ -1,10 +1,8 @@
 //! Neutral contracts for the modular Remote ID firmware.
 //!
 //! This crate defines the "common language" between the central processing
-//! (`rid-core`), the input protocols, the output standards and the hardware
-//! BSP. It mirrors the types of the legacy C firmware
-//! (`ESP32_DRONE_REMOTE_ID_Firmware`) so the ported logic stays 100%
-//! equivalent. No hardware dependencies; usable in `no_std`.
+//! (`rid-core`), input protocols, output standards, and the hardware BSP.
+//! It has no hardware dependencies and is usable in `no_std`.
 #![no_std]
 
 pub mod input;

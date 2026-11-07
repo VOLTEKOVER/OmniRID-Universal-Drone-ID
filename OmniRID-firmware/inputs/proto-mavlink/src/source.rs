@@ -1,12 +1,12 @@
 //! `MavlinkSource`: wires the pure parser to a byte reader and implements the
-//! `rid-interface` `GpsSource` contract (port of the polling in `rid_task`).
+//! `rid-interface` `GpsSource` contract for the scheduler.
 
 use rid_interface::input::{InputSample, OperatorLocation};
 use rid_interface::{Config, GpsSource, Protocol, UartRead};
 
 use crate::parser::MavlinkParser;
 
-/// `MAV_RX_BUF` from `mavlink_parser.c`: bytes read per poll.
+/// Maximum number of bytes read from the UART per sample.
 const READ_CHUNK: usize = 512;
 
 /// MAVLink input source: owns a parser and a byte reader.
@@ -27,7 +27,7 @@ impl<U: UartRead> MavlinkSource<U> {
 
 impl<U: UartRead> GpsSource for MavlinkSource<U> {
     fn sample(&mut self, config: &Config, now_ms: u32, now_us: u64) -> InputSample {
-        // `mavlink_parser_set_sysid_filter(g_config.mavlink_sysid)`.
+        // Apply the configured MAVLink system-id filter.
         self.parser.set_sysid_filter(config.mavlink_sysid);
 
         let mut buf = [0u8; READ_CHUNK];

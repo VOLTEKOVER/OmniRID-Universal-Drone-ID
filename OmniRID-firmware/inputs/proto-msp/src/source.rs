@@ -1,12 +1,12 @@
 //! `MspSource`: wires the pure parser to a byte reader and implements the
-//! `rid-interface` `GpsSource` contract (port of the polling in `rid_task`).
+//! `rid-interface` `GpsSource` contract for the scheduler.
 
 use rid_interface::input::InputSample;
 use rid_interface::{Config, GpsSource, Protocol, UartRead};
 
 use crate::parser::MspParser;
 
-/// `uart_read_bytes` chunk used by `msp_parser_get`.
+/// Maximum number of bytes read from the UART per sample.
 const READ_CHUNK: usize = 64;
 
 /// MSP input source: owns a parser and a byte reader.

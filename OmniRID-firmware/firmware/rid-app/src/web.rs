@@ -1,7 +1,6 @@
-//! Web/HTTP support logic, ported from `web_config.c`: the signature-failure
-//! rate limiter and the log ring buffer with JSON rendering. Both are pure and
-//! host-testable; the HTTP server, eFuse and vprintf plumbing land with the
-//! hardware phase.
+//! Web/HTTP support logic: the signature-failure rate limiter and log ring
+//! buffer with JSON rendering. Both are pure and host-testable; the HTTP
+//! server and hardware logging integration live in the BSP.
 
 /// `SIG_RATE_MAX_FAILS` from the C.
 pub const SIG_RATE_MAX_FAILS: usize = 10;

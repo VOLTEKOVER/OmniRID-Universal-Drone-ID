@@ -1,13 +1,13 @@
-//! 3x 1D Kalman filter for GPS smoothing, port of `rid_kalman.c` with 100%
-//! equivalent logic. Uses only `core` float math (`f32::cos`, `f32::sqrt`,
+//! Three-axis 1D Kalman filter for GPS smoothing. Uses only `core` float math
+//! (`f32::cos`, `f32::sqrt`,
 //! `f32::atan2`), so it stays `no_std`.
 
-/// `RID_KALMAN_TIMEOUT_US` from the C header.
+/// Maximum interval between accepted GPS samples before resetting the filter.
 pub const KALMAN_TIMEOUT_US: u64 = 3_000_000;
 
 const DEG2M_LAT: f32 = 111320.0;
 
-/// 1D Kalman state, port of `rid_kalman_1d_t`.
+/// One-dimensional Kalman filter state.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Kalman1d {
     pub x: f32,

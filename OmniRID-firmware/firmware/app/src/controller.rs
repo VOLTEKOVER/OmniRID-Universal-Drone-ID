@@ -1,7 +1,5 @@
-//! `esp_rid_*` glue, port of the non-hardware parts of `esp_remote_id.c`:
-//! the config lifecycle (`set_config`, `factory_reset` with public-key
-//! preservation), the MAC-based default ID derivation from `esp_rid_init`
-//! and the MAVLink TX task enable condition. The loop itself runs through
+//! Application configuration lifecycle, MAC-based default identity
+//! derivation, and MAVLink TX enablement. The runtime loop is handled by
 //! `rid_core::scheduler::Scheduler`.
 
 use rid_app::config::{cstr, BspConfig};
@@ -39,21 +37,19 @@ pub fn core_config(bsp: &BspConfig) -> Config {
     }
 }
 
-/// Port of the MAVLink TX task enable condition in `esp_rid_init`.
+/// Whether MAVLink transmission is needed for the configured options.
 pub fn mavlink_tx_enabled(config: &BspConfig) -> bool {
     (config.options & (OPT_MAVLINK_ARM_STATUS | OPT_MAVLINK_OP_LOC_LOOP) != 0)
         || config.mavlink_usb_enable
 }
 
-/// Port of the placeholder check in `esp_rid_init`: either ID is still a
-/// factory default.
+/// Whether either identity field still has a factory-default value.
 pub fn is_placeholder_id(config: &BspConfig) -> bool {
     cstr(&config.uas_id) == "ESP32-RID-001" || cstr(&config.operator_id) == "OP-UNKNOWN"
 }
 
-/// Port of the MAC-based ID derivation in `esp_rid_init`: when a placeholder
-/// ID is present, both IDs are replaced with the last two MAC bytes
-/// (`ESP32-RID-<hex>` / `ESP32-OP-<hex>`). Returns true when it changed.
+/// Replace placeholder IDs using the last two MAC bytes and return whether
+/// the configuration changed.
 pub fn derive_ids_from_mac(config: &mut BspConfig, mac: &[u8; 6]) -> bool {
     if is_placeholder_id(config) {
         config.uas_id = fixed_str(&alloc::format!("ESP32-RID-{:02X}{:02X}", mac[4], mac[5]));
@@ -64,8 +60,8 @@ pub fn derive_ids_from_mac(config: &mut BspConfig, mac: &[u8; 6]) -> bool {
     }
 }
 
-/// Result of `Controller::set_config` (port of `esp_rid_set_config`): the
-/// rebound standard/fallback and whether the UART must be re-initialized.
+/// Result of applying configuration, including standard selection and
+/// whether the UART must be re-initialized.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SetConfigOutcome {
     pub active_standard: Standard,
@@ -74,8 +70,7 @@ pub struct SetConfigOutcome {
     pub protocol_reinit_required: bool,
 }
 
-/// Application controller, port of the `g_config`/`g_state` globals plus the
-/// `esp_rid_*` API. The scheduler owns the runtime state.
+/// Application controller owning configuration and scheduler runtime state.
 #[derive(Debug)]
 pub struct Controller {
     pub bsp_config: BspConfig,
@@ -84,7 +79,7 @@ pub struct Controller {
 }
 
 impl Controller {
-    /// Port of the config load + standard binding in `esp_rid_init`.
+    /// Initialize default configuration and bind the selected standard.
     pub fn new() -> Self {
         let bsp_config = BspConfig::default();
         let core = core_config(&bsp_config);
@@ -97,8 +92,7 @@ impl Controller {
         }
     }
 
-    /// Port of `esp_rid_set_config` (minus the NVS save and the BSP
-    /// reconfiguration, which are hardware side).
+    /// Apply configuration and report any required hardware reinitialization.
     pub fn set_config(&mut self, new: &BspConfig) -> SetConfigOutcome {
         let old_baud = self.bsp_config.baud_rate;
         self.bsp_config = new.clone();
@@ -112,8 +106,7 @@ impl Controller {
         }
     }
 
-    /// Port of `esp_rid_factory_reset`: the config is reset to defaults
-    /// preserving the public keys (and the scheduler is rebound).
+    /// Reset configuration to defaults while preserving public keys.
     pub fn factory_reset(&mut self) {
         let keys = self.bsp_config.public_keys;
         self.bsp_config = BspConfig::default();
@@ -122,7 +115,7 @@ impl Controller {
         self.scheduler.apply_config(&self.core);
     }
 
-    /// Port of the MAC-based default ID derivation in `esp_rid_init`.
+    /// Derive default identity fields from the device MAC address.
     pub fn derive_default_ids(&mut self, mac: &[u8; 6]) -> bool {
         if derive_ids_from_mac(&mut self.bsp_config, mac) {
             self.core = core_config(&self.bsp_config);
@@ -133,7 +126,7 @@ impl Controller {
         }
     }
 
-    /// One scheduler loop iteration (port of one `rid_task` iteration).
+    /// Process one scheduler iteration.
     pub fn step(&mut self, input: &InputSample, out: &mut impl Transmitter) -> TickOutcome {
         self.scheduler.tick(input, &self.core, out)
     }

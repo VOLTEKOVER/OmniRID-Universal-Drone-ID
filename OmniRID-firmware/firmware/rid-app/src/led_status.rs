@@ -1,17 +1,12 @@
-//! Status RGB LED, port of the pure logic of `led_status.c`: the state table
-//! and pattern generators (blink/pulse/rainbow) plus the TX-flash override.
-//! LEDC/PWM plumbing is BSP concern.
-//!
-//! Like the C, the blink patterns are driven by a tick counter (each
-//! `tick()` call advances it) while `Pulse`/`Rainbow` use the real
-//! millisecond clock passed to `tick`.
+//! Status RGB LED state table, pattern generators (blink/pulse/rainbow), and
+//! TX-flash override. LEDC/PWM plumbing is handled by the BSP.
 
 use crate::led_status::LedState::*;
 
 /// `TX_FLASH_US` in milliseconds.
 pub const TX_FLASH_MS: u32 = 80;
 
-/// RGB color, `struct rgb` from `led_status.c`.
+/// RGB color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Rgb {
     pub r: u8,
@@ -28,7 +23,7 @@ impl Rgb {
     };
 }
 
-/// `rid_led_state_t`.
+/// LED status state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LedState {
     Boot,
@@ -40,7 +35,7 @@ pub enum LedState {
     Error,
 }
 
-/// `pattern_t` from `led_status.c`.
+/// LED animation pattern.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LedPattern {
     Solid,
@@ -51,7 +46,7 @@ pub enum LedPattern {
     Rainbow,
 }
 
-/// One entry of the C `state_table`: color, pattern and log name.
+/// Color, pattern, and log name for an LED state.
 pub fn led_state_entry(state: LedState) -> (Rgb, LedPattern, &'static str) {
     match state {
         Boot => (
@@ -171,8 +166,7 @@ pub fn rainbow(now_ms: u32) -> Rgb {
     }
 }
 
-/// Port of the `led_status.c` state machine globals (`current_state`,
-/// `last_tx_flash_us`, `tick_count`) and `led_status_tick()`.
+/// LED animation and transmission-flash state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LedStateMachine {
     state: LedState,

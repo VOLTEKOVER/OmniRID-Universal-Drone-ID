@@ -1,5 +1,4 @@
-//! Firmware configuration, port of `rid_config_t` from `esp_remote_id.h` and
-//! of `default_config()` from `esp_remote_id.c`.
+//! Firmware configuration and its default values.
 //!
 //! This is the full BSP-side configuration. The hub-facing subset (`Config`
 //! in `rid-interface`) is derived from it; the transport/pin fields
@@ -10,10 +9,10 @@ use rid_interface::{
     TRANSMIT_WIFI_BCN,
 };
 
-/// `auth_private_key[512]` from the C header.
+/// Maximum size of the private-key configuration field.
 pub const AUTH_KEY_MAX_LEN: usize = 512;
 
-/// Full BSP configuration, mirror of `rid_config_t`.
+/// Full configuration used by the BSP.
 #[derive(Clone, PartialEq, Debug)]
 pub struct BspConfig {
     pub protocol: Protocol,

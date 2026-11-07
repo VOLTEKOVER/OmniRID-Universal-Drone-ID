@@ -1,7 +1,5 @@
-//! OTA upload validation, port of the host-testable logic of `rid_ota.c`
-//! (the `ota_update_handler` state machine). Hardware concerns (partition
-//! writes, WiFi AP, rebooting) are left to the BSP; this module mirrors the C
-//! decision order exactly:
+//! Host-testable OTA upload validation. Hardware concerns (partition writes,
+//! WiFi transport and rebooting) are handled by the BSP:
 //!
 //! 1. lock level >= 2 rejects unconditionally;
 //! 2. lock level >= 1 requires the `X-Signature` header;

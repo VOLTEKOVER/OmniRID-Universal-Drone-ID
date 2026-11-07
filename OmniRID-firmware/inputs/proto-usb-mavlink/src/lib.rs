@@ -1,13 +1,10 @@
-//! MAVLink v2 TX telemetry mirror (port of `rid_mavlink_tx.c` +
-//! `rid_mavlink_usb.c`): packs HEARTBEAT and OPEN_DRONE_ID_SYSTEM frames and
-//! writes them to a byte sink (USB Serial/JTAG on the real hardware, a mock
-//! on the host).
+//! MAVLink v2 TX telemetry: packs HEARTBEAT and OPEN_DRONE_ID_SYSTEM frames
+//! and writes them to a byte sink (USB Serial/JTAG on hardware, a mock on the
+//! host).
 //!
-//! The C firmware sends these two messages over the flight-controller UART
-//! and mirrors them to the USB console port when `mavlink_usb_enable` is set.
-//! This crate implements the USB mirror; the message packing in [`pack`] is
-//! shared logic a future FC-UART mirror can reuse. Unlike the input `proto-*`
-//! crates this one does not implement `GpsSource`: it is telemetry out.
+//! The messages are sent to the USB console port when `mavlink_usb_enable`
+//! is set. Unlike the input `proto-*` crates this one does not implement
+//! `GpsSource`: it is telemetry out.
 #![no_std]
 
 #[cfg(test)]

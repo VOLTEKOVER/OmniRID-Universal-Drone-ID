@@ -2,7 +2,7 @@
 name = "app"
 version = "0.1.0"
 edition = "2021"
-description = "Remote ID application layer (Fase 5): assembles BSP + inputs + outputs into the rid-core hub. Port of the esp_remote_id.c glue (esp_rid_init/set_config/factory_reset) plus the /api/capabilities build descriptor."
+description = "Remote ID application layer: assembles BSP, protocol inputs, and broadcast outputs into the rid-core hub."
 license = "MIT"
 
 [dependencies]

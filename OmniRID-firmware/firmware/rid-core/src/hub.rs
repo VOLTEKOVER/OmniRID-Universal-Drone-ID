@@ -1,4 +1,4 @@
-//! Hourglass output hub, port of `rid_output.c`.
+//! Output hub routing message packs to the active broadcast standard.
 //!
 //! All transports receive their UAS message pack from here instead of calling
 //! an encoder directly. The hub binds the neutral GPS+identity data to the
@@ -12,9 +12,7 @@
 use rid_interface::region::Standard;
 use rid_interface::{GpsData, Identity, Region, RegionRules, UasBuild, MAX_STR_LEN};
 
-/// Region -> standard binding (exclusive) and message gating rules.
-/// Port of `g_region_rules[]` (column order: standard, op_id, self, b2,
-/// req_op, req_id).
+/// Region-to-standard binding and message gating rules.
 const REGION_RULES: [RegionRules; Region::COUNT] = [
     RegionRules {
         standard: Standard::Astm,
@@ -106,33 +104,29 @@ const REGION_RULES: [RegionRules; Region::COUNT] = [
     }, // NZL
 ];
 
-/// Port of `g_region_names[]`.
+/// Region names in [`Region`] order.
 const REGION_NAMES: [&str; Region::COUNT] = [
     "AUTO", "EUR", "FAA", "JPN", "SGP", "KOR", "CHN", "CAN", "AUS", "BRA", "NZL",
 ];
 
-/// Port of `g_standard_names[]`.
+/// Standard names in [`Standard`] order.
 const STANDARD_NAMES: [&str; Standard::COUNT] = ["ASTM F3411-22a", "China GB 42590", "FRDID"];
 
-/// Standard selected by the configured region (exclusive).
-/// Port of `rid_output_active_standard()`.
+/// Standard selected exclusively by the configured region.
 pub fn active_standard(region: Region) -> Standard {
     REGION_RULES[region as usize].standard
 }
 
 /// True when an encoder for the given standard exists.
-/// Port of `rid_output_has_encoder()`.
 pub fn has_encoder(standard: Standard) -> bool {
     standard == Standard::Astm
 }
 
 /// Gating rules for a region.
-/// Port of `rid_output_region_rules()`.
 pub fn region_rules(region: Region) -> RegionRules {
     REGION_RULES[region as usize]
 }
 
-/// Port of `rid_output_region_name()`.
 pub fn region_name(region: Region) -> &'static str {
     REGION_NAMES[region as usize]
 }

@@ -2,7 +2,7 @@
 name = "proto-msp"
 version = "0.1.0"
 edition = "2021"
-description = "MSP (MultiWii Serial Protocol) GPS parser input (port of msp_parser.c), implements the rid-interface GpsSource contract"
+description = "MSP (MultiWii Serial Protocol) GPS parser input implementing the rid-interface GpsSource contract"
 license = "MIT"
 
 [dependencies]

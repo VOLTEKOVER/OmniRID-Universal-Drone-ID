@@ -1,6 +1,6 @@
 //! ESP-IDF BLE glue: Bluedroid BLE controller init and advertising.
 //!
-//! Port of `ble_tx.c` from the C firmware.  Two transmission modes:
+//! Supports two transmission modes:
 //! - Legacy advertising (BLE 4.x): 31-byte Service Data on UUID 0xFFFA
 //! - Extended advertising (BLE 5.0): full ODID message pack on 1M + Coded PHY
 //!

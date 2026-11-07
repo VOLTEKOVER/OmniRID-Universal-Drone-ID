@@ -1,6 +1,4 @@
-//! MAVLink v2 frame packing (port of the packing side of `mavlink_helpers.h`
-//! and the `mavlink_msg_*_pack` / `mavlink_msg_to_send_buffer` helpers used
-//! by `rid_mavlink_tx.c`).
+//! MAVLink v2 frame packing using the protocol's standard field layout.
 //!
 //! The firmware uses the MAVLink v2 dialect (`MAVLINK_VERSION == 3`,
 //! `MAVLINK_STX == 0xFD`), so frames are emitted byte-exact as v2. CRC-16 is
@@ -8,7 +6,7 @@
 
 /// `MAVLINK_STX` (MAVLink 2).
 pub const STX: u8 = 0xfd;
-/// `X25_INIT_CRC` from `checksum.h`.
+/// MAVLink X.25 checksum initial value.
 pub const X25_INIT_CRC: u16 = 0xffff;
 /// `MAVLINK_MSG_ID_HEARTBEAT_CRC`.
 pub const HEARTBEAT_CRC_EXTRA: u8 = 50;
@@ -88,10 +86,7 @@ pub fn finalize(
     10 + len + 2
 }
 
-/// Packs a HEARTBEAT with the same arguments as the
-/// `mavlink_msg_heartbeat_pack(TX_SYSID, TX_COMPID, ...)` call in
-/// `rid_mavlink_tx.c` (MAV_TYPE_ODID, MAV_AUTOPILOT_INVALID,
-/// MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, custom_mode 0, MAV_STATE_ACTIVE).
+/// Packs a HEARTBEAT with Remote ID vehicle type and active system status.
 pub fn pack_heartbeat(buf: &mut [u8; MAX_FRAME_LEN], seq: u8, sysid: u8, compid: u8) -> usize {
     let mut payload = [0u8; HEARTBEAT_LEN];
     payload[4] = MAV_TYPE_ODID;
@@ -111,11 +106,11 @@ pub fn pack_heartbeat(buf: &mut [u8; MAX_FRAME_LEN], seq: u8, sysid: u8, compid:
 }
 
 /// Packs an OPEN_DRONE_ID_SYSTEM message with the same arguments as the
-/// `mavlink_msg_open_drone_id_system_pack(TX_SYSID, TX_COMPID, ...)` call in
-/// `rid_mavlink_tx.c`: broadcast targets, all-zero id_or_mac,
+/// `mavlink_msg_open_drone_id_system_pack(TX_SYSID, TX_COMPID, ...)`:
+/// broadcast targets, all-zero `id_or_mac`,
 /// `area_count == 1`, radius 0, -1000 m area ceiling/floor, EU category/class
 /// 0, timestamp 0, and the given operator location in degE7 (0/0 with
-/// `op_loc_type == 0` when unknown, like the C).
+/// `op_loc_type == 0` when unknown).
 /// `mavlink_msg_open_drone_id_system_pack()` takes 17 arguments, so this
 /// mirror keeps the same shape (kept a flat parameter list on purpose).
 #[allow(clippy::too_many_arguments)]

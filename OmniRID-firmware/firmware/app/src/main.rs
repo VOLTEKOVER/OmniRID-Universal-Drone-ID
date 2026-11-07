@@ -70,11 +70,11 @@ fn led_name(led: LedState) -> &'static str {
 }
 
 fn main() {
-    println!("=== Remote ID app (Fase 5): port of esp_remote_id.c glue ===");
+    println!("=== Remote ID application ===");
 
     let mut ctl = Controller::new();
 
-    // esp_rid_init: placeholder IDs are replaced from the WiFi MAC.
+    // Replace placeholder identity fields with values derived from the WiFi MAC.
     let mac = [0xDE, 0xAD, 0xBE, 0xEF, 0xAB, 0xCD];
     ctl.derive_default_ids(&mac);
     println!(
@@ -82,7 +82,7 @@ fn main() {
         mac[4], mac[5]
     );
 
-    // esp_rid_set_config: switch region and watch the standard binding.
+    // Switch region and verify the active standard binding.
     let mut cfg = ctl.config().clone();
     cfg.region = rid_interface::Region::Eur;
     let out = ctl.set_config(&cfg);
@@ -147,7 +147,7 @@ fn main() {
         caps.tx_modes.len(),
     );
 
-    // esp_rid_factory_reset: keys survive, everything else resets.
+    // Restore defaults while preserving the configured public keys.
     let mut locked = ctl.config().clone();
     locked.lock_level = 2;
     locked.public_keys[0] = rid_interface::key_str("ED25519KEY");

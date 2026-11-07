@@ -1,4 +1,4 @@
-//! Streaming NMEA parser, port of `nmea_parser.c`.
+//! Streaming NMEA parser.
 //!
 //! Behavioural parity notes:
 //! - The line buffer is `[u8; 256]`; a sentence is parsed on `'\n'` (dropped)
@@ -9,12 +9,11 @@
 //! - The sentence is truncated at `'*'` (checksum) before tokenizing.
 //! - Only GGA, RMC and VTG are handled; the last valid GPS snapshot is kept
 //!   and returned while `fix_type >= 2 && latitude != 0.0`.
-//! - `lat_dir == 0` (missing longitude direction, would be a NULL deref in C)
-//!   is treated as north/east.
+//! - Missing direction fields default to north/east.
 
 use rid_interface::GpsData;
 
-/// `NMEA_BUF_SIZE` from the C source.
+/// Maximum NMEA sentence buffer size.
 pub const NMEA_BUF_SIZE: usize = 256;
 /// `sizeof(work)` in `parse_nmea_line`.
 const LINE_MAX: usize = 128;

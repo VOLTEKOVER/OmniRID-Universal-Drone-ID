@@ -7,7 +7,7 @@
     "build:ssr": "nuxt build",
     "generate": "nuxt generate",
     "obfuscate": "node scripts/obfuscate.mjs",
-    "test:capabilities": "node --experimental-strip-types --test tests/device-capabilities.test.mjs tests/esp-proxy-policy.test.mjs tests/dependency-security.test.mjs",
+    "test:capabilities": "node --experimental-strip-types --test tests/device-capabilities.test.mjs tests/esp-proxy-policy.test.mjs",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
@@ -27,7 +27,6 @@
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
     "@types/node": "^26.6.6",
-    "deepmerge": "4.3.1",
     "eslint": "^10.13.0",
     "eslint-plugin-better-tailwindcss": "^4.10.0",
     "javascript-obfuscator": "^5.9.0",

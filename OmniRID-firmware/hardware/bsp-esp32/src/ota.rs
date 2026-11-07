@@ -1,18 +1,16 @@
-//! ESP-IDF OTA update: the hardware side of `rid_ota.c`.
+//! ESP-IDF OTA partition handling and firmware upload integration.
 //!
-//! Reads the OTA trigger GPIO, starts a temporary WiFi AP + HTTP server
-//! if triggered, writes the firmware to the next update partition, and
-//! reboots on success.
+//! The HTTP API streams images to the next update partition and reboots
+//! after a successful response. The optional boot trigger GPIO is only
+//! reported; it does not start a separate access point.
 
 use esp_idf_svc as _;
 use esp_idf_svc::sys::{self as sys};
 
-/// Check the OTA trigger GPIO and, if held low, log it.
+/// Check the optional OTA trigger GPIO and log it if held low.
 ///
-/// The dedicated "RemoteID-OTA" AP + upload server from `rid_ota.c` is not
-/// implemented in this build. Entering the old infinite wait here would
-/// hang the device at boot with no way to ever receive an image, so the
-/// trigger is only reported and the normal boot sequence continues.
+/// OTA uploads are handled by the regular device HTTP server, so a held
+/// trigger must not prevent the normal boot sequence.
 pub fn check_and_run(ota_trigger_gpio: i8) {
     if ota_trigger_gpio < 0 {
         return;

@@ -1,24 +1,21 @@
-//! `MavlinkUsbTx`: periodic MAVLink telemetry writer (port of the
-//! `rid_mavlink_tx_task` loop in `rid_mavlink_tx.c`, USB mirror only).
+//! Periodic MAVLink telemetry writer for USB.
 
 use rid_interface::input::OperatorLocation;
 use rid_interface::UartWrite;
 
 use crate::pack::{pack_heartbeat, pack_open_drone_id_system, MAX_FRAME_LEN};
 
-/// `TX_SYSID` from `rid_mavlink_tx.c`.
+/// MAVLink system ID used by the telemetry writer.
 pub const TX_SYSID: u8 = 0x41;
-/// `TX_COMPID` from `rid_mavlink_tx.c`.
+/// MAVLink component ID used by the telemetry writer.
 pub const TX_COMPID: u8 = 0x38;
-/// Heartbeat period: `now - last_heartbeat >= 1000000` in `rid_mavlink_tx.c`.
+/// Heartbeat transmission period.
 pub const HEARTBEAT_PERIOD_US: u64 = 1_000_000;
 /// Operator-location republish period: `>= 6000000`.
 pub const SYSTEM_PERIOD_US: u64 = 6_000_000;
 /// Unknown operator altitude, the `op_alt = -1000.0f` default.
 pub const OP_ALT_UNKNOWN: f32 = -1000.0;
-/// The C firmware sends 1 (MAV_ODID_OPERATOR_LOCATION_TYPE_LIVE_GNSS) for a
-/// fresh operator location although its comment claims
-/// `MAV_ODID_OPERATOR_LOCATION_TYPE_FIXED` (2); kept bit-exact with the C.
+/// MAV_ODID_OPERATOR_LOCATION_TYPE_LIVE_GNSS for a fresh operator location.
 pub const OP_LOC_TYPE_FRESH: u8 = 1;
 
 /// Periodic MAVLink TX writer: sends the HEARTBEAT every second and the
@@ -31,8 +28,7 @@ pub struct MavlinkUsbTx<W: UartWrite> {
 }
 
 impl<W: UartWrite> MavlinkUsbTx<W> {
-    /// `rid_mavlink_usb_init()` + the start state of `rid_mavlink_tx_task`
-    /// (last sends at 0, TX sequence 0).
+    /// Initialize telemetry timing and sequence state.
     pub fn new(transport: W) -> Self {
         Self {
             transport,

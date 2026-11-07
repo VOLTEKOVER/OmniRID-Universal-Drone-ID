@@ -1,11 +1,8 @@
-//! Identity readiness gate and position sanity, port of the helpers in
-//! `esp_remote_id.c` (`identity_is_sane`, `position_is_sane`) and the
-//! per-update state transitions (takeoff capture, relative altitude).
+//! Identity and position readiness checks, plus per-update state transitions
+//! for takeoff capture and relative altitude.
 
 use rid_interface::{CStr, GpsData, Identity, Region, RegionRules, State, OPT_IDENTITY_READY_GATE};
 
-/// Port of `identity_is_sane()`.
-///
 /// The identity is sane when every identity field required by the region
 /// rules is present and meaningful (not the factory defaults).
 pub fn identity_is_sane(id: &Identity, rules: &RegionRules) -> bool {
@@ -26,7 +23,6 @@ pub fn identity_is_sane(id: &Identity, rules: &RegionRules) -> bool {
     true
 }
 
-/// Port of `position_is_sane()`.
 pub fn position_is_sane(gps: &GpsData) -> bool {
     if gps.latitude < -90.0 || gps.latitude > 90.0 {
         return false;

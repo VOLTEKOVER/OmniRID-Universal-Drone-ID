@@ -10,9 +10,12 @@ minimumReleaseAgeExclude:
   - eslint-plugin-import-x@4.18.0
 
 overrides:
+  'glob@>=9.0.0 <14.0.2': ^14.0.2
+  'esbuild@>=0.27.3 <0.28.1': ^0.28.1
+  '@rollup/plugin-node-resolve>deepmerge': '-'
   eslint-plugin-import-x: ^4.18.0
   'minimatch@>=7.0.0 <11.0.1': ^11.0.5
   'zod@>=4.0.0 <4.6.6': ^4.6.7
 
 patchedDependencies:
-  deepmerge@4.3.1: patches/deepmerge@4.3.1.patch
+  '@rollup/plugin-node-resolve@16.0.3': patches/@rollup__plugin-node-resolve@16.0.3.patch

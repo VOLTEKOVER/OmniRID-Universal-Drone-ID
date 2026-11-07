@@ -284,7 +284,7 @@ fn run_output() {
 }
 
 fn run_scheduler() {
-    println!("\n--- Scheduler (port of rid_task) ---");
+    println!("\n--- Scheduler ---");
 
     let mut sched = Scheduler::new();
     let cfg = Config {
@@ -350,13 +350,13 @@ fn run_scheduler() {
 }
 
 fn main() {
-    println!("=== Remote ID hub simulator (port of rid_output.c / esp_remote_id.c) ===\n");
+    println!("=== Remote ID hub simulator ===\n");
     run_region(Region::Eur);
     run_region(Region::Chn);
     run_region(Region::Faa);
 
     // Kalman demo, mirroring the main-loop usage (update -> predict -> get).
-    println!("\n--- Kalman (port of rid_kalman.c) ---");
+    println!("\n--- Kalman filter ---");
     let mut k = Kalman3d::default();
     for i in 0..10u64 {
         let now_us = i * 100_000;

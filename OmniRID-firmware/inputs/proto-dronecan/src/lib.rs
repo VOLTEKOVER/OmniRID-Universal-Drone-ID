@@ -1,9 +1,6 @@
 //! DroneCAN/UAVCAN v0 input protocol.
 //!
-//! Port of `rid_dronecan.c` (ESP32_DRONE_REMOTE_ID_Firmware). The C source is
-//! a stub: `decode_fix2` is unreachable because a single classic-CAN frame can
-//! never carry the 32 bytes it expects and no multi-frame transfer
-//! reassembly exists. This crate implements the protocol properly:
+//! This crate implements the protocol transport and decoding:
 //!
 //! - 29-bit CAN identifier decode (priority, data type id, source node);
 //! - tail-byte framing (SoT/EoT/toggle/transfer id);

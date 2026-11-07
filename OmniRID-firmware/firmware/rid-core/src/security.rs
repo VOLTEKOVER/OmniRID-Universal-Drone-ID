@@ -1,6 +1,5 @@
-//! Security helpers, port of `rid_security.c`: base64 decode, hex
-//! encode/decode, SHA-256 checksum and Ed25519 signed-body verification
-//! against the configured public keys (mbedtls/PSA -> dalek/sha2).
+//! Security helpers for base64 and hexadecimal conversion, SHA-256 checksums,
+//! and Ed25519 signed-body verification against configured public keys.
 
 use alloc::string::String;
 use alloc::vec;
@@ -12,9 +11,7 @@ use sha2::{Digest, Sha256};
 
 const B64_TAB: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-/// Port of the static `b64_decode()` in `rid_security.c`. Returns `None` for
-/// the same inputs the C code rejects (length 0 or not % 4, more than two
-/// `=` pads, pad with no payload, invalid character).
+/// Decode base64, returning `None` for invalid lengths, padding, or characters.
 pub fn b64_decode(input: &[u8]) -> Option<Vec<u8>> {
     let in_len = input.len();
     if in_len == 0 || !in_len.is_multiple_of(4) {

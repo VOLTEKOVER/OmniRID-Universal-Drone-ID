@@ -1,10 +1,7 @@
 //! Pure-Rust DroneCAN/UAVCAN v0 parser.
 //!
-//! Port of `rid_dronecan.c` (ESP32_DRONE_REMOTE_ID_Firmware). The C source is
-//! a stub: `decode_fix2` requires a single frame of at least 32 bytes, which a
-//! classic-CAN frame (DLC <= 8) can never carry, and no multi-frame transfer
-//! reassembly exists. This parser implements the transport protocol properly,
-//! following libuavcan v0 (`uc_transfer_receiver.cpp`, commit d31c6923):
+//! This parser implements the transport protocol following libuavcan v0
+//! (`uc_transfer_receiver.cpp`, commit d31c6923):
 //!
 //! - CAN id decode: `priority` (bits 24..28), `data_type_id` (bits 8..23),
 //!   service-not-message bit 7 (ignored), `source_node_id` (bits 0..6);

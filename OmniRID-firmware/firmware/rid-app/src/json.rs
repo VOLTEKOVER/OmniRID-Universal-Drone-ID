@@ -1,14 +1,9 @@
-//! Web configuration JSON, port of `apply_json()` and `config_to_json()`
-//! from `web_config.c`.
+//! Web configuration JSON parsing and serialization.
 //!
-//! cJSON is replaced by serde_json (the standard no_std+alloc choice). The
-//! per-field validation rules of the C are kept verbatim: fields that are
-//! absent or of the wrong type are left untouched and numeric ranges are
-//! enforced. The `%.1f`/`%.6f` float formatting of the C is preserved by
-//! pre-formatting the value and wrapping it in a `serde_json::Number`
-//! (`arbitrary_precision` keeps the exact digits). Unlike cJSON, serde_json
-//! escapes strings on output, so API clients (the OmniRID PWA) always
-//! receive well-formed JSON.
+//! Per-field validation leaves absent or wrong-typed values unchanged and
+//! enforces numeric ranges. Float precision is preserved by formatting values
+//! before wrapping them in `serde_json::Number`; serialized strings are escaped
+//! for API consumers.
 
 use alloc::format;
 use alloc::string::String;
@@ -17,18 +12,16 @@ use serde_json::{Map, Number, Value};
 
 use crate::config::{cstr, BspConfig, AUTH_KEY_MAX_LEN};
 
-/// Same names as `g_region_names` in `rid_output.c`, in `rid_region_t` order.
+/// Region names in `rid_interface::Region` order.
 const REGION_NAMES: [&str; Region::COUNT] = [
     "AUTO", "EUR", "FAA", "JPN", "SGP", "KOR", "CHN", "CAN", "AUS", "BRA", "NZL",
 ];
 
-/// Port of `rid_output_region_name()`.
 pub fn region_name(r: Region) -> &'static str {
     REGION_NAMES.get(r as usize).copied().unwrap_or("?")
 }
 
-/// Case-insensitive region name lookup, port of the `strcasecmp` loops in
-/// `web_config.c` and `cli.c`.
+/// Case-insensitive region name lookup.
 pub fn parse_region_name(s: &str) -> Option<Region> {
     for (r, name) in REGION_NAMES.iter().enumerate() {
         if s.eq_ignore_ascii_case(name) {
@@ -38,8 +31,7 @@ pub fn parse_region_name(s: &str) -> Option<Region> {
     None
 }
 
-/// Applies a config JSON to `cfg`. Port of `apply_json()`. Returns `false`
-/// when the document cannot be parsed (the C silently returns in that case).
+/// Applies a config JSON document to `cfg`, returning `false` if parsing fails.
 pub fn apply_json(cfg: &mut BspConfig, json: &str) -> bool {
     let Some(Value::Object(root)) = serde_json::from_str(json).ok() else {
         return false;

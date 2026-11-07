@@ -1,6 +1,6 @@
 //! Operational regions and broadcast standards (exclusive binding).
 //!
-//! Port of `rid_region_t` and `rid_standard_t` from `esp_remote_id.h`.
+//! Region and broadcast-standard enums used for configuration and routing.
 
 /// Operational region. Selects the (exclusive) broadcast standard and the
 /// message gating rules via the output hub.

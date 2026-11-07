@@ -1,7 +1,5 @@
-//! Application assembly (Fase 5), port of the remaining glue of
-//! `esp_remote_id.c` (`esp_rid_init`/`esp_rid_set_config`/
-//! `esp_rid_factory_reset`) on top of the already-ported core (`rid-core`
-//! scheduler/hub/readiness) and BSP-facing layer (`rid-app`).
+//! Application assembly wiring the controller, scheduler, and BSP-facing
+//! layers into the running firmware.
 //!
 //! The `Controller` keeps the full BSP config, derives the hub-facing
 //! `rid_interface::Config` and drives the scheduler. The hardware (parsers as

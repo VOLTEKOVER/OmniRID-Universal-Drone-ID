@@ -1,7 +1,7 @@
 //! ESP32 Remote ID firmware entry point.
 //!
-//! Port of `main.c` from the C firmware: NVS init, MAC fixup, config load,
-//! WiFi/BLE/LED init, the scheduler loop, and (optionally) OTA mode.
+//! ESP32 firmware entry point: NVS init, MAC fixup, config load, radio and
+//! LED initialization, scheduler loop, and OTA handling.
 
 #![cfg_attr(feature = "hardware", no_std)]
 #![cfg_attr(feature = "hardware", no_main)]
@@ -14,8 +14,7 @@ mod imp {
     use alloc::sync::Arc;
     use bsp_esp32::SharedState;
 
-    /// Splash screen port of `print_splash()` from `main.c`.
-    ///
+    /// Print connection details for the headless firmware.
     /// The firmware is headless: configuration is done from the OmniRID PWA,
     /// which connects to this AP and drives the JSON API at 192.168.4.1.
     fn print_splash(mac: &[u8; 6]) {
@@ -29,8 +28,7 @@ mod imp {
         );
     }
 
-    /// Fix MAC when eFuse is corrupted (common on ESP32-S0WD).
-    /// Port of `fix_mac_if_needed()` from `main.c`.
+    /// Fix the MAC when eFuse data is corrupted (common on ESP32-S0WD).
     fn fix_mac() {
         unsafe {
             let mut mac = [0u8; 6];

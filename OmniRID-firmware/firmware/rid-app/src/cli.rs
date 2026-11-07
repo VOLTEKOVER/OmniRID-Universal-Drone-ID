@@ -1,8 +1,6 @@
-//! CLI console, port of the pure logic in `cli.c`: line tokenization,
-//! `config set <field> <value>`, protocol/mode/log-level resolution and the
-//! option toggles. The hardware-backed parts (reading/writing the global
-//! config, heap/uptime/MAC, log level set, restart/reset) stay in the BSP chip
-//! layer; every decision here is host-testable.
+//! Host-testable CLI logic for line tokenization, configuration updates,
+//! protocol/mode/log-level resolution, and option toggles. Hardware-backed
+//! operations stay in the BSP layer.
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -14,10 +12,9 @@ use rid_interface::{OPT_DEMO_MODE, OPT_KALMAN_FILTER};
 use crate::config::BspConfig;
 use crate::json::parse_region_name;
 
-/// Mirror of `MAX_ARGS` in `cli.c`.
+/// Maximum number of parsed command arguments.
 pub const MAX_ARGS: usize = 16;
 
-/// Port of `proto_name()`.
 pub fn proto_name(p: Protocol) -> &'static str {
     match p {
         Protocol::Unknown => "UNKNOWN",

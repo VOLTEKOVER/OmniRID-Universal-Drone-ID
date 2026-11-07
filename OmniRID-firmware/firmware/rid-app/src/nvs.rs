@@ -1,15 +1,12 @@
-//! NVS persistence, port of `nvs_storage.c`. The key/value semantics of the
-//! ESP-IDF NVS are abstracted behind [`NvsStore`], so the exact field/key
-//! handling, defaults, clamping and the reset-preserving-keys logic are
-//! host-testable. The ESP32 NVS implementation of the trait lands with the
-//! hardware phase.
+//! Host-testable NVS persistence. ESP-IDF storage is abstracted behind
+//! [`NvsStore`], including field/key handling, defaults, clamping, and
+//! reset-preserving-keys behavior.
 
 use rid_interface::{MAX_KEY_LEN, NUM_KEYS};
 
 use crate::config::{clamp_region, cstr, BspConfig};
 
-/// Abstract non-volatile key/value store, mirroring the ESP-IDF NVS subset
-/// used by `nvs_storage.c`.
+/// Abstract non-volatile key/value store used by configuration persistence.
 pub trait NvsStore {
     /// Writes the stored string (NUL-terminated, truncated to `out`) and
     /// returns `true`. Returns `false` when the key is absent.

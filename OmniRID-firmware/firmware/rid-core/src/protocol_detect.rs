@@ -1,13 +1,10 @@
-//! Input protocol auto-detection, port of `protocol_detect_auto()` from
-//! `protocol_detect.c`. The UART plumbing (`init`/`reinit`) is hardware and
-//! stays in the BSP; this module only maps a byte buffer to the protocol that
-//! should parse it. Unlike the C, unrecognised bytes classify as `Unknown`
-//! instead of NMEA (issue #48).
+//! Input protocol auto-detection. The UART plumbing (`init`/`reinit`) stays
+//! in the BSP; this module maps a byte buffer to the protocol that should
+//! parse it. Unrecognised bytes classify as `Unknown` (issue #48).
 
 use rid_interface::Protocol;
 
-/// Port of `protocol_detect_auto()`: inspects the bytes read from the UART
-/// and returns the detected protocol.
+/// Inspect bytes read from the UART and return the detected protocol.
 ///
 /// Order of checks:
 /// 1. empty read -> `Unknown`;
@@ -121,9 +118,8 @@ mod tests {
 
     #[test]
     fn garbage_is_unknown() {
-        // Issue #48: unrecognised bytes must NOT be classified as NMEA —
-        // the old C fallback silently fed garbage to the NMEA parser and
-        // starved real MAVLink/MSP streams on AUTO inputs.
+        // Issue #48: unrecognised bytes must NOT be classified as NMEA,
+        // where they would starve real MAVLink/MSP streams on AUTO inputs.
         assert_eq!(detect_protocol(b"hello world"), Protocol::Unknown);
         assert_eq!(detect_protocol(b"\x01\x02\x03"), Protocol::Unknown);
         assert_eq!(detect_protocol(&[0xFE, 20, 0, 0, 0, 0]), Protocol::Unknown);
