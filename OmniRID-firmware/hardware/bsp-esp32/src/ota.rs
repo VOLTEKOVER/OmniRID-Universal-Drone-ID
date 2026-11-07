@@ -55,13 +55,17 @@ pub fn reboot() -> ! {
 /// Schedule a reboot after the current HTTP handler has returned so its
 /// response can be finalized and flushed before the connection is closed.
 pub fn reboot_after_response() {
-    crate::core::spawn_background(b"rid_reboot\0", || unsafe {
-        let deadline = sys::esp_timer_get_time() + 500_000;
-        while sys::esp_timer_get_time() < deadline {
-            sys::vTaskDelay(1);
-        }
-        sys::esp_restart();
-    });
+    crate::core::spawn_background(
+        b"rid_reboot\0",
+        crate::core::CORE_APP,
+        || unsafe {
+            let deadline = sys::esp_timer_get_time() + 500_000;
+            while sys::esp_timer_get_time() < deadline {
+                sys::vTaskDelay(1);
+            }
+            sys::esp_restart();
+        },
+    );
 }
 
 /// Minimal OTA write handle wrapping ESP-IDF OTA APIs.
