@@ -6112,7 +6112,7 @@ OptanonWrapper()
 "nonceInjector":
 {
 "nonce":
-"YjkyZ3I1ZW1zbWhmeWw1bmJicmRua3c5Nnlsa29yd3g\u003D"
+"MWM0MDdpenNjMzZzZ3l6cTd4bTM3OXg0d3p1bnlndHM\u003D"
 }
 }
 }
@@ -6223,7 +6223,7 @@ deps:
 "prolongSession":
 {
 "url":
-"https://store.astm.org/dyxb6q5jxn/common/admin/prolongSession/key/872fe9e217dddf0420c6e3c7afd1a91997209a1a8f3f36f3df7684d48504cb7b/"
+"https://store.astm.org/dyxb6q5jxn/common/admin/prolongSession/key/4b76e36d4e60bf25525029fb3c27c65a8ffdcb8a2ee739929d8c24a19d647145/"
 }
 }
 }
@@ -6624,7 +6624,7 @@ $('#search_mini_form-mobile').submit();
 });
 window.checkout
 =
-{"shoppingCartUrl":"https:\/\/store.astm.org\/checkout\/cart\/","checkoutUrl":"https:\/\/store.astm.org\/checkout\/","updateItemQtyUrl":"https:\/\/store.astm.org\/checkout\/sidebar\/updateItemQty\/","removeItemUrl":"https:\/\/store.astm.org\/checkout\/sidebar\/removeItem\/","imageTemplate":"Magento_Catalog\/product\/image_with_borders","baseUrl":"https:\/\/store.astm.org\/","minicartMaxItemsVisible":5,"websiteId":"1","maxItemsToDisplay":10,"storeId":"1","storeGroupId":"1","customerLoginUrl":"https:\/\/store.astm.org\/customer\/account\/login\/","isRedirectRequired":false,"autocomplete":"off","captcha":{"user_login":{"isCaseSensitive":true,"imageHeight":50,"imageSrc":"","refreshUrl":"https:\/\/store.astm.org\/captcha\/refresh\/","isRequired":false,"timestamp":1793629724}}};
+{"shoppingCartUrl":"https:\/\/store.astm.org\/checkout\/cart\/","checkoutUrl":"https:\/\/store.astm.org\/checkout\/","updateItemQtyUrl":"https:\/\/store.astm.org\/checkout\/sidebar\/updateItemQty\/","removeItemUrl":"https:\/\/store.astm.org\/checkout\/sidebar\/removeItem\/","imageTemplate":"Magento_Catalog\/product\/image_with_borders","baseUrl":"https:\/\/store.astm.org\/","minicartMaxItemsVisible":5,"websiteId":"1","maxItemsToDisplay":10,"storeId":"1","storeGroupId":"1","customerLoginUrl":"https:\/\/store.astm.org\/customer\/account\/login\/","isRedirectRequired":false,"autocomplete":"off","captcha":{"user_login":{"isCaseSensitive":true,"imageHeight":50,"imageSrc":"","refreshUrl":"https:\/\/store.astm.org\/captcha\/refresh\/","isRequired":false,"timestamp":1794235967}}};
 {
 "[data-block='minicart']":
 {
@@ -7105,7 +7105,7 @@ window.authenticationPopup
 }
 }
 /**/
-window.NREUM||(NREUM={});NREUM.info={"beacon":"bam.nr-data.net","licenseKey":"NRJS-a5e224d467572511e0e","applicationID":"538041230","transactionName":"bgBTNUQFD0ADBRFaDldKcAJCDQ5dTQUIQE5XCkMOQxAEHAsIAVYZ","queueTime":0,"applicationTime":1182,"atts":"QkdQQwwfHE4=","errorBeacon":"bam.nr-data.net","agent":""}
+window.NREUM||(NREUM={});NREUM.info={"beacon":"bam.nr-data.net","licenseKey":"NRJS-a5e224d467572511e0e","applicationID":"538041230","transactionName":"bgBTNUQFD0ADBRFaDldKcAJCDQ5dTQUIQE5XCkMOQxAEHAsIAVYZ","queueTime":0,"applicationTime":1090,"atts":"QkdQQwwfHE4=","errorBeacon":"bam.nr-data.net","agent":""}
 window.ga4ParentVsChild
 =
 'parent';
