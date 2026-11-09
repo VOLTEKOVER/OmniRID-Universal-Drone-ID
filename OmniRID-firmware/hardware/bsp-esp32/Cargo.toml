@@ -64,7 +64,7 @@ app = { path = "../../firmware/app" }
 # `st_atime`/`st_mtime`/`st_ctime`, so building std with libc 0.2.191 fails.
 # Pin the last compatible release for ESP-IDF targets.
 [target.'cfg(target_os = "espidf")'.dependencies]
-libc = "=0.2.189"
+libc = "=0.2.191"
 
 # ESP-IDF hardware dependencies (only when the `hardware` feature is active).
 # `default-features = false` keeps `binstart` OUT: the firmware defines its own
