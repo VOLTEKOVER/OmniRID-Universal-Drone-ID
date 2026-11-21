@@ -235,6 +235,7 @@ name = "out-astm"
 version = "0.1.0"
 dependencies = [
  "opendroneid-sys",
+ "remoteid",
  "rid-core",
  "rid-interface",
 ]
@@ -312,6 +313,12 @@ checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "remoteid"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "265f4316fa34247037d01a935a715e49397cbd3a2312dedc2e03e4ba31026d8b"
 
 [[package]]
 name = "rid-app"

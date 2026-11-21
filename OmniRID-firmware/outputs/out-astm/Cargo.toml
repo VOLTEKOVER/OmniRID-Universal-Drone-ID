@@ -9,3 +9,4 @@ license = "MIT"
 rid-core = { path = "../../firmware/rid-core" }
 rid-interface = { path = "../../firmware/rid-interface" }
 opendroneid-sys = { path = "../../external-libs/opendroneid-sys" }
+remoteid = { version = "0.3.2", default-features = false }

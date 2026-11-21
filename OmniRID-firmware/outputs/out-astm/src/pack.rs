@@ -1,14 +1,14 @@
-//! WiFi message-pack assembly, port of `odid_message_build_pack` from
+//! WiFi message-pack assembly, same rules as `odid_message_build_pack` from
 //! `wifi.c`. The per-message encoding is done by the official C library
-//! through `opendroneid-sys`.
+//! through `opendroneid-sys`; the pack itself is built by `remoteid`.
 
 use opendroneid_sys::{
     encode_auth, encode_basic_id, encode_location, encode_operator_id, encode_self_id,
-    encode_system, AuthEncoded, BasicIdEncoded, LocationEncoded, MessageEncoded, OperatorIdEncoded,
-    SelfIdEncoded, SystemEncoded, UasData, ODID_AUTH_MAX_PAGES, ODID_BASIC_ID_MAX_MESSAGES,
-    ODID_MESSAGETYPE_PACKED, ODID_MESSAGE_SIZE, ODID_PACK_MAX_MESSAGES, ODID_PROTOCOL_VERSION,
-    ODID_SUCCESS,
+    encode_system, AuthEncoded, BasicIdEncoded, LocationEncoded, OperatorIdEncoded, SelfIdEncoded,
+    SystemEncoded, UasData, ODID_AUTH_MAX_PAGES, ODID_BASIC_ID_MAX_MESSAGES, ODID_MESSAGE_SIZE,
+    ODID_PACK_MAX_MESSAGES, ODID_SUCCESS,
 };
+use remoteid::MessagePackBuilder;
 
 /// Maximum message-pack size in bytes (3 header bytes + 9 * 25).
 pub const MAX_PACK_LEN: usize = 3 + ODID_PACK_MAX_MESSAGES * ODID_MESSAGE_SIZE;
@@ -29,7 +29,7 @@ pub enum PackError {
 /// OperatorID), a message that fails to encode is skipped, and the pack is
 /// rejected when the count exceeds `ODID_PACK_MAX_MESSAGES`.
 pub fn build_pack(uas: &UasData, buf: &mut [u8]) -> Result<usize, PackError> {
-    let mut msgs = [MessageEncoded([0; ODID_MESSAGE_SIZE]); ODID_PACK_MAX_MESSAGES];
+    let mut pack = MessagePackBuilder::new();
     let mut n = 0usize;
 
     for i in 0..ODID_BASIC_ID_MAX_MESSAGES {
@@ -39,7 +39,7 @@ pub fn build_pack(uas: &UasData, buf: &mut [u8]) -> Result<usize, PackError> {
             }
             let mut enc = BasicIdEncoded([0; ODID_MESSAGE_SIZE]);
             if encode_basic_id(&mut enc, &uas.basic_id[i]) == ODID_SUCCESS {
-                msgs[n] = enc.into();
+                push(&mut pack, &enc.0)?;
                 n += 1;
             }
         }
@@ -51,7 +51,7 @@ pub fn build_pack(uas: &UasData, buf: &mut [u8]) -> Result<usize, PackError> {
         }
         let mut enc = LocationEncoded([0; ODID_MESSAGE_SIZE]);
         if encode_location(&mut enc, &uas.location) == ODID_SUCCESS {
-            msgs[n] = enc.into();
+            push(&mut pack, &enc.0)?;
             n += 1;
         }
     }
@@ -63,7 +63,7 @@ pub fn build_pack(uas: &UasData, buf: &mut [u8]) -> Result<usize, PackError> {
             }
             let mut enc = AuthEncoded([0; ODID_MESSAGE_SIZE]);
             if encode_auth(&mut enc, &uas.auth[i]) == ODID_SUCCESS {
-                msgs[n] = enc.into();
+                push(&mut pack, &enc.0)?;
                 n += 1;
             }
         }
@@ -75,7 +75,7 @@ pub fn build_pack(uas: &UasData, buf: &mut [u8]) -> Result<usize, PackError> {
         }
         let mut enc = SelfIdEncoded([0; ODID_MESSAGE_SIZE]);
         if encode_self_id(&mut enc, &uas.self_id) == ODID_SUCCESS {
-            msgs[n] = enc.into();
+            push(&mut pack, &enc.0)?;
             n += 1;
         }
     }
@@ -86,7 +86,7 @@ pub fn build_pack(uas: &UasData, buf: &mut [u8]) -> Result<usize, PackError> {
         }
         let mut enc = SystemEncoded([0; ODID_MESSAGE_SIZE]);
         if encode_system(&mut enc, &uas.system) == ODID_SUCCESS {
-            msgs[n] = enc.into();
+            push(&mut pack, &enc.0)?;
             n += 1;
         }
     }
@@ -97,7 +97,7 @@ pub fn build_pack(uas: &UasData, buf: &mut [u8]) -> Result<usize, PackError> {
         }
         let mut enc = OperatorIdEncoded([0; ODID_MESSAGE_SIZE]);
         if encode_operator_id(&mut enc, &uas.operator_id) == ODID_SUCCESS {
-            msgs[n] = enc.into();
+            push(&mut pack, &enc.0)?;
             n += 1;
         }
     }
@@ -106,18 +106,16 @@ pub fn build_pack(uas: &UasData, buf: &mut [u8]) -> Result<usize, PackError> {
         return Err(PackError::NoMessages);
     }
 
-    let len = 3 + n * ODID_MESSAGE_SIZE;
-    if len > buf.len() {
+    let bytes = pack.as_bytes();
+    if bytes.len() > buf.len() {
         return Err(PackError::BufferTooSmall);
     }
+    buf[..bytes.len()].copy_from_slice(bytes);
+    Ok(bytes.len())
+}
 
-    buf[0] = ((ODID_MESSAGETYPE_PACKED as u8) << 4) | ODID_PROTOCOL_VERSION;
-    buf[1] = ODID_MESSAGE_SIZE as u8;
-    buf[2] = n as u8;
-    for i in 0..n {
-        buf[3 + i * ODID_MESSAGE_SIZE..3 + (i + 1) * ODID_MESSAGE_SIZE].copy_from_slice(&msgs[i].0);
-    }
-    Ok(len)
+fn push(pack: &mut MessagePackBuilder, raw: &[u8; ODID_MESSAGE_SIZE]) -> Result<(), PackError> {
+    pack.push_raw(raw).map_err(|_| PackError::TooManyMessages)
 }
 
 #[cfg(test)]
@@ -125,7 +123,7 @@ mod tests {
     use super::*;
     use core::ffi::c_char;
     use opendroneid_sys::{
-        decode_message_type, ODID_MESSAGETYPE_BASIC_ID, ODID_MESSAGETYPE_LOCATION,
+        decode_message_type, MessageEncoded, ODID_MESSAGETYPE_BASIC_ID, ODID_MESSAGETYPE_LOCATION,
         ODID_MESSAGETYPE_OPERATOR_ID,
     };
 
@@ -213,6 +211,28 @@ mod tests {
             decode_message_type(buf[3 + 5 * ODID_MESSAGE_SIZE]),
             ODID_MESSAGETYPE_OPERATOR_ID
         );
+    }
+
+    #[test]
+    fn pack_parses_and_decodes_in_pure_rust() {
+        let uas = full_uas();
+        let mut buf = [0u8; MAX_PACK_LEN];
+        let len = build_pack(&uas, &mut buf).unwrap();
+        let pack = remoteid::MessagePack::parse(&buf[..len]).unwrap();
+        assert_eq!(pack.len(), 6);
+        let msgs: [remoteid::Message; 6] =
+            core::array::from_fn(|i| pack.messages().nth(i).unwrap().unwrap());
+        match &msgs[0] {
+            remoteid::Message::BasicId(b) => assert_eq!(b.uas_id_str(), Some("ESP32-RID-001")),
+            m => panic!("expected BasicId, got {m:?}"),
+        }
+        match &msgs[2] {
+            remoteid::Message::Location(l) => {
+                assert_eq!(l.latitude, 45.30405);
+                assert_eq!(l.longitude, 11.95375);
+            }
+            m => panic!("expected Location, got {m:?}"),
+        }
     }
 
     #[test]
